@@ -1,0 +1,79 @@
+Rationalised source file naming structure
+-----------------------------------------
+!MkIDEm.bat      - batch file to build Master ADFS with IDE drivers
+!MkMMCm.bat      - batch file to build Master ADFS with user port MMC drivers
+!MkSCSIm.bat     - batch file to build Master ADFS with SCSI drivers
+
+masIDE.asm       - launch file to assemble Master ADFS with IDE drivers
+masMMC.asm       - launch file to assemble Master ADFS with user port MMC drivers
+masSCSI.asm      - launch file to assemble Master ADFS with SCSI drivers
+
+bbcIDE.asm       - launch file to assemble BBC ADFS with IDE drivers
+bbcMMC.asm       - launch file to assemble BBC ADFS with user port MMC drivers
+bbcSCSI.asm      - launch file to assemble BBC ADFS with SCSI drivers
+
+elkIDE.asm       - launch file to assemble Electron ADFS with IDE drivers
+elkMMC.asm       - launch file to assemble Electron ADFS with user port MMC drivers
+elkSCSI.asm      - launch file to assemble Electron ADFS with SCSI drivers
+The above would be easier if BeebAsm had a '-Dlabel' option
+
+adfs.asm         - Core ADFS source
+MMC_Driver.asm   - ADFS disk command -> MMC command
+MMC.asm          - high level MMC card driver
+MMC_UserPort.asm - low level user port->MMC access
+
+Changes.txt      - this file
+
+adfs.asm, 21-Feb-2016
+---------------------
+Added LARGE_DISK option, for future use for using full 24-bit sector address.
+Added TRIM_REDUNDANT to remove redundant code where possible.
+Optimised *INFO code when TRIM_REDUNDANT=TRUE.
+Removes Break+-> option when TRIM_REDUNDANT=TRUE.
+
+MMC.asm, 20-Feb-2016
+--------------------
+Corrected error numbers. Shouldn't be errors, should be return results.
+
+adfs.asm, 26-Mar-2016
+---------------------
+Added platform-specific define block to generate Electron, BBC, Master ADFS.
+Version number/string generated from code capability.
+Rationalised IF/ENDIF blocks.
+
+MMC_Driver.asm, 27-Mar-2016
+---------------------------
+Code transfer loop checks for failure result from MMC calls.
+
+MMC.asm, 27-Mar-2016
+--------------------
+All routines return ADFS result to caller, don't bomb out with errors.
+Optimised MMC_BEGIN, MMC_INIT, Command/RandomAddress, incAddress.
+Moved some code to remove from JMPs.
+
+MMC_UserPort.asm, 27-Mar-2016
+-----------------------------
+MMC_WriteEnd returns ADFS write error codes.
+
+adfs.asm, 27-Mar-2016
+---------------------
+Chopped out redundant floppy sector range test, redundant *DELETE entry
+if building for Master. Moved some MMC calls to more appropriate places.
+Optimised some inline code into subroutines, used 65C12 code where possible.
+
+adfs.asm, 28-Mar-2016
+---------------------
+Rewritten disk error generation, crunched OSARGS, BGET/BPUT update, CheckOpen.
+Probably the biggest optimisations done. Down to about 180 bytes too long.
+Will start going through Zorn's high-crunch optimisations.
+
+adfs.asm, 08-Apr-2016
+---------------------
+Tail optimised converting disk_addr to side/track/sector.
+
+adfs.asm, 09-Apr-2016
+---------------------
+Tail optimised LoadFSM, RootSector. Merged *CAT/*EX, looped some code, crunched
+BGET return, SetDriveCommand, CheckAddr, SectToCtrl. ADFS-Master-MMC now crunched
+down to exactly 16384 bytes. Need a few more bytes to be able to check for MMC
+presence on Reset to prevent hanging when absent.
