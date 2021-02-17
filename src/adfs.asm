@@ -592,7 +592,7 @@ VERSION=VERBASE + (PRESERVE_CONTEXT AND 1) + (HD_IDE AND 2) + (HD_MMC AND 6) + (
 ; ==========
 ORG &8000
 .L8000		EQUB	&00,&00,&00			; No language entry
-		jmp	L9ACE				; Jump to service handler
+		jmp	ServiceCallHandlerL9ACE		; Jump to service handler
 		EQUB	&82				; Service ROM, 6502 code
 		EQUB	L8017-L8000			; Offset to (C) string
 		EQUB	VERSION AND &FF			; Binary version number
@@ -1090,13 +1090,15 @@ IF TARGETOS > 1		; TODO: not sure this is becessary
 .ErrorEscapeACKReloadFSM		
 		lda	#&7E
 		jsr	OSBYTE				; Acknowledge Escape state
-		jsr	ReloadFSMandDIR_ThenBRK			; Reload FSM and DIR, generate an error
+		jsr	ReloadFSMandDIR_ThenBRK		; Reload FSM and DIR, generate an error		
 ELSE
-.ErrorEscapeACKInvalidReloadFSM		
+.ErrorEscapeACKInvalidReloadFSM	
+IF TARGETOS<>0 OR NOT(HD_SCSI)
 		lda	#&7E
 		jsr	OSBYTE				; Acknowledge Escape state
+ENDIF
 		jsr	InvalidateFSMandDIR		; Invalidate FSM and DIR in memory
-		jsr	ReloadFSMandDIR_ThenBRK			; Reload FSM and DIR, generate an error		
+		jsr	ReloadFSMandDIR_ThenBRK			; Reload FSM and DIR, generate an error
 ENDIF
 		EQUB	&11				; ERR=17
 		EQUS	"Escape"			; REPORT="Escape"
@@ -1505,15 +1507,15 @@ ENDIF
 ; Insert decimal number into error block
 ; --------------------------------------
 .L846D		bit	L8483				; Set V
-		ldx	#&64
+		ldx	#100				; 100's
 		jsr	L847D
-		ldx	#&0A
+		ldx	#10				; 10's
 		jsr	L847D
 		clv
-		ldx	#&01
+		ldx	#1				; units
 .L847D		php
 		stx	&B3
-		ldx	#&2F
+		ldx	#'0'-1
 		sec
 .L8483		inx
 		sbc	&B3
@@ -1940,11 +1942,11 @@ ENDIF
 		sty	WKSP_ADFS_2C0
 .L8743		lda	(&B4),Y
 		and	#&7F
-		cmp	#&2E				; dot
+		cmp	#'.'				; dot
 		beq	L8753
-		cmp	#&22				; quote
+		cmp	#'"'				; quote
 		beq	L8753
-		cmp	#&20				; space
+		cmp	#' '				; space
 		bcs	L8755
 .L8753		ldx	#&00
 .L8755		rts
@@ -2765,7 +2767,7 @@ IF HD_IDE AND TARGETOS >= 1				; TODO: Ask JGH why different for Elk, IDE, SCSI?
 ELSE
 		jsr	TubeDelay2			; Pause a bit
 ENDIF
-IF TARGETOS = 0
+IF TARGETOS = 0 AND NOT(HD_SCSI)
 		sbc	$EDED				; TODO: Reinstate tube code for AP5?
 ELSE
 		sta	TUBEIO				; Send to Tube
@@ -2813,7 +2815,7 @@ ENDIF
 		bne	L8BDE				; No, skip past
 .L8BDB		jmp	L8760				; Jump to give 'Bad name'
 ;;
-.L8BDE		cmp	#&40				; Is it '@' - current directory
+.L8BDE		cmp	#'@'				; Is it '@' - current directory
 		beq	L8BDB				; Jump to give 'Bad name'
 .L8BE2		jsr	ReloadFSMandDIR_ThenBRK				; Otherwise, give 'Not found'
 		EQUB	&D6				; ERR=210
@@ -3029,6 +3031,10 @@ ENDIF
 		cmp	#&22
 		beq	L8D0F				; quote, end of filename
 		iny					; Step to next character
+	IF HD_SCSI AND TARGETOS=0
+		cpy	#$0A				; TODO: work out why!
+	ENDIF
+
 		bne	L8CFB				; Check next character
 .L8D0F		lda	#&11
 		rts
@@ -3104,32 +3110,32 @@ ENDIF
 .L8D79		ldy	#&00
 		jsr	L8743
 		bne	L8D85
-		cmp	#&2E				; '.'
+		cmp	#'.'				; '.'
 		beq	L8DE6
 		rts
 ;;
-.L8D85		cmp	#&3A
+.L8D85		cmp	#':'
 		bne	L8D98
 		iny
 .L8D8A		iny
 		jsr	L8743
 		bne	L8DE6
-		cmp	#&2E				; '.' - directory seperator
+		cmp	#'.'				; '.' - directory seperator
 		bne	L8DE0
 		iny
 		jsr	L8DE1
 .L8D98		and	#&FD
-		cmp	#&24				; '$' - root
+		cmp	#'$'				; '$' - root
 		beq	L8D8A
 .L8D9E		jsr	L8DE1
-		cmp	#&5E				; '^' - parent
+		cmp	#'^'				; '^' - parent
 		beq	L8DA9
-		cmp	#&40				; '@' - current directory
+		cmp	#'@'				; '@' - current directory
 		bne	L8DB6
 .L8DA9		iny
 		jsr	L8743
 		bne	L8DE6
-.L8DAF		cmp	#&2E				; '.'
+.L8DAF		cmp	#'.'				; '.'
 		bne	L8DE0
 		iny
 IF USE65C12
@@ -3140,21 +3146,35 @@ ENDIF
 ;;
 .L8DB6		jsr	L8743
 		beq	L8DAF
+	IF TARGETOS = 0 AND HD_SCSI
+		cmp	#&7F
+		beq	L8DE6
+		cmp	#'^'
+		beq	L8DE6
+		cmp	#'@'
+		beq	L8DE6
+		cmp	#':'
+		beq	L8DE6
+		and	#&FD
+		cmp	#'$'
+		beq	L8DE6
+	ELSE
 		ldx	#&05
 .L8DBD		cmp	L8DF8,X
 		beq	L8DE6
 		dex
 		bpl	L8DBD
+	ENDIF
 		iny
 		bne	L8DB6
 .L8DC8		jsr	L8D79
 .L8DCB		lda	(&B4),Y				; Get character
 		and	#&7F
-		cmp	#&2A				; '*' - wildcard
+		cmp	#'*'				; '*' - wildcard
 		beq	L8DE9
-		cmp	#&23				; '#' - wildcard
+		cmp	#'#'				; '#' - wildcard
 		beq	L8DE9
-		cmp	#&2E				; '.' - directory seperator
+		cmp	#'.'				; '.' - directory seperator
 		beq	L8DE0
 		dey
 		cpy	#&FF
@@ -3169,9 +3189,9 @@ ENDIF
 		EQUB	&FD				; ERR=253
 		EQUS	"Wild cards"
 		EQUB	&00
-;;
+IF TARGETOS<>0 OR HD_SCSI = 0
 .L8DF8		EQUS	&7F, "^@:$&"			; Directory characters
-;;
+ENDIF
 .L8DFE		jsr	L8CF4
 .L8E01		bne	L8E24
 .L8E03		ldx	#&02
@@ -3238,9 +3258,9 @@ ENDIF
 .L8E7A		ldy	#&09
 .L8E7C		lda	(&B4),Y				; Get character
 		and	#&7F
-		cmp	#&21
+		cmp	#'!'
 		bcc	L8E88				; SPC or CTRL, end of string
-		cmp	#&22
+		cmp	#'"'
 		bne	L8E8A				; QUOTE, end of string
 .L8E88		lda	#&0D
 .L8E8A		cpy	#&02
@@ -3436,7 +3456,11 @@ ENDIF
 		jsr	LB5C5				; X=(A DIV 16)
 		lda	WKSP_ADFS_100_FSM_S1 + &FC
 		sta	WKSP_ADFS_322,X
+IF TARGETOS=0 AND HD_SCSI
+		lda	&0295				; TODO: should this be all elks?
+ELSE
 		lda	&FE44				; System VIA Latch Lo
+ENDIF
 		sta	WKSP_ADFS_321,X
 		sta	WKSP_ADFS_100_FSM_S1 + &FB
 		jsr	L9065				; Calculate FSM checksums
@@ -3485,7 +3509,7 @@ ENDIF
 ;; Check Free Space Map consistancy
 ;; ================================
 .L8FF3
-IF TARGETOS = 0						; TODO: ASK JGH - this looks like debugging stuff left in?
+IF TARGETOS = 0	AND NOT(HD_SCSI)			; TODO: ASK JGH - this looks like debugging stuff left in?
 		rts
 		EQUB	&09, &90
 ELSE
@@ -4572,9 +4596,9 @@ ENDIF
 		ldx	#&00
 .L9614		lda	(&B4),Y				; Copy directory name into new directory
 		and	#&7F
-		cmp	#&22
+		cmp	#'"'
 		beq	L9620
-		cmp	#&21
+		cmp	#'!'
 		bcs	L9622
 .L9620		lda	#&0D
 .L9622		sta	WKSP_ADFS_D00_RND_BUFFER + &D9,X
@@ -5510,7 +5534,7 @@ ENDIF
 ;; SERVICE CALL HANDLER
 ;; ====================
 ;;
-.L9ACE
+.ServiceCallHandlerL9ACE
 
 IF TARGETOS > 1
 		bit	&0DF0,X				; Check ROM w/s byte
@@ -5546,7 +5570,13 @@ ENDIF
 ;; workspace somewhere in &40xx-&BFxx, then the ROM is disabled.
 ;;
 .L9AD8		cmp	#&12				; Select filing system?
+IF TARGETOS = 0 AND HD_SCSI
+		bne	_elkL9AC4
+		jmp	L9B4C
+._elkL9AC4
+ELSE
 		beq	L9B4C				; Jump to check FS
+ENDIF
 		cmp	#&0A				; Service call 10 or higher?
 IF TARGETOS > 1
 		bcs	L9AED				; Jump forward with higher calls
@@ -5677,11 +5707,25 @@ IF TARGETOS > 1
 ENDIF
 .L9B38		jsr	StoreWkspChecksumBA_Y		; Set workspace checksum
 ._lbbc9B10
-;;
-.L9B3B		jsr	CheckWkspChecksum		; Check workspace checksum
+
+.L9B3B
+IF TARGETOS = 0 AND HD_SCSI
+		jsr	CalcWkspChecksum
+ELSE
+		jsr	CheckWkspChecksum		; Check workspace checksum
+ENDIF
 ;;
 
 IF TARGETOS <= 1
+IF TARGETOS = 0 AND HD_SCSI
+		cmp     ($BA),y                         ; 9B19 D1 BA                    ..
+        	beq     _elkL9B23                       ; 9B1B F0 06                    ..
+        	tya                                     ; 9B1D 98                       .
+        	sta     $0DF0,x                         ; 9B1E 9D F0 0D                 ...
+        	bne     _elkL9B40                       ; 9B21 D0 1D                    ..
+._elkL9B23:  	
+ENDIF
+
 		iny					; 9B13 C8                       .
 		lda	($BA),y				; 9B14 B1 BA                    ..
 		cmp	#$FF				; 9B16 C9 FF                    ..
@@ -5697,7 +5741,10 @@ IF TARGETOS <= 1
 		lda	#$8A				; 9B29 A9 8A                    ..
 		ldy	#$CA				; 9B2B A0 CA                    ..
 		jsr	OSBYTE
-ENDIF
+._elkL9B40
+
+
+ENDIF	; TARGETOS = 0
 
 IF USE65C12
 		ply					; Get pointer back
@@ -6537,6 +6584,7 @@ ENDIF
 		EQUB	<L9FDD
 		EQUB	<L9FE7
 		EQUB	<L9FF4
+
 ;;
 ;;
 ;; FSC - Filing System Control
@@ -6706,7 +6754,7 @@ ENDIF
 ; The next set of strings must not straddle a page boundary because
 ; code indexes into it with the MSB constant. See code at L9283
 IF (P% AND &FF) > (256-&4B)
-;		print	"***WARNING: Help string table runs over page boundary"
+		print	"***WARNING: Help string table runs over page boundary"
 ;		ORG	(P% AND &FF00)+256
 ENDIF
 .L9FB1		EQUS	"<List Spec>"
@@ -6868,41 +6916,10 @@ ENDIF
 		jsr	L92A8
 		EQUS	"Used", &8D
 .LA091		rts
-.starMAP		jsr	L92A8
-		EQUS	"Address :  Length", &8D
-		ldx	#&00
-.LA0A9		cpx	WKSP_ADFS_100_FSM_S1 + &FE
-		beq	LA091
-		inx
-		inx
-		inx
-		stx	&C6
-		ldy	#&02
-.LA0B5		dex
-		lda	WKSP_ADFS_000_FSM_S0,X
-		jsr	L9322
-		dey
-		bpl	LA0B5
-		jsr	L92A8
-		EQUS	"  : ", &A0
-		ldx	&C6
-		ldy	#&02
-.LA0CB		dex
-		lda	WKSP_ADFS_100_FSM_S1,X
-		jsr	L9322
-		dey
-		bpl	LA0CB
-IF TARGETOS > 1
-		jsr	LA03A
-ELSE
-		jsr	OSNEWL
-ENDIF
-		ldx	&C6
-IF USE65C12
-		bra	LA0A9
-ELSE
-		bne	LA0A9
-ENDIF
+
+IF TARGETOS > 0 OR HD_SCSI = 0
+	include "starmap.asm"
+ENDIF ; NOT ELK SCSI
 
 ;;
 ;; FSC 8 - OSCLI being processed
@@ -6920,6 +6937,12 @@ ENDIF
 		jsr	L92A8				; Print message
 		EQUB	"Compaction recommended", &8D
 .LA102		rts
+
+IF TARGETOS = 0 AND HD_SCSI
+	include "starmap.asm"
+ENDIF ; NOT ELK SCSI
+
+
 
 ;;TODO: put this back for SCSI2
 IF TARGETOS <= 1 AND NOT(HD_SCSI2)
@@ -6943,21 +6966,7 @@ IF HD_MMC
 		beq	LA102				; No drive selected
 		jmp	starCLOSE				; Do CLOSE#0
 ELSE
-IF TARGETOS <> 0
-		lda	WKSP_ADFS_317_CURDRV			; Get current drive
-		pha					; Save current drive
-		tax
-		inx
-		beq	LA10E				; No drive selected
-		jsr	starCLOSE				; Do CLOSE#0
-.LA10E		lda	#&60
-		sta	WKSP_ADFS_317_CURDRV			; Set drive to 3
-.LA113		ldx	#<LA12A
-		ldy	#>LA12A				; Point to control block
-		jsr	CommandExecXY				; Do command &1B - park heads
-		lda	WKSP_ADFS_317_CURDRV			; Get current drive
-		sec
-ELSE
+IF TARGETOS = 0 AND HD_IDE <> 0
 		rts                                     ; A0C3 60                       `
 
 ; ----------------------------------------------------------------------------
@@ -6968,6 +6977,7 @@ ELSE
         	eor     #$08                            ; A0CC 49 08                    I.
 .lelkA0CE  	beq     _lelkA0D5                           ; A0CE F0 05                    ..
         	lda     #$60                            ; A0D0 A9 60                    .`
+
         	jmp	CommandExit
 ._lelkA0D5  	jmp     CommandOk                     	; A0D5 4C 1B 81                 L..
 
@@ -6978,7 +6988,27 @@ LA113 = _lelkA0D5 - 2					; TODO ASK JGH - this can't be right?
         	jmp     SetCommand                     	; A0D9 4C 2F 82                 L/.
 
 ; ----------------------------------------------------------------------------
-        ora     ($38),y                         ; A0DC 11 38
+        	ora     ($38),y                         ; A0DC 11 38
+ELSE
+
+		lda	WKSP_ADFS_317_CURDRV			; Get current drive
+		pha					; Save current drive
+IF TARGETOS=0 AND HD_SCSI
+		jsr	starCLOSE
+
+ELSE
+		tax
+		inx
+		beq	LA10E				; No drive selected
+		jsr	starCLOSE				; Do CLOSE#0
+ENDIF
+.LA10E		lda	#&60
+		sta	WKSP_ADFS_317_CURDRV			; Set drive to 3
+.LA113		ldx	#<LA12A
+		ldy	#>LA12A				; Point to control block
+		jsr	CommandExecXY				; Do command &1B - park heads
+		lda	WKSP_ADFS_317_CURDRV			; Get current drive
+		sec
 ENDIF ; TARGETOS = 0
 		sbc	#&20				; Step back one
 		sta	WKSP_ADFS_317_CURDRV
@@ -7617,9 +7647,18 @@ ELSE
 ENDIF
 		ldy	#&00				; Caller may need this
 		lda	(&B4),Y				; Get first character
+IF TARGETOS = 0 AND HD_SCSI
+		and	#&7F
+		cmp	#'$'				; Is it '$' or '&'
+		beq	LA53E				; If ROOT or URD, jump to 'Bad rename'
+		cmp	#'&'				; Is it '$' or '&'
+		beq	LA53E				; If ROOT or URD, jump to 'Bad rename'
+		ldy	#0
+ELSE
 		and	#&7D
 		cmp	#'$'				; Is it '$' or '&'
 		beq	LA53E				; If ROOT or URD, jump to 'Bad rename'
+ENDIF
 .LA570		jsr	L8743
 		beq	LA57C
 		cmp	#'^'
@@ -7639,8 +7678,11 @@ ELSE
 		jsr	PointToCtrl			; &B8/9=>&C240, control block in workspace
 ENDIF
 		jsr	L8CED
+IF TARGETOS>0 OR NOT(HD_SCSI)
 		php
+ENDIF
 		jsr	L8E01				; Check
+IF TARGETOS>0 OR NOT(HD_SCSI)
 		plp
 		bne	LA5A5
 		lda	&B6
@@ -7649,7 +7691,9 @@ ENDIF
 		lda	WKSP_ADFS_313,Y
 		dey
 		bpl	LA59C
-.LA5A5		lda	WKSP_ADFS_22E
+.LA5A5
+ENDIF
+		lda	WKSP_ADFS_22E
 		bpl	LA5B5
 		ldy	#&02
 .LA5AC		lda	WKSP_ADFS_314,Y
@@ -7678,6 +7722,16 @@ ELSE
 ENDIF
 		jsr	L8FE8
 		jsr	L8D1B
+IF TARGETOS=0 AND HD_SCSI
+        	ldy     #$18                            ; A58D A0 18                    ..
+        	ldx     #$02                            ; A58F A2 02                    ..
+.elkLA591  	lda     ($B6),y                         ; A591 B1 B6                    ..
+        	cmp     $1034,x                         ; A593 DD 34 10                 .4.
+        	bne     LA625                           ; A596 D0 56                    .V
+        	dey                                     ; A598 88                       .
+        	dex                                     ; A599 CA                       .
+        	bpl     elkLA591                        ; A59A 10 F5                    ..
+ELSE
 		ldy	#&03
 		lda	&B6
 .LA5CA		cmp	WKSP_ADFS_234,Y
@@ -7685,6 +7739,7 @@ ENDIF
 		lda	WKSP_ADFS_313,Y
 		dey
 		bpl	LA5CA
+ENDIF
 		pla
 		sta	&B5
 		pla
@@ -7694,7 +7749,12 @@ ENDIF
 .LA5E0		lda	(&B4),Y
 		cmp	#&2E
 		beq	LA5EF
+IF TARGETOS=0 AND HD_SCSI
+		cmp	#&22
+		beq	LA5FA
+ELSE
 		and	#&7D
+ENDIF
 		cmp	#&21
 		bcc	LA5FA
 		iny
@@ -7710,7 +7770,13 @@ ENDIF
 		bcc	LA5DE
 		inc	&B5
 		bne	LA5DE
-.LA5FA		ldy	#&09
+.LA5FA		
+IF TARGETOS=0 AND HD_SCSI
+		ldy	#0
+		ldx	#09
+ELSE
+		ldy	#&09
+ENDIF
 .LA5FC		lda	(&B6),Y
 		and	#&80
 		sta	WKSP_ADFS_22B
@@ -7723,16 +7789,27 @@ ENDIF
 .LA60F		lda	#&0D
 .LA611		ora	WKSP_ADFS_22B
 		sta	(&B6),Y
+IF TARGETOS=0 AND HD_SCSI
+		iny
+		dex
+ELSE
 		dey
+ENDIF
 		bpl	LA5FC
 		jsr	L8F91
 		jsr	LA6BB
 		jmp	L89D8
+
+IF TARGETOS>0 OR NOT(HD_SCSI)
 ;;
 .LA622		jmp	L95AB				; Error 'Already exists'
 ;;
 .LA625		lda	WKSP_ADFS_237
 		bne	LA622				; <>&00, jump to 'Already exists'
+ELSE
+.LA625
+ENDIF
+
 		ldy	#&09				; What uses access bit 9?
 IF OPTIMISE<2
 		lda	(&B6),Y				; Set attribute bit
@@ -7870,6 +7947,9 @@ ENDIF
 ;;
 .LA714		jsr	CheckDirLoaded			; Check if directory loaded
 		ldx	#&00				; Point to first character to check
+IF TARGETOS=0 AND HD_SCSI
+		ldy	#&04
+ENDIF
 		lda	WKSP_ADFS_800_DIR_BUFFER + &FA	; Get initial character
 .LA71C		cmp	WKSP_ADFS_400_DIR_BUFFER,X	; Check "Hugo" string at start of dir
 		bne	LA72F				; Jump to give broken dir error
@@ -7877,8 +7957,13 @@ ENDIF
 		bne	LA72F				; Jump to give broken dir error
 		inx					; Move to next char
 		lda	L84DC,X				; Get byte from "Hugo" string
+IF TARGETOS=0 AND HD_SCSI
+		dey
+		bpl	LA71C
+ELSE
 		cpx	#&05
 		bne	LA71C				; Loop for 4 characters
+ENDIF
 .LA72Erts	rts
 ;;
 .LA72F		jsr	L834E				; Generate error
@@ -8064,12 +8149,22 @@ ELSE
 		bpl	LA7EE
 ENDIF
 IF OPTIMISE<6
+IF TARGETOS=0 AND HD_SCSI
+		ldy	#&0A
+.LA802		lda	L883C,Y			; Copy 'load $' control block
+		sta	WKSP_ADFS_214+1,Y
+		dey
+		bpl	LA802
+		ldx	#&00
+ELSE
 		ldx	#&0B
 .LA802		lda	L883C-1,X			; Copy 'load $' control block
 		sta	WKSP_ADFS_214,X
 		dex
 		bne	LA802
+ENDIF
 		ldy	#&03
+
 ELSE
 		jsr	RootControl			; Copy 'load $' control block
 ENDIF
@@ -8097,11 +8192,21 @@ ENDIF
 
 .LA821
 IF OPTIMISE<6
+IF TARGETOS=0 AND HD_SCSI
+		ldy	#&0A
+.LA823		lda	L883C,Y				; Copy 'load $' control block
+		sta	WKSP_ADFS_214+1,Y
+		dey
+		bpl	LA823
+		ldx	#&00
+ELSE
 		ldx	#&0B
 .LA823		lda	L883C-1,X			; Copy 'load $' control block
 		sta	WKSP_ADFS_214,X
 		dex
 		bne	LA823
+ENDIF
+
 		ldy	#&03
 ELSE
 		jsr	RootControl			; Copy 'load $' control block
@@ -8308,16 +8413,26 @@ IF TARGETOS > 1
 ELSE
 
 .FSC6_NEWFS
+IF TARGETOS<>0 OR NOT(HD_SCSI)
 		jsr	GetWkspAddr_BA			; A93C 20 0E A7                  ..
 		ldy	#&FF				; A93F A0 FF                    ..
 		sta	(&BA),y				; A941 91 BA                    ..
+ENDIF
 		ldx	WKSP_ADFS_317_CURDRV			; A943 AE 17 11                 ...
 		inx					; A946 E8                       .
 		beq	_lbbcA95E			; A947 F0 15                    ..
 		lda	#OSBYTE_77_CLOSE		; A949 A9 77                    .w
 		jsr	OSBYTE				; A94B 20 F4 FF                  ..
 		jsr	L89D8				; A94E 20 D3 89                  ..
+IF TARGETOS=0 AND HD_SCSI
+		jsr	GetWkspAddr_BA
 		ldy	#&FF				; A951 A0 FF                    ..
+		lda	#0
+		sta	(&BA),y	
+ELSE
+		ldy	#&FF				; A951 A0 FF                    ..
+
+ENDIF
 		tya					; A953 98                       .
 		iny					; A954 C8                       .
 .my_OSARGS
@@ -8877,7 +8992,10 @@ ENDIF
 .LAD5A		ldx	#&00
 		bcs	LAD5F
 		dex
-.LAD5F		ldy	&B5
+.LAD5F		
+IF TARGETOS<>0 OR NOT(HD_SCSI)
+		ldy	&B5
+ENDIF
 		rts
 ;;
 .brkEOFandReloadFSM		
@@ -10425,7 +10543,7 @@ ENDIF
 .LB8A5		bit	ZP_ADFS_FLAGS
 		bvc	LB8AD
 IF HD_IDE
-IF TARGETOS = 0
+IF TARGETOS = 0 AND NOT(HD_SCSI)
 		sbc	$EDED				; TODO: Reinstate?
 ELSE
 		jsr	TubeStore			; Longer delay
@@ -10670,14 +10788,14 @@ ENDIF
 .LBA2F		jsr	TubeDelay2
 		bcc	LBA3B
 		lda	(&BE),Y
-IF TARGETOS > 0						; TODO: reinstate
+IF TARGETOS > 0 OR HD_SCSI				; TODO: reinstate
 		sta	TUBEIO
 ELSE
 		sbc	&EDED
 ENDIF
 		bcs	LBA40
 .LBA3B
-IF TARGETOS > 0						; TODO: reinstate
+IF TARGETOS > 0	OR HD_SCSI				; TODO: reinstate
 		lda	TUBEIO
 ELSE
 		sbc	&EDED				
@@ -10698,7 +10816,9 @@ IF FLOPPY
 
 ;; Pass SCSI command to floppy controller
 ;; --------------------------------------
-IF TARGETOS <= 1
+IF TARGETOS = 0 AND HD_SCSI
+		brk
+ELIF TARGETOS <= 1
 		EQUB	&2E
 		EQUB	&0D
 ENDIF
@@ -10728,6 +10848,211 @@ IF TARGETOS <= 1
 		clc					
 ENDIF
 .LBA5Crts	rts
+
+IF TARGETOS=0 AND HD_SCSI
+
+.elkLBA26  sta     $FCC4                           ; BA26 8D C4 FC                 ...
+        ldy     #$09                            ; BA29 A0 09                    ..
+.elkLBA2B  dey                                     ; BA2B 88                       .
+        bne     elkLBA2B                           ; BA2C D0 FD                    ..
+        txa                                     ; BA2E 8A                       .
+        beq     elkLBA7A                           ; BA2F F0 49                    .I
+        bit     $A1                             ; BA31 24 A1                    $.
+        bmi     elkLBA52                           ; BA33 30 1D                    0.
+        jmp     (&0D10)                         ; BA35 6C 10 0D                 l..
+
+; ----------------------------------------------------------------------------
+.elkLBA38  lda     $FCC4                           ; BA38 AD C4 FC                 ...
+        ror     a                               ; BA3B 6A                       j
+        bcc     elkLBA4A                           ; BA3C 90 0C                    ..
+        ror     a                               ; BA3E 6A                       j
+        bcc     elkLBA38                           ; BA3F 90 F7                    ..
+        stx     $FCC7                           ; BA41 8E C7 FC                 ...
+        iny                                     ; BA44 C8                       .
+        beq     elkLBA38                           ; BA45 F0 F1                    ..
+        jmp     (&0D10)                         ; BA47 6C 10 0D                 l..
+
+; ----------------------------------------------------------------------------
+.elkLBA4A  asl     a                               ; BA4A 0A                       .
+        and     $0D15                           ; BA4B 2D 15 0D                 -..
+        beq     elkLBA95                           ; BA4E F0 45                    .E
+        bne     elkLBA88                           ; BA50 D0 36                    .6
+.elkLBA52  lda     $FCC4                           ; BA52 AD C4 FC                 ...
+        ror     a                               ; BA55 6A                       j
+        bcc     elkLBA4A                           ; BA56 90 F2                    ..
+        ror     a                               ; BA58 6A                       j
+        bcc     elkLBA52                           ; BA59 90 F7                    ..
+        lda     $FCC7                           ; BA5B AD C7 FC                 ...
+        jmp     (&0D10)                         ; BA5E 6C 10 0D                 l..
+
+; ----------------------------------------------------------------------------
+        lda     $FCE5                           ; BA61 AD E5 FC                 ...
+        tax                                     ; BA64 AA                       .
+        jmp     elkLBA38                           ; BA65 4C 38 BA                 L8.
+
+; ----------------------------------------------------------------------------
+        sta     $FCE5                           ; BA68 8D E5 FC                 ...
+        jmp     elkLBA52                           ; BA6B 4C 52 BA                 LR.
+
+; ----------------------------------------------------------------------------
+        sta     ($CE),y                         ; BA6E 91 CE                    ..
+        iny                                     ; BA70 C8                       .
+        jmp     elkLBA52                           ; BA71 4C 52 BA                 LR.
+
+; ----------------------------------------------------------------------------
+        lda     ($CE),y                         ; BA74 B1 CE                    ..
+        tax                                     ; BA76 AA                       .
+        jmp     elkLBA38                           ; BA77 4C 38 BA                 L8.
+
+; ----------------------------------------------------------------------------
+.elkLBA7A  lda     $FCC4                           ; BA7A AD C4 FC                 ...
+        ror     a                               ; BA7D 6A                       j
+        bcs     elkLBA7A                           ; BA7E B0 FA                    ..
+        rol     a                               ; BA80 2A                       *
+        and     &0D15                           ; BA81 2D 15 0D                 -..
+        and     #$FB                            ; BA84 29 FB                    ).
+        beq     elkLBA97                           ; BA86 F0 0F                    ..
+.elkLBA88  sta     $A0                             ; BA88 85 A0                    ..
+        ror     $A1                             ; BA8A 66 A1                    f.
+        sec                                     ; BA8C 38                       8
+        rol     $A1                             ; BA8D 26 A1                    &.
+.elkLBA8F  ror     $A2                             ; BA8F 66 A2                    f.
+        sec                                     ; BA91 38                       8
+        rol     $A2                             ; BA92 26 A2                    &.
+        rts                                     ; BA94 60                       `
+
+; ----------------------------------------------------------------------------
+.elkLBA95  inc     $CF                             ; BA95 E6 CF                    ..
+.elkLBA97  lda     $0D5D                           ; BA97 AD 5D 0D                 .].
+        and     #$10                            ; BA9A 29 10                    ).
+        beq     elkLBAAE                           ; BA9C F0 10                    ..
+        bit     $FF                             ; BA9E 24 FF                    $.
+        bpl     elkLBAAE                          ; BAA0 10 0C                    ..
+        lda     #$00                            ; BAA2 A9 00                    ..
+        sta     $FCC0                           ; BAA4 8D C0 FC                 ...
+        lda     #$6F                            ; BAA7 A9 6F                    .o
+        sta     $A0                             ; BAA9 85 A0                    ..
+        jmp     FloppyErrorA0or2E3                           ; BAAB 4C AE BF                 L..
+
+; ----------------------------------------------------------------------------
+.elkLBAAE  
+	bit     $A2                             ; BAAE 24 A2                    $.
+        bvc     elkLBA8F                           ; BAB0 50 DD                    P.
+        jsr     LBE77                          ; BAB2 20 7F BE                  ..
+        rts                                     ; BAB5 60                       `
+
+; ----------------------------------------------------------------------------
+.FloppyWaitNMIFinish2elk
+.elkLBAB6  ldx     #$00                            ; BAB6 A2 00                    ..
+        beq     elkLBABC                           ; BAB8 F0 02                    ..
+.FloppyWaitNMIFinish
+.elkLBABA  ldx     #$FF                            ; BABA A2 FF                    ..
+.elkLBABC  jsr     elkLBA26                           ; BABC 20 26 BA                  &.
+        lda     $A2                             ; BABF A5 A2                    ..
+        ror     a                               ; BAC1 6A                       j
+        lda     $A6                             ; BAC2 A5 A6                    ..
+        bcc     elkLBABA                           ; BAC4 90 F4                    ..
+        rts                                     ; BAC6 60                       `
+
+; ----------------------------------------------------------------------------
+.CopyCodeToNMISpace2Elk
+.elkLBAC7  bit     $CD                             ; BAC7 24 CD                    $.
+        bvc     elkLBAF4                           ; BAC9 50 29                    P)
+        lda     $A1                             ; BACB A5 A1                    ..
+        and     #$FD                            ; BACD 29 FD                    ).
+        sta     $A1                             ; BACF 85 A1                    ..
+        rol     a                               ; BAD1 2A                       *
+        lda     #$00                            ; BAD2 A9 00                    ..
+        rol     a                               ; BAD4 2A                       *
+        ldy     #$10                            ; BAD5 A0 10                    ..
+        ldx     #$27                            ; BAD7 A2 27                    .'
+        jsr     &0406                           ; BAD9 20 06 04                  ..
+        lda     $A1                             ; BADC A5 A1                    ..
+        and     #$10                            ; BADE 29 10                    ).
+        beq     elkLBB1F                           ; BAE0 F0 3D                    .=
+        bit     $A1                             ; BAE2 24 A1                    $.
+        bmi     elkLBAED                           ; BAE4 30 07                    0.
+        ldx     #$61                            ; BAE6 A2 61                    .a
+        ldy     #$BA                            ; BAE8 A0 BA                    ..
+        jmp     elkLBB03                           ; BAEA 4C 03 BB                 L..
+
+; ----------------------------------------------------------------------------
+.elkLBAED  ldx     #$68                            ; BAED A2 68                    .h
+        ldy     #$BA                            ; BAEF A0 BA                    ..
+        jmp     elkLBB03                           ; BAF1 4C 03 BB                 L..
+
+; ----------------------------------------------------------------------------
+.elkLBAF4  bit     $A1                             ; BAF4 24 A1                    $.
+        bmi    elkLBAFF                           ; BAF6 30 07                    0.
+        ldx     #$74                            ; BAF8 A2 74                    .t
+        ldy     #$BA                            ; BAFA A0 BA                    ..
+        jmp     elkLBB03                           ; BAFC 4C 03 BB                 L..
+
+; ----------------------------------------------------------------------------
+.elkLBAFF  ldx     #$6E                            ; BAFF A2 6E                    .n
+        ldy     #$BA                            ; BB01 A0 BA                    ..
+.elkLBB03  stx     &0D10                           ; BB03 8E 10 0D                 ...
+        sty     $0D11                           ; BB06 8C 11 0D                 ...
+        ldy     #$01                            ; BB09 A0 01                    ..
+        lda     ($B0),y                         ; BB0B B1 B0                    ..
+        sta     $CE                             ; BB0D 85 CE                    ..
+        iny                                     ; BB0F C8                       .
+        lda     ($B0),y                         ; BB10 B1 B0                    ..
+        sta     $CF                             ; BB12 85 CF                    ..
+        ldx     #$1C                            ; BB14 A2 1C                    ..
+        bit     $A1                             ; BB16 24 A1                    $.
+        bmi     elkLBB1C                           ; BB18 30 02                    0.
+        ldx     #$5C                            ; BB1A A2 5C                    .\
+.elkLBB1C  stx     $0D15                           ; BB1C 8E 15 0D                 ...
+.elkLBB1F  rts                                     ; BB1F 60                       `
+
+; ----------------------------------------------------------------------------
+.elkLBB20  php                                     ; BB20 08                       .
+        pla                                     ; BB21 68                       h
+        sta     $0D16                           ; BB22 8D 16 0D                 ...
+        sei                                     ; BB25 78                       x
+        lda     $CE                             ; BB26 A5 CE                    ..
+        sta     $0D13                           ; BB28 8D 13 0D                 ...
+        lda     $CF                             ; BB2B A5 CF                    ..
+        sta     $0D14                           ; BB2D 8D 14 0D                 ...
+        ldx     #$01                            ; BB30 A2 01                    ..
+        lda     #$73                            ; BB32 A9 73                    .s
+        jsr     &FFF4                           ; BB34 20 F4 FF                  ..
+        ldx     #$00                            ; BB37 A2 00                    ..
+        ldy     #$FF                            ; BB39 A0 FF                    ..
+        lda     #$F2                            ; BB3B A9 F2                    ..
+        jsr     &FFF4                           ; BB3D 20 F4 FF                  ..
+        txa                                     ; BB40 8A                       .
+        sta     $0D12                           ; BB41 8D 12 0D                 ...
+        and     #$F9                            ; BB44 29 F9                    ).
+        tax                                     ; BB46 AA                       .
+        and     #$20                            ; BB47 29 20                    ) 
+        bne     elkLBB4F                           ; BB49 D0 04                    ..
+        txa                                     ; BB4B 8A                       .
+        ora     #$30                            ; BB4C 09 30                    .0
+        tax                                     ; BB4E AA                       .
+.elkLBB4F  stx     $FE07                           ; BB4F 8E 07 FE                 ...
+        rts                                     ; BB52 60                       `
+
+; ----------------------------------------------------------------------------
+.elkLBB53  lda     $0D12                           ; BB53 AD 12 0D                 ...
+        sta     &FE07                           ; BB56 8D 07 FE                 ...
+        ldx     #$00                            ; BB59 A2 00                    ..
+        lda     #$73                            ; BB5B A9 73                    .s
+        jsr     &FFF4                           ; BB5D 20 F4 FF                  ..
+        lda     $0D13                           ; BB60 AD 13 0D                 ...
+        sta     $CE                             ; BB63 85 CE                    ..
+        lda     $0D14                           ; BB65 AD 14 0D                 ...
+        sta     $CF                             ; BB68 85 CF                    ..
+        lda     $0D16                           ; BB6A AD 16 0D                 ...
+        pha                                     ; BB6D 48                       H
+        plp                                     ; BB6E 28                       (
+        rts                                     ; BB6F 60                       `
+
+
+.CopyCodeToNMISpace
+
+ENDIF
 ;;
 .ExecFloppyWriteBPUTSector		
 		lda	#&40
@@ -10739,6 +11064,9 @@ ENDIF
 		tsx
 		stx	WKSP_ADFS_2E7_STKSAVE
 		pha
+IF TARGETOS=0 AND HD_SCSI
+		jsr	elkLBB20
+ENDIF
 		jsr	FloppyGetStepRate
 		jsr	LBBBE
 IF USE65C12
@@ -10750,14 +11078,30 @@ ENDIF
 		bit	&A1
 		bmi	LBA83
 		lda	&BC
+IF TARGETOS=0 AND HD_SCSI
+		sta	&CE
+ELSE
 		sta	&0D00 + NMICODE_WR_OFFS + 1
+ENDIF
 		lda	&BD
+IF TARGETOS=0 AND HD_SCSI
+		sta	&CF
+ELSE
 		sta	&0D00 + NMICODE_WR_OFFS + 2	; set write source address
+ENDIF
 		bne	LBA8D
 .LBA83		lda	&BE
+IF TARGETOS=0 AND HD_SCSI
+		sta	&CE
+ELSE
 		sta	&0D00 + NMICODE_RD_OFFS + 1
+ENDIF
 		lda	&BF
+IF TARGETOS=0 AND HD_SCSI
+		sta	&CF
+ELSE
 		sta	&0D00 + NMICODE_RD_OFFS + 2	; set read dest address
+ENDIF
 .LBA8D		lda	WKSP_ADFS_203,X
 		pha
 		and	#&1F
@@ -10776,6 +11120,7 @@ ENDIF
 		bne	LBAAA
 .LBAA8		lda	#FDCRES + FDCDS1
 .LBAAA		sta	NMIVARS_SIDE
+IF TARGETOS<>0 OR NOT(HD_SCSI)
 IF USE65C12
 		lda	#&01
 		tsb	WKSP_ADFS_2E4
@@ -10784,6 +11129,7 @@ ELSE
 		sec
 		rol	WKSP_ADFS_2E4
 ENDIF
+ENDIF ; ELK SCSI
 		lda	WKSP_ADFS_201,X
 		pha
 		lda	WKSP_ADFS_202,X
@@ -10829,6 +11175,7 @@ ENDIF
 		inx
 		jsr	LBB3B
 		cmp	&A3
+IF TARGETOS<>0 OR NOT(HD_SCSI)
 		beq	LBB26
 IF USE65C12
 		lda	#&01
@@ -10838,14 +11185,22 @@ ELSE
 		sec
 		rol	WKSP_ADFS_2E4
 ENDIF
+ENDIF
 		lda	#&14
+IF TARGETOS=0 AND HD_SCSI
+		ora	NMIVARS_FDC_CMD_STEP
+		jsr	FloppyWaitNMIFinish2elk
+ELSE
+
 IF OPTIMISE<6
 		ora	NMIVARS_FDC_CMD_STEP
 		sta	FDC_CMD				; FDC Status/Command
 ELSE
 		jsr	FloppyORA_STEP_SET_FDC_CMD
-ENDIF
+ENDIF	; OPT 6
+
 		jsr	FloppyWaitNMIFinish
+ENDIF ; ELK SCSI
 		lda	&A1
 		ror	A
 		bcc	LBB26
@@ -10878,6 +11233,9 @@ ENDIF
 .DoFloppySCSICommand					; LBB46
 		tsx
 		stx	WKSP_ADFS_2E7_STKSAVE			; Save stack pointer
+IF TARGETOS=0 AND HD_SCSI
+		jsr	elkLBB20
+ENDIF
 		lda	#&10
 		sta	WKSP_ADFS_2E0
 		jsr	LBB72				; Check and set up address, command, sector, track
@@ -10888,6 +11246,9 @@ ENDIF
 .ExecFloppyPartialSectorBuf		sta	WKSP_ADFS_2E2			; Store where to load partial sector to
 		tsx
 		stx	WKSP_ADFS_2E7_STKSAVE
+IF TARGETOS=0 AND HD_SCSI
+		jsr	elkLBB20
+ENDIF
 		lda	#>WKSP_ADFS_215_DSKOPSAV_RET			; Point to copy of command block in workspace
 		sta	&B1
 		lda	#<WKSP_ADFS_215_DSKOPSAV_RET
@@ -10979,7 +11340,11 @@ ENDIF
 		sta	&A1
 		lda	ZP_ADFS_FLAGS
 		sta	NMIVARS_FLAGS_SAVE
-		jsr	LBC18				; Copy NMI code to NMI space
+IF TARGETOS=0 AND HD_SCSI
+		jsr	CopyCodeToNMISpace2Elk		; Copy NMI code to NMI space
+ELSE
+		jsr	CopyCodeToNMISpace		; Copy NMI code to NMI space
+ENDIF
 		rts					; Don't optimise out to JMP
 
 ; Set disk stepping speed from configuration
@@ -10998,10 +11363,13 @@ IF USE65C12
 		stz	NMIVARS_CMD_PRECOMP		; Set to zero
 		stz	WKSP_ADFS_2E8_FDC_CMD_STEP			; Set to zero
 ELSE
+IF TARGETOS<>0 OR NOT(HD_SCSI)
 		lda	#0
 		sta	NMIVARS_CMD_PRECOMP		; Set to zero
 		sta	WKSP_ADFS_2E8_FDC_CMD_STEP			; Set to zero
-ENDIF
+ENDIF	;65c12
+ENDIF	;OPT2
+
 IF TARGETOS > 1
 		ldx	#CMOS_ADFS			; &0B=ADFS CMOS byte
 		lda	#OSBYTE_A1_READ_CMOS		; &A1=Read CMOS
@@ -11015,9 +11383,27 @@ ELSE
 		tay
 		jsr	OSBYTE				; Read ADFS CMOS byte
 		txa
+IF TARGETOS=0 AND HD_SCSI
+		eor 	#&FF
+		ror 	a
+		ror 	a
+		ror 	a
+		ror 	a
+		pha
+		and	#&03
+		tax
+		pla
+		ror	a
+		and	#&02
+		sta	NMIVARS_CMD_PRECOMP
+		stx	WKSP_ADFS_2E8_FDC_CMD_STEP
+ELSE
 		pha
 		and	#&20
 ENDIF
+ENDIF	;TARGETOS=0
+
+IF TARGETOS<>0 OR NOT(HD_SCSI)
 		beq	LBBF6
 		lda	#&03
 		sta	WKSP_ADFS_2E8_FDC_CMD_STEP			; If FDrive=2,3,6,7 set &C2E8=3
@@ -11026,6 +11412,7 @@ ENDIF
 		beq	LBC00
 		lda	#&02				; If FDrive=1,3,5,7 set NMIVARS_CMD_PRECOMP=2
 		sta	NMIVARS_CMD_PRECOMP
+ENDIF ; ELK SCSI
 ELSE  ; OPTIMISE>=2
 		jsr	L9A7F				; Read ADFS CMOS byte
 		pha
@@ -11056,78 +11443,7 @@ ENDIF
 		lda	#&8F
 		ldx	#&0B
 		jmp	OSBYTE				; Release NMI
-;;
-;; Copy NMI code to NMI space
-;; --------------------------
-.LBC18		ldy	#NMICODELEN - 1
-.LBC1A		lda	NMICODE_START,Y			; Copy NMI code to NMI space
-		sta	NMI,Y
-		dey
-		bpl	LBC1A
-		ldy	#&01
-		lda	(&B0),Y
-		sta	NMI + NMICODE_RD_OFFS + 1	; Set initial dest address
-		iny
-		lda	(&B0),Y
-		sta	NMI + NMICODE_RD_OFFS + 2
-		bit	&A1
-		bmi	LBC39				; Keep AND #&1F if reading
-		lda	#&5F				; Change to AND #&5F for writing
-		sta	NMI + NMICODE_STATMASK_OFFS
-.LBC39		bit	ZP_ADFS_FLAGS
-		bvc	LBC48				; Jump if not Tube transfer
-		lda	&A1
-		and	#&FD				; Clear bit 1 if Tube transfer
-		sta	&A1
-		jsr	LBC54
-		bmi	LBC4B
-.LBC48		jsr	LBC83				; Modify code if writing
-.LBC4B		sta	NMIVAR_WTF			; $80 for read, addr hi for write?!? TODO: investigate if this is needed!
-		lda	ZP_MOS_CURROM
-		sta	NMI + NMICODE_ROMOFFS
-		rts
-;;
-;;
-.LBC54		lda	&A1
-		rol	A				; Copy write/read into Carry
-		lda	#&00
-		rol	A				; A=0/1 for write/read
-		ldy	#>WKSP_ADFS_227_TUBE_XFER
-		ldx	#<WKSP_ADFS_227_TUBE_XFER
-		jsr	&0406				; Start Tube transfer
-		lda	&A1
-		and	#&10
-		beq	LBC76
-		bit	&A1
-		bmi	LBC77				; Jump to copy Tube Read code
-		ldy	#&07
-.LBC6D		lda	NMITUBEWRCODE,Y			; Copy Tube Write code
-		sta	NMI + NMICODE_WR_OFFS,Y
-		dey
-		bpl	LBC6D
-.LBC76		rts
-;;
-.LBC77		ldy	#NMI_TUBE_RD_CODE_LEN - 1
-.LBC79		lda	NMITUBERDCODE,Y			; Copy Tube Read code
-		sta	NMI + NMICODE_WR_OFFS,Y
-		dey
-		bpl	LBC79
-		rts
-;;
-.LBC83		bit	&A1
-		bmi	LBC9F				; Exit if reading
-		ldy	#NMI_WRITE_CODE_LEN-1
-.LBC89		lda	NMIWRITECODE,Y			; Change transfer code for writing
-		sta	NMI + NMICODE_WR_OFFS,Y
-		dey
-		bpl	LBC89
-		ldy	#&01
-		lda	(&B1-1),Y
-		sta	NMI + NMICODE_WR_OFFS + 1	; Set initial source address
-		iny
-		lda	(&B1-1),Y
-		sta	NMI + NMICODE_WR_OFFS + 2
-.LBC9F		rts
+
 
 NMIVARS_CMD_PRECOMP		= &0D56			; bit 2 set if precomp
 NMIVARS_TRACK_COUNT		= &0D57
@@ -11139,738 +11455,51 @@ NMIVARS_FLAGS_SAVE 		= &0D5D			; ZP_ADFS_FLAGS is put here before an NMI transfe
 NMIVARS_SIDE			= &0D5E			; side of disk
 NMIVAR_WTF			= &0D5F			; gets set but not read?
 
-; NMI code, copied to &0D00
-; -------------------------
-; DO NOT ATTEMPT TO OPTIMISE!
-.NMICODE_START		
-		pha
-		lda	FDC_CMD				; FDC Status/Command
-		and	#&1F				; #&1F or #&5F
-NMICODE_STATMASK_OFFS = P% - NMICODE_START - 1
-		cmp	#&03
-		bne	LBCBA
-.NMICODE_RW
-NMICODE_WR_OFFS = P% - NMICODE_START
-; vvvv this part changed for writing
-		lda	FDC_DATA			; FDC Data
-NMICODE_RD_OFFS = P% - NMICODE_START
-		sta	&FFFF				; Replaced with destination address
-		inc	NMI + NMICODE_RD_OFFS + 1
-		bne	LBCB8
-		inc	NMI + NMICODE_RD_OFFS + 2
-; ^^^^
-.LBCB8		pla
-		rti
-;;
-.LBCBA		and	#&58				; Check b3, b4, b6 (CRC, Not Found, Write Prot)
-		beq	LBCCA				; No error
-		sta	&A0				; Store as floppy error
-IF USE65C12
-		lda	#&01
-		tsb	&A1
-ELSE
-		ror	&A1
-		sec
-		rol	&A1
-ENDIF
-.LBCC4
-IF USE65C12
-		lda	#&01
-		tsb	&A2
-ELSE
-		ror	&A2
-		sec
-		rol	&A2
 
-ENDIF
-		pla
-		rti
-;;
-.LBCCA		bit	&A2
-		bvc	LBCC4
-		lda	ZP_MOS_CURROM
-		pha					; Save current ROM
-		lda	#&00				; Replaced with ADFS ROM number
-NMICODE_ROMOFFS = P% - NMICODE_START - 1
-		sta	ZP_MOS_CURROM			; Page in ADFS ROM
-IF TARGETOS = 0
-		sta	&FE30				; TODO: Ask JGH - I'm sure this is wrong!
+IF TARGETOS=0 AND HD_SCSI
+		INCLUDE "floppy_nmi_A.asm"
+		INCLUDE "floppy_nmi_D.asm"
 ELSE
-		sta	ROMSEL
-ENDIF
-IF USE65C12
-		phx
-ELSE
-		txa
-		pha
-ENDIF
-		jsr	LBE77				; Call code in ADFS ROM
-IF USE65C12
-		plx
-ELSE
-		pla
-		tax
-ENDIF
-		pla
-		sta	ZP_MOS_CURROM				; Restore ROM
-IF TARGETOS = 0
-		sta	&FE30				; TODO: Ask JGH - I'm sure this is wrong!
-ELSE
-		sta	ROMSEL
-ENDIF
-		pla
-		rti
-
-;;.NMICODE_END
-NMICODELEN = P% - NMICODE_START
-
-;;
-.FloppyWaitNMIFinish		
-		lda	&A2
-		ror	A
-		bcc	LBCEB
-		rts
-;;
-.LBCEB		lda	NMIVARS_FLAGS_SAVE
-		and	#ADFS_FLAGS_FSM_INCONSISTENT
-		beq	FloppyWaitNMIFinish
-		bit	ZP_MOS_ESCFLAG
-		bpl	FloppyWaitNMIFinish
-IF USE65C12
-		stz	DRVSEL				; Drive control
-ELSE
-		lda	#0
-		sta	DRVSEL				; Drive control
-ENDIF
-		lda	#&6F				; Floppy error &2F (Abort)
-		sta	&A0
-		jmp	FloppyErrorA0or2E3
-
-IF HD_SCSI2 AND USE65C12
-.delay32	jsr	delay16
-.delay16	jsr	delay8
-.delay8		jsr	delay4
-.delay4		rts
+		INCLUDE "floppy_nmi_B.asm"
+		INCLUDE "floppy_nmi_A.asm"
+		INCLUDE "floppy_nmi_C.asm"
+		INCLUDE "floppy_nmi_D.asm"
 ENDIF
 
-
-;;
-; NMI code for writing, copied to &0D0A
-; -------------------------------------
-; DO NOT ATTEMPT TO OPTIMISE!
-.NMIWRITECODE	lda	&FFFF
-		sta	FDC_DATA			; FDC Data register
-		inc	NMI + NMICODE_WR_OFFS + 1
-		bne	NMIwrsk
-		inc	NMI + NMICODE_WR_OFFS + 2
-.NMIwrsk
-NMI_WRITE_CODE_LEN = P%-NMIWRITECODE
-
-; NMI code for Tube writing, copied to &0D0A
-; ------------------------------------------
-; DO NOT ATTEMPT TO OPTIMISE!
-.NMITUBEWRCODE	
-IF TARGETOS = 0						; TODO : reinstate
-		sbc	&EDED
-ELSE
-		lda	TUBEIO
-ENDIF
-		sta	FDC_DATA			; FDC Data register
-		bcs	LBD1C
-NMI_TUBE_WR_CODE_LEN = P% - NMITUBEWRCODE
-
-; NMI code for Tube reading, copied to &0D0A
-; ------------------------------------------
-; DO NOT ATTEMPT TO OPTIMISE!
-.NMITUBERDCODE		
-		lda	FDC_DATA			; FDC Data register
-IF TARGETOS = 0						; TODO : reinstate
-		sbc	&EDED
-ELSE
-		sta	TUBEIO
-ENDIF
-.LBD1C		bcs	LBD24
-NMI_TUBE_RD_CODE_LEN = P% - NMITUBERDCODE
-
-
-.LBD1E		bit	&A1
-		bmi	LBD2F
-		lda	&A3
-.LBD24		cmp	#&14
-		lda	#&A0
-		bcc	LBD31
-		ora	NMIVARS_CMD_PRECOMP
-		bne	LBD31				; always!?
-.LBD2F		lda	#&80
-.LBD31		jsr	ORA4_if_2E4_b0
-
-		sta	FDC_CMD				; FDC Status/Command
-		jmp	FloppyWaitNMIFinish
-;;
-IF USE65C12
-		lda	#FDCSIDE
-		trb	NMIVARS_SIDE			; Set side 0
-ELSE
-		lda	NMIVARS_SIDE			; Set side 0
-		and	#FDCSIDE EOR &FF
-		sta	NMIVARS_SIDE
-ENDIF
-		rts
-;;
-.FloppySetSide1
-IF USE65C12
-		lda	#FDCSIDE
-		tsb	NMIVARS_SIDE			; Set side 1
-ELSE
-		lda	NMIVARS_SIDE			; Set side 1
-		ora	#FDCSIDE
-		sta	NMIVARS_SIDE
-ENDIF
-		rts
-;;
-.LBD46
-IF USE65C12
-		lda	#&01
-		trb	&A2
-ELSE
-		ror	&A2
-		clc
-		rol	&A2
-ENDIF
-		rts
-
-.LBD4B
-IF USE65C12
-		lda	#&08
-		trb	&A2
-ELSE
-		lda	&A2
-		and	#&08 EOR &FF
-		sta	&A2
-ENDIF
-		rts
-;;
-.LBD50
-IF USE65C12
-		lda	#&02
-		trb	&A2
-ELSE
-		lda	&A2
-		and	#&02 EOR &FF
-		sta	&A2
-ENDIF
-		rts
-;;
-.FloppyRestTrk0		
-		lda	#&00
-		sta	&A3
-IF OPTIMISE<6
-		ora	NMIVARS_FDC_CMD_STEP
-		sta	FDC_CMD				; FDC Status/Command
-ELSE
-		jsr	FloppyORA_STEP_SET_FDC_CMD
-ENDIF
-		jmp	FloppyWaitNMIFinish
-
-IF OPTIMISE>=6
-.FloppyORA_STEP_SET_FDC_CMD
-		ora	NMIVARS_FDC_CMD_STEP
-		sta	FDC_CMD				; FDC Status/Command
-		rts
-ENDIF
-
-.ORA4_if_2E4_b0		
-		ror	WKSP_ADFS_2E4
-		bcc	LBD6A
-		ora	#&04
-		clc
-.LBD6A		rol	WKSP_ADFS_2E4
-		rts
-;;
-.LBD6E		lda	WKSP_ADFS_2E2
-		sta	&0D0F
-IF USE65C12
-		stz	&0D0E
-ELSE
-		lda	#0
-		sta	&0D0E
-ENDIF
-		jsr	LBAFA
-		jsr	LBD1E
-		lda	&A3
-		pha
-		lda	WKSP_ADFS_216_DSKOPSAV_MEMADDR
-		sta	&A5
-		lda	WKSP_ADFS_216_DSKOPSAV_MEMADDR+1
-		sta	&A6
-		lda	#&00
-		sta	&A3
-		lda	WKSP_ADFS_2E2			; Point &A3/4 to where partial sector loaded
-		sta	&A4
-		bit	ZP_ADFS_FLAGS
-		bvc	LBDAB
-		ldy	#&00
-.LBD99		lda	(&A3),Y
-		ldx	#&07
-.LBD9D		dex
-		bne	LBD9D				; Tube transfer delay
-IF TARGETOS = 0
-		sbc	&EDED				; TODO: reinstate TUBE
-ELSE
-		sta	TUBEIO
-ENDIF
-		iny
-		cpy	WKSP_ADFS_21E_DSKOPSAV_SECCNT
-		bne	LBD99
-		beq	LBDB6
-.LBDAB		ldy	WKSP_ADFS_21E_DSKOPSAV_SECCNT			; Get partial sector length
-.LBDAE		dey
-		lda	(&A3),Y
-		sta	(&A5),Y				; Copy to memory
-		tya
-		bne	LBDAE
-.LBDB6		pla
-		sta	&A3
-		rts
-;;
-.LBDBA		jsr	LBAFA
-IF USE65C12
-		lda	#&40
-		tsb	&A2
-ELSE
-		lda	&A2
-		ora	#&40
-		sta	&A2
-ENDIF
-		ldy	#&07
-		lda	(&B0),Y				; Sector b8-b15
-		sta	NMIVARS_SECTOR_COUNT
-		iny
-		lda	(&B0),Y				; Sector b0-b7
-		iny
-		clc
-		adc	(&B0),Y				; Sector count
-		sta	NMIVARS_SECTOR			; Sector b0-b7+count
-		bcc	LBDD7
-		inc	NMIVARS_SECTOR_COUNT		; NMIVARS_SECTOR/8=sector after last sector
-.LBDD7		lda	NMIVARS_SECTOR_COUNT
-		tax
-		lda	NMIVARS_SECTOR
-		ldy	#&FF
-		jsr	XA_DIV16_TO_YA			; Convert to Y=track, A=sector
-		cmp	#&00
-		bne	LBDE9				; Not sector 0
-		lda	#&10				; Convert sector 0 to pseudo sector &10
-.LBDE9		ldy	#&09
-		sec
-		sbc	(&B0),Y				; EndSector - SectorCount
-		bcs	LBE0D				; Only one track left to do
-		lda	#&10
-		sec
-		sbc	&A4				; 16-sector = number to do on this track
-		sta	NMIVARS_SECTOR_COUNT		; sector count for this track
-		lda	(&B0),Y				; Get sector count
-		sec
-		sbc	NMIVARS_SECTOR_COUNT		; Subtract count for this track
-		ldx	#&00
-		ldy	#&FF
-		jsr	XA_DIV16_TO_YA			; Convert to Y=track, A=sector
-		sty	NMIVARS_TRACK_COUNT			; Store track about to start at
-		sta	NMIVARS_SECTOR			; Store sector about to start at
-		bpl	LBE1C
-
-.LBE0D		ldy	#&09
-		lda	(&B0),Y				; Get sector count
-		sta	NMIVARS_SECTOR_COUNT
-		lda	#&FF
-		sta	NMIVARS_TRACK_COUNT			; track=&FF
-
-IF USE65C12
-		stz	NMIVARS_SECTOR			; sector=&00
-ELSE
-		lda	#0
-		sta	NMIVARS_SECTOR			; sector=&00
-ENDIF
-
-.LBE1C
-IF USE65C12
-		stz	NMIVARS_SECTORS_THIS_TRACK
-ELSE
-		lda	#0
-		sta	NMIVARS_SECTORS_THIS_TRACK
-ENDIF
-		inc	NMIVARS_TRACK_COUNT
-		dec	NMIVARS_SECTOR_COUNT
-		ldx	#&01
-		jsr	LBB3B				; Set track
-		bit	&A1
-		bmi	LBE35
-		lda	#&A0				; &A0=writing
-		ora	NMIVARS_CMD_PRECOMP
-		bne	LBE37
-.LBE35		lda	#&80				; &80=reading
-.LBE37		sta	&A6
-		jsr	LBD46
-		lda	&A6
-		sta	FDC_CMD			; FDC Status/Command
-.LBE41		jsr	FloppyWaitNMIFinish
-		lda	&A2
-		and	#&02
-		beq	LBE5C
-		jsr	LBD46
-		jsr	LBD50
-		lda	#&54
-IF OPTIMISE<6
-		ora	NMIVARS_FDC_CMD_STEP
-		sta	FDC_CMD				; FDC Status/Command
-ELSE
-		jsr	FloppyORA_STEP_SET_FDC_CMD
-ENDIF
-		inc	&A3
-		bne	LBE41
-.LBE5C		lda	&A2
-		and	#&08
-		beq	LBE90
-		jsr	LBD46
-		jsr	LBD4B
-		inc	&A3
-		jsr	FloppySetSide1
-		lda	#&00
-IF OPTIMISE<6
-		ora	NMIVARS_FDC_CMD_STEP
-		sta	FDC_CMD				; FDC Status/Command
-ELSE
-		jsr	FloppyORA_STEP_SET_FDC_CMD
-ENDIF
-		bpl	LBE41
-;;
-;; NMI Routine - called from &0D00
-;; ===============================
-.LBE77		jsr	LBD46
-		jsr	LBE91
-		txa
-		bne	LBE85
-IF USE65C12
-		lda	#&01
-		tsb	&A2
-ELSE
-		ror	&A2
-		sec
-		rol	&A2
-ENDIF
-		rts
-;;
-.LBE85		jsr	LBD50
-		lda	&A6
-		jsr	ORA4_if_2E4_b0
-		sta	FDC_CMD				; FDC Status/Command
-.LBE90		rts
-;;
-.LBE91		lda	NMIVARS_SECTOR_COUNT
-		bne	LBEF8
-		lda	NMIVARS_TRACK_COUNT
-		bne	LBEAA
-		lda	NMIVARS_SECTOR
-		bne	LBEA4
-		ldx	#&00
-		beq	LBF09
-.LBEA4		dec	NMIVARS_SECTOR
-		jmp	LBEFB
-;;
-.LBEAA		lda	NMIVARS_SECTORS_THIS_TRACK
-		bne	LBEF2
-IF USE65C12
-		lda	#&01
-		tsb	WKSP_ADFS_2E4
-ELSE
-		ror	WKSP_ADFS_2E4
-		sec
-		rol	WKSP_ADFS_2E4
-ENDIF
-		lda	FDC_TRACK			; FDC Track register
-		cmp	#&4F
-		bcc	LBEDA				; Less than 80
-		lda	NMIVARS_SIDE
-		and	#FDCSIDE
-		beq	LBEC7
-		ldx	#&00
-		jmp	LBEFD
-;;
-.LBEC7		lda	#&FF
-		sta	&A3
-		jsr	FloppySetSide1
-		lda	NMIVARS_SIDE
-		sta	DRVSEL				; Drive control
-		lda	&A2
-		ora	#&08
-		bne	LBEDE
-.LBEDA		lda	&A2
-		ora	#&02
-.LBEDE		sta	&A2
-		dec	NMIVARS_TRACK_COUNT
-		beq	LBEEA
-		lda	#&10
-		sta	NMIVARS_SECTORS_THIS_TRACK
-.LBEEA		lda	#&FE
-		sta	&A4
-		ldx	#&00
-		beq	LBEFD
-.LBEF2		dec	NMIVARS_SECTORS_THIS_TRACK
-		jmp	LBEFB
-;;
-.LBEF8		dec	NMIVARS_SECTOR_COUNT
-.LBEFB		ldx	#&FF
-.LBEFD		inc	&A4
-.LBEFF		lda	&A4
-		sta	FDC_SEC			; FDC Sector register
-		cmp	FDC_SEC			; Keep storing until it stays there
-		bne	LBEFF
-.LBF09		rts
-
-;;
-;;   &A0  Returned error, &40+FDC status or &00+HDD error
-;;   &A1  b7=write/read, b5=hardware has been accessed, b0=error occured?
-;;   &A2  b0=?
-;;   &A3
-;;   &A4 sector
-;;   &A5 track
-;;   &A6 drive
-;;   &A7
-;;
-.LBF0A
-IF OPTIMISE<6
-		ldy	#&06
-		lda	(&B0),Y				; Get drive
-		ora	WKSP_ADFS_317_CURDRV			; OR with current drive
-ELSE
-		jsr	GetDrive
-ENDIF
-		sta	&A6				; Store drive in &A6
-		and	#&1F				; Lose drive bits
-		beq	LBF1A				; If sector<&10000, continue
-IF OPTIMISE<2
-		jmp	LBF6F				; If sector>&FFFF, jump to 'Sector out of range'
-ELSE
-		bne	LBF6F				; If sector>&FFFF, jump to 'Sector out of range'
-ENDIF
-;;
-.LBF1A		bit	&A6				; Check drive
-		bvc	LBF24				; Drive 0,1,4,5 -> jump ahead
-;;			    Can patch here to support drive 2,3,6,7
-		lda	#&65				; Otherwise, floppy error &25 (Bad drive)
-IF OPTIMISE<2
-		sta	&A0				; Set error
-IF EXTERNAL
-		bne	LBF75				; Make external call for 2,3,6,7
-ELSE
-		bne	bne_FloppyErrorA0or2E3				; Jump to return error
-ENDIF
-ELSE
-		bne	LBF71				; Jump to return error
-ENDIF
-
-;;
-;; Drive 0,1,4,5;; -------------
-.LBF24		lda	&A6				; Get drive
-		and	#&20
-		bne	LBF2E				; Drive 1,5 -> jump ahead
-		lda	#FDCRES + FDCDS0		; Drive 0,4 -> &05=SDEN+DS0
-		bne	LBF30
-.LBF2E		lda	#FDCRES + FDCDS1		; Drive 1,5 -> &06=SDEN+DS1
-.LBF30		sta	NMIVARS_SIDE			; Store drive control byte
-IF USE65C12
-		lda	#&01
-		tsb	WKSP_ADFS_2E4
-ELSE
-		ror	WKSP_ADFS_2E4
-		sec
-		rol	WKSP_ADFS_2E4
-ENDIF
-		jsr	FloppyCalcTrkSecFromBlkChkRange	; Calculate sector/track
-		lda	NMIVARS_SIDE			; Get drive control byte
-
-IF TARGETOS = 0
-		lda	DRVSEL				; I'm not sure that this is right! TODO: Ask JGH
-ELSE
-		sta	DRVSEL				; Set drive control register
-ENDIF
-		ror	A				; Rotate drive 1 bit into carry
-		bcc	LBF50				; Jump if drive 0
-		lda	WKSP_ADFS_2E5
-		sta	&A3
-		bit	WKSP_ADFS_2E4
-		bpl	LBF5D
-		bmi	LBF5A
-;;
-.LBF50		lda	WKSP_ADFS_2E6
-		sta	&A3
-		bit	WKSP_ADFS_2E4
-		bvc	LBF5D
-.LBF5A		jsr	FloppyRestTrk0
-.LBF5D		rts
-;;
-;; Calculate track and sector
-;; --------------------------
-.FloppyCalcTrkSecFromBlkChkRange		
-		ldy	#&07
-		lda	(&B0),Y				; Get sector b8-b15
-		cmp	#&0A				; Check for sector &0A00
-		bcc	FloppyCalcTrackSectorFromB0blk	; <&A00 - sector within range
-
-IF NOT(TRIM_REDUNDANT)
-							;Bug, the rest of these checks shouldn't happen
-							;Should just drop straight into 'Sector out of range'
-		bne	LBF6F				; >&AFF - sector out of range
-		iny					; Check sector &0Axx for some reason
-		lda	(&B0),Y				; Get sector b0-b7
-		cmp	#&00				; Sector &A00? But CMP #0 will always give CS.
-		bcc	LBF75				; Will never follow this jump - should this be BEQ ?
-ENDIF
-.LBF6F		lda	#&61				; Floppy error &21 (Bad address)
-.LBF71		sta	&A0
-
-; Jump to abort and return floppy error
-; -------------------------------------
-.bne_FloppyErrorA0or2E3		
-		bne	FloppyErrorA0or2E3		; Jump to return error in &A0
-
-IF NOT(TRIM_REDUNDANT) OR OPTIMISE < 2
-IF NOT(EXTERNAL)
-; This code never entered, as the above BCC LBF75 is never followed.
-; It seems as though it is attempting to check if sector+length would span
-; past the end of the disk, but any transfer that starts before the end of
-; the disk has already been filtered out and accepted as valid.
-.LBF75		lda	&A1				; Get flag
-		and	#&10
-		beq	FloppyCalcTrackSectorFromB0blk				; If b3=0, do it anyway
-		ldy	#&09
-		lda	(&B0),Y				; Get count
-		dey					; Point to sector b0-b7
-		clc
-		adc	(&B0),Y				; A=sector.b0-7 + count
-		bcs	LBF89				; >255, jump to volume error
-		cmp	#&01
-		bcc	FloppyCalcTrackSectorFromB0blk				; sector+count<1 - do it
-.LBF89		lda	#&63				; Floppy error &23 (Volume error)
-		sta	&A0				; Store error
-		bne	FloppyErrorA0or2E3		; Jump to return error
-ELSE
-.LBF75		ldx	&B0
-		ldy	&B1
-		lda	#&76
-		jsr	&FFF1
-		jmp	FloppyErrorA0or2E3
-		EQUB	0,0,0,0,0,0,0
-		EQUB	0,0,0,0,0,0,0
-ENDIF
-ENDIF
-
-; Sector < &A00, convert to track+sector
-; --------------------------------------
-.FloppyCalcTrackSectorFromB0blk
-IF NOT(TRIM_REDUNDANT)
-		ldy	#&07				; A already holds (&B0),7 if coming from FloppyCalcTrkSecFromBlkChkRange
-		lda	(&B0),Y				; Get sector b8-b15
-ENDIF
-		tax					; Pass to X
-		iny
-		lda	(&B0),Y				; Get sector b0-b7
-.FloppyCalcTrackSectorFromXA
-		ldy	#&FF
-		jsr	XA_DIV16_TO_YA			; Divide by 16
-		sta	&A4				; A=sector
-		sty	&A5				; Y=track 0-159
-		tya
-		sec
-		sbc	#&50				; Track <80?
-		bmi	LBFB6				; Side 0, leave track as 0-79
-		sta	&A5				; Store track 0-79
-		jmp	FloppySetSide1				; Set side 1
-;
-; Divide by 16
-; ============
-; On entry: A=low byte
-;	    X=high byte
-;           Y=&FF (this could be moved to subroutine)	; TODO: OPTIMISE LDY#&FF here!?
-; On exit:  Y=&XA DIV 16
-;	    A=&XA MOD 16
-.XA_DIV16_TO_YA		
-		sec
-		sbc	#&10
-		iny
-		bcs	XA_DIV16_TO_YA
-		dex
-		bpl	XA_DIV16_TO_YA
-		adc	#&10
-.LBFB6		rts
-
-; Return result from &A0 (or from &C2E3 if hardware not accessed)
-; ---------------------------------------------------------------
-.FloppyErrorA0or2E3
-{		
-		ldx	WKSP_ADFS_2E7_STKSAVE
-		txs					; Reset stack
-		lda	WKSP_ADFS_2E0
-		and	#&20				; Has drive actually been accessed?
-		beq	DRVNOTACC			; b6=0, no drive access, jump to release and return
-		lda	NMIVARS_SIDE			; Get drive control byte
-		ror	A				; Cy=0 drv1/5, Cy=1 drv0/4
-		lda	&A3
-		bcc	DR1				; Jump if drive 1/5
-		sta	WKSP_ADFS_2E5			; Store
-		rol	WKSP_ADFS_2E4
-		clc
-		ror	WKSP_ADFS_2E4			; Clear b7
-		bcs	NOT_DR1				; always
-;;
-.DR1		sta	WKSP_ADFS_2E6
-		lda	WKSP_ADFS_2E4
-		and	#&BF
-		sta	WKSP_ADFS_2E4			; Clear b6
-;;
-.NOT_DR1	lda	&A0				; Get error
-		sta	WKSP_ADFS_2E3_ERR_NO		; Store in error block
-		jsr	LBC0E				; Release NMI
-.DRVNOTACC	jsr	TubeRelease			; Release Tube, restore screen
-		ldx	&B0
-		lda	WKSP_ADFS_2E3_ERR_NO		; Get error
-		beq	NOERR				; If zero, jump to return Ok
-		ora	#&40				; Set bit 6 to flag FDC error
-		ldy	#&FF
-		sty	WKSP_ADFS_2E4
-.NOERR		ldy	&B1
-		and	#&7F				; Remove bit 7 and set EQ
-		rts					; Return with A=error, EQ=Ok
-}
 ENDIF ; FLOPPY
 
+
 IF TARGETOS > 1
-IF P%<&BFFF
+	IF P%<&BFFF
 		ORG	&BFFF
-ENDIF
-IF HD_MMC
+	ENDIF
+	IF HD_MMC
 		EQUB	&00				; MMC revision 0
-ENDIF
-IF HD_IDE
+	ENDIF
+	IF HD_IDE
 		EQUB	&23				; IDEPatch revision 1.23
-ENDIF
-IF HD_SCSI
+	ENDIF
+	IF HD_SCSI
 		EQUB	&A9				; 'A'corn revision 9
-ENDIF
-ELSE
+	ENDIF
+ELIF TARGETOS = 1 OR NOT(HD_SCSI)
 		EQUS	"and Hugo."
-IF HD_IDE AND TARGETOS >= 1
+	IF HD_IDE AND TARGETOS >= 1
 		EQUB	&23
-ELSE		
+	ELSE		
 		EQUB	&D
-ENDIF
+	ENDIF
+ELSE	
+		brk
+		EQUS	"Roger"
+		brk
 ENDIF
 .ENDOFROM
 
 PRINT "Code ends at",~ENDOFROM,"(",(&C000-ENDOFROM),"bytes free)"
 
 IF ENDOFROM > $C000
-	ERROR "OUT OF SPACE"
+;	ERROR "OUT OF SPACE"
 ENDIF
 
 SAVE "", &8000, &C000

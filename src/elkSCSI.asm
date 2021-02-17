@@ -1,18 +1,17 @@
-; Build file for Electron ADFS with IDE drivers
+; Build file for Electron ADFS with SCSI drivers
 ; ----------------------------------------
 
 TARGETOS=0		; 0=Electron
 FLOPPY=TRUE		; Floppy drivers
-HD_SCSI=FALSE
-HD_IDE=TRUE		; IDE drivers
-HD_IDE_FAST=FALSE
+HD_SCSI=TRUE
+HD_IDE=FALSE
 HD_MMC=FALSE
 HD_SCSI2=FALSE
 ;
 FULL_INFO=FALSE		; Truncated *INFO
 FULL_ACCESS=FALSE	; Truncated OSFILE 1-4
 UNSUPPORTED_OSFILE=FALSE; Unknown OSFILE returns A corrupted
-PRESERVE_CONTEXT=TRUE	; Ctrl-Break preserves context
+PRESERVE_CONTEXT=FALSE	; Ctrl-Break preserves context
 LARGE_DISK=FALSE	; Future development
 TRIM_REDUNDANT=FALSE	; Don't remove redundant code
 OPTIMISE=0		; Don't do any code optimisation

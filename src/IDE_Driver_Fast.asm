@@ -155,7 +155,7 @@ ENDIF ; TARGETOS > 0
 .L81AD							; Aligned to L81AD
 IF L81AD<>&81AD
 		print	L81AD
-;;	ERROR "L81AD/CommandDone must be anchored at &81AD"
+;	ERROR "L81AD/CommandDone must be anchored at &81AD"
 ENDIF
 .CommandDone
 		jsr	IDE_GetResult			; Get IDE result
