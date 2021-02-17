@@ -48,8 +48,11 @@ So far this has only been tested on a DataCentre IDE adaptor with a Compact Flas
 # Tools required
 
 [BeebAsm](https://github.com/stardot/beebasm)
+
 [dfs](https://github.com/dominicbeesley/dfs-0.4)
+
 [da65](https://cc65.github.io/doc/da65.html) - needed for comparisons
+
 perl 5.0 - for extracting symbols
 
 
