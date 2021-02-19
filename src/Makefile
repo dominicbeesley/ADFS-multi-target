@@ -1,8 +1,22 @@
+BUILDDIR=build
+
+
 AS=beebasm
 ASFLAGS=
 DA65=da65 --cpu 65c02
-ROMS=masIDE.rom masMMC.rom masSCSI.rom bbcSCSI.rom bbcIDE.rom elkIDE.rom elkSCSI.rom bbcSCS2.rom bbcIDEF.rom
-TARGETS = $(ROMS) adfsroms.ssd
+ROMS=$(addprefix $(BUILDDIR)/, \
+	masIDE.rom \
+	masMMC_mdfs.net.rom \
+	masSCSI.rom \
+	bbcSCSI.rom \
+	bbcIDE.rom \
+	elkIDE.rom \
+	elkSCSI.rom \
+	bbcSCS2.rom \
+	bbcIDEF.rom \
+	)
+
+TARGETS = $(BUILDDIR)/ $(ROMS) $(BUILDDIR)/adfsroms.ssd
 # this is used when generating symbols
 ROMNO=D
 
@@ -17,6 +31,7 @@ FLOPPY_DRIVERS= floppy_nmi_A.asm floppy_nmi_B.asm floppy_nmi_C.asm floppy_nmi_D.
 TUBE_DRIVERS=	TubeCheckAddrAndClaim.asm TubeStartXfer.asm
 .PHONY: all compares comparedirs
 
+
 define exec
 $(1)
 
@@ -24,53 +39,61 @@ endef
 
 all:: $(TARGETS)
 
-adfsroms.ssd: $(ROMS)
+$(BUILDDIR)/adfsroms.ssd: $(ROMS)
 	#dfs tool from https://github.com/dominicbeesley/dfs-0.4	
-	dfs form -80 adfsroms.ssd
-	dfs title adfsroms.ssd "ADFS_DOB"
-	dfs add -l 0xFFFF8000 -e 0xFFFF8000 -f "ADFS100" adfsroms.ssd elkSCSI.rom
-	dfs add -l 0xFFFF8000 -e 0xFFFF8000 -f "ADFS103" adfsroms.ssd elkIDE.rom
-#	dfs add -l 0xFFFF8000 -e 0xFFFF8000 -f "ADFS107" adfsroms.ssd elkMMC.rom
+	dfs form -80 $@
+	dfs title $@ "ADFS_DOB"
+	dfs add -l 0xFFFF8000 -e 0xFFFF8000 -f "ADFS100" $@ $(BUILDDIR)/elkSCSI.rom
+	dfs add -l 0xFFFF8000 -e 0xFFFF8000 -f "ADFS103" $@ $(BUILDDIR)/elkIDE.rom
+#	dfs add -l 0xFFFF8000 -e 0xFFFF8000 -f "ADFS107" $@ elkMMC.rom
 
-	dfs add -l 0xFFFF8000 -e 0xFFFF8000 -f "ADFS130" adfsroms.ssd bbcSCSI.rom
-	dfs add -l 0xFFFF8000 -e 0xFFFF8000 -f "ADFS133" adfsroms.ssd bbcIDE.rom
-#	dfs add -l 0xFFFF8000 -e 0xFFFF8000 -f "ADFS137" adfsroms.ssd bbcMMC.rom
-	dfs add -l 0xFFFF8000 -e 0xFFFF8000 -f "ADFS134" adfsroms.ssd bbcSCS2.rom
+	dfs add -l 0xFFFF8000 -e 0xFFFF8000 -f "ADFS130" $@ $(BUILDDIR)/bbcSCSI.rom
+	dfs add -l 0xFFFF8000 -e 0xFFFF8000 -f "ADFS133" $@ $(BUILDDIR)/bbcIDE.rom
+#	dfs add -l 0xFFFF8000 -e 0xFFFF8000 -f "ADFS137" $@ bbcMMC.rom
+	dfs add -l 0xFFFF8000 -e 0xFFFF8000 -f "ADFS134" $@ $(BUILDDIR)/bbcSCS2.rom
 	
-	dfs add -l 0xFFFF8000 -e 0xFFFF8000 -f "ADFS150" adfsroms.ssd masSCSI.rom
-	dfs add -l 0xFFFF8000 -e 0xFFFF8000 -f "ADFS153" adfsroms.ssd masIDE.rom
-	dfs add -l 0xFFFF8000 -e 0xFFFF8000 -f "ADFS157" adfsroms.ssd masMMC.rom
+	dfs add -l 0xFFFF8000 -e 0xFFFF8000 -f "ADFS150" $@ $(BUILDDIR)/masSCSI.rom
+	dfs add -l 0xFFFF8000 -e 0xFFFF8000 -f "ADFS153" $@ $(BUILDDIR)/masIDE.rom
+#	dfs add -l 0xFFFF8000 -e 0xFFFF8000 -f "ADFS157" $@ $(BUILDDIR)/masMMC_mdfs.net.rom
 
-	dfs add -l 0xFFFF8000 -e 0xFFFF8000 -f "ADFS13F" adfsroms.ssd bbcIDEF.rom
+	dfs add -l 0xFFFF8000 -e 0xFFFF8000 -f "ADFS13F" $@ $(BUILDDIR)/bbcIDEF.rom
 
-	dfs read -w "*.*" -i -d ~/hostfs/roms65 adfsroms.ssd
+	dfs read -w "*.*" -i -d ~/hostfs/roms65 $@
 
+
+HOGLETORGS=$(addsuffix .da.s, $(addprefix compares/org/Hoglet15x/, $(notdir $(wildcard orgroms/Hoglet15x/*))))
 
 compares: all comparedirs \
 	compares/org/masIDE.da.s \
-	compares/org/masMMC.da.s \
+	compares/org/masMMC_mdfs.net.da.s \
 	compares/org/masSCSI.da.s \
 	compares/org/bbcIDE.da.s \
 	compares/org/bbcSCSI.da.s \
 	compares/org/elkIDE.da.s \
 	compares/org/elkSCSI.da.s \
 	compares/new/masIDE.da.s \
-	compares/new/masMMC.da.s \
+	compares/new/masMMC_mdfs.net.da.s \
 	compares/new/masSCSI.da.s \
 	compares/new/bbcIDE.da.s \
 	compares/new/bbcSCSI.da.s \
 	compares/new/elkIDE.da.s \
-	compares/new/elkSCSI.da.s
-
+	compares/new/elkSCSI.da.s \
+	$(HOGLETORGS)
 
 comparedirs:
 	-mkdir -p compares
 	-mkdir -p compares/org
+	-mkdir -p compares/org/Hoglet15x
 	-mkdir -p compares/new
 
+$(BUILDDIR)/:
+	-mkdir -p $(BUILDDIR)
+
+compares/org/Hoglet15x/%.da.s: orgroms/Hoglet15x/%
+	$(DA65) --comments 4 --start-addr 0x8000 $< >$@
 compares/org/masIDE.da.s: orgroms/ADFS153
 	$(DA65) --comments 4 --start-addr 0x8000 $< >$@
-compares/org/masMMC.da.s: orgroms/ADFS157
+compares/org/masMMC_mdfs.net.da.s: orgroms/ADFS157_mdfs.net
 	$(DA65) --comments 4 --start-addr 0x8000 $< >$@
 compares/org/masSCSI.da.s: orgroms/ADFS150
 	$(DA65) --comments 4 --start-addr 0x8000 $< >$@
@@ -83,32 +106,31 @@ compares/org/elkSCSI.da.s: orgroms/ADFS100
 compares/org/elkIDE.da.s: orgroms/ADFS103
 	$(DA65) --comments 4 --start-addr 0x8000 $< >$@
 
-compares/new/%.da.s: %.rom
+compares/new/%.da.s: $(BUILDDIR)/%.rom
 	$(DA65) --comments 4 --start-addr 0x8000 $< >$@
 
 
-masIDE.rom: adfs.asm $(IDE_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
-masSCSI.rom: adfs.asm $(SCSI_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
-masMMC.rom: adfs.asm $(MMC_DRIVERS) $(TUBE_DRIVERS) $(STARMAP)
-
-bbcIDE.rom: adfs.asm $(IDE_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
-bbcIDEF.rom: adfs.asm $(IDE_DRIVERS_F) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
-bbcSCSI.rom: adfs.asm $(SCSI_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
-bbcSCS2.rom: adfs.asm $(SCSI2_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
-
-elkIDE.rom: adfs.asm $(IDE_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
-elkSCSI.rom: adfs.asm $(SCSI_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
+$(BUILDDIR)/masIDE.rom: adfs.asm $(IDE_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
+$(BUILDDIR)/masSCSI.rom: adfs.asm $(SCSI_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
+$(BUILDDIR)/masMMC_mdfs.net.rom: adfs.asm $(MMC_DRIVERS) $(TUBE_DRIVERS) $(STARMAP)
+$(BUILDDIR)/bbcIDE.rom: adfs.asm $(IDE_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
+$(BUILDDIR)/bbcIDEF.rom: adfs.asm $(IDE_DRIVERS_F) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
+$(BUILDDIR)/bbcSCSI.rom: adfs.asm $(SCSI_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
+$(BUILDDIR)/bbcSCS2.rom: adfs.asm $(SCSI2_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
+$(BUILDDIR)/elkIDE.rom: adfs.asm $(IDE_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
+$(BUILDDIR)/elkSCSI.rom: adfs.asm $(SCSI_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
 
 
 
-%.rom %.lst: %.asm 
+$(BUILDDIR)/%.rom $(BUILDDIR)/%.lst: %.asm 
 		$(AS) -i $< -o $@ -v -d > $(basename $@).lst
 		scripts/beebasmlst2sym.pl -r $(ROMNO) <$(basename $@).lst >$(basename $@).noi
 clean::
-	-rm *.rom
-	-rm *.lst
+	-rm $(BUILDDIR)/*.rom
+	-rm $(BUILDDIR)/*.lst
+	-rm $(BUILDDIR)/*.noi
 	-rm compares/*.da.s
 	-rm compares/org/*.da.s
+	-rm compares/org/Hoglet15x/*.da.s
 	-rm compares/new/*.da.s
-	-rm *.ssd
-	-rm *.noi
+	-rm $(BUILDDIR)/*.ssd
