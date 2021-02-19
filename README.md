@@ -17,7 +17,7 @@
 |               | 137   | MMC   | N     |       | 
 | Master        | 150   | SCSI  | Y     | Y     |
 |               | 153   | IDE   | Y     | Y     |
-|               | 157   | MMC   | Y     | Y+    | 
+|               | 157   | MMC   | Y     | Y+    | WARNING: this version appears to currently be broken!
 | Master 3.50   | 203   | SCSI  | N     |       | Rom not tested
 
 
