@@ -1,3 +1,6 @@
+
+;TODO: DB - sort out hard coded addresses and harmonise with adfs.asm style
+
 ; ADFS MMC Card Driver
 ; (C) 2015 David Banks
 ; Based on code from MMFS ROM by Martin Mather
@@ -26,6 +29,64 @@ read_single_block=&51
 write_block      =&58
 
 
+IF HD_MMC_HOG
+
+;; **** Begin Read Transaction ****
+.MMC_StartRead
+     JSR MMC_DoCommand
+     BNE errRead
+     JMP MMC_WaitForData
+
+;; **** Begin Write Transaction ****
+.MMC_StartWrite
+     JSR MMC_DoCommand
+     BNE errWrite
+     JMP MMC_SendingData
+
+.errRead
+     ORA #&40  ;; Setting bit 6 in the fault code will ensure it's printed
+     TAX
+     JSR GenerateErrorSuffX ;; This version prints the fault code in X
+     EQUB &C5
+     EQUS "MMC Read fault"
+     EQUB &00
+
+.errWrite
+     ORA #&40  ;; Setting bit 6 in the fault code will ensure it's printed
+     TAX
+     JSR GenerateErrorSuffX ;; This version prints the fault code in X
+     EQUB &C5
+     EQUS "MMC Write fault"
+     EQUB &00
+
+
+;; **** Set-up MMC command sequence ****
+;; C=0 for read, C=1 for write 
+.MMC_SetupRW
+     LDA #write_block
+     BCS MMC_SetCommand
+     LDA #read_single_block
+        
+;; **** Reset MMC Command Sequence ****
+;; A=cmd, token=&FF
+
+.MMC_SetCommand
+     STA cmdseq%+1
+     LDA #0
+     STA cmdseq%+2
+     STA cmdseq%+3
+     STA cmdseq%+4
+     STA cmdseq%+5
+     LDA #&FF
+     STA cmdseq%
+     STA cmdseq%+6                   ;; token
+     STA cmdseq%+7
+     RTS
+
+
+ELSE
+
+
 ; MMC_BEGIN - Initialise MMC card
 ; *******************************
 ; Returns EQ, A=0 ok
@@ -40,6 +101,8 @@ write_block      =&58
 	RTS
 }
 
+ENDIF
+
 
 ; MMC_INIT - Initialise MMC card
 ; ******************************
@@ -47,8 +110,8 @@ write_block      =&58
 ;         NE, A=ADFS error code, card can't be initialised
 ; Corrupts X,Y
 .MMC_INIT
-{
-IF USE65C12
+
+IF USE65C12 AND NOT(HD_MMC_HOG)    ; TODO Reinstate for HOG
      STZ mmcstate%
 ELSE
      LDA #0
@@ -71,8 +134,14 @@ ENDIF
      JSR MMC_DoCommand
      AND #&81                        ; ignore errors
      CMP #1                          ; b0='idle state'
+
+IF HD_MMC_HOG       ; TODO: reinstate JGH?
+          beq  il0
+          jmp  ifail
+ELSE
      SEC
      BNE il10                        ; not idle, fail this attempt
+ENDIF
 .il0
      LDA #&01
      STA cardsort%
@@ -97,7 +166,14 @@ ENDIF
      JSR MMC_DoCommand
      CMP #2                          ; anything other than 'idle'
 .il10
-     BCS ifail                       ; not idle, fail this attempt
+
+IF HD_MMC_HOG       ; TODO: reinstate JGH?
+          bcc  il11
+          jmp  ifail
+ELSE
+          bcs ifail                       ; not idle, fail this attempt
+ENDIF
+
 .il11
      BIT EscapeFlag                  ; may hang
      BMI ifail
@@ -105,7 +181,12 @@ ENDIF
      BNE il1                         ; not 'ok', try again
      LDA #&02
      STA cardsort%
+
+IF HD_MMC_HOG  ; TODO: REINSTATE JGH
+          jmp  iok
+ELSE
      BNE iok
+ENDIF
 
 .isdhc
      JSR UP_ReadByteX
@@ -151,7 +232,12 @@ ENDIF
      ;; All OK!
      LDA #&40
      STA mmcstate%
-     LDA #&00     ;; A=0, EQ=Ok
+
+IF HD_MMC_HOG  ; TODO: reinstate JGH - along with all error checks
+          clc
+ELSE
+          lda  #&00     ;; A=0, EQ=Ok
+ENDIF
      RTS
 
 .ifail
@@ -161,8 +247,19 @@ ENDIF
      JMP iloop
 
 .ifaildone
+IF HD_MMC_HOG       ; TODO: check this isn't done elsewhere?
+          sec
+          rts
+ENDIF
 .blkerr
-}
+
+IF HD_MMC_HOG
+          JSR       GenerateErrorNoSuff
+          EQUB      &CD
+          EQUS      "MMC Set block len error"
+          EQUB      &00
+ELSE
+
 .translate_error
      LDX #&FF
 .translate_lp
@@ -182,6 +279,44 @@ ENDIF
      EQUB &24	; b6 = Parameter error
      EQUB &7F	; b7 = 0                    -> Unknown
 
+ENDIF
+
+IF HD_MMC_HOG            ; TODO - merge this with the section above in own file?
+
+.MMC_BEGIN
+{
+     PHA
+     ;; Reset device
+     JSR MMC_DEVICE_RESET
+
+     ;; Check if MMC initialised
+     ;; If not intialise the card
+     BIT mmcstate%
+     BVS beg2
+
+     PHX
+     PHY
+     JSR MMC_INIT
+     PLY
+     PLX
+     BCS carderr
+.beg2
+     PLA
+     RTS
+
+;; Failed to initialise card!
+.carderr
+     JSR GenerateErrorNoSuff
+     EQUB &CD
+     EQUS "Card?"
+     EQUB &00
+     
+}
+
+
+ENDIF
+
+IF NOT(HD_MMC_HOG)       ; TODO - merge this with the section above in own file?
 
 ; **** Begin Read Transaction ****
 ; On exit, EQ=Ok
@@ -230,6 +365,8 @@ ENDIF
      STA cmdseq%+7
      RTS
 
+ENDIF
+
 
 ;; Set Random/Command Address
 ;; **************************
@@ -251,16 +388,30 @@ ENDIF
 ;; Corrupts X,Y
 .setRandomAddress
 {
-    LDA #0         ;; b24-b31 of sector number
-    PHA
-    LDY #3         ;; 3 bytes for remainder of sector number
+
+IF HD_MMC_HOG            ; TODO: reinstate JGH
+          phx  
+          lda   #0         ;; MSB of sector number
+          pha  
+          lda   &C203,X
+          pha  
+          lda   &C202,X
+          pha  
+          lda   &C201,X    ;; LSB of sector number
+          pha  
+          bra   setAddressFromStack
+ELSE
+          lda  #0         ;; b24-b31 of sector number
+          pha
+          ldy  #3         ;; 3 bytes for remainder of sector number
 .loop
-    LDA &C203,X    ;; byte 2/1/0 of sector number
-    PHA            ;; stack it
-    DEX
-    DEY
-    BNE loop
-    BRA setAddressFromStack
+          lda  &C203,X    ;; byte 2/1/0 of sector number
+          pha            ;; stack it
+          dex
+          dey
+          bne  loop
+          bra  setAddressFromStack
+ENDIF
 }
 
 ;; Set MMC Command Address from (&B0),control block
@@ -270,6 +421,21 @@ ENDIF
 ;; Corrupts X,Y
 .setCommandAddress
 {
+IF HD_MMC_HOG       ; TODO: reinstate JGH
+    PHX
+    LDA #0          ;; MSB of sector number
+    PHA
+    LDY #6          ;; Point to sector MSB in the control block
+    LDX #3          ;; sector number is 3 bytes
+.loop
+    LDA (&B0), Y    ;; Stack the MSB first, LSB last
+    PHA
+    INY
+    DEX
+    BNE loop
+
+ELSE
+
     LDA #0         ;; b24-b31 of sector number
     PHA
     LDY #6         ;; Point to sector b16-b23 in the control block
@@ -279,11 +445,12 @@ ENDIF
     INY
     CPY #9
     BNE loop
+ENDIF
 }    
 
 ; Stack now has -> b0-b7, b8-b15, b16-b23+drive, &00
 .setAddressFromStack
-{
+
 ;; Process the drive number
      TSX
      LDA &103,X     ;; Bits 7-5 are the drive number
@@ -318,8 +485,31 @@ ENDIF
      TYA
      AND #&03
      BNE addDriveOffset
-     ;; Usefully, X now points to end of stacked data
 
+IF HD_MMC_HOG  ; TODO: compare and reinstate JGH?
+     LDX #3          ;; sector number is 4 bytes
+;;
+     LDA cardsort%   ;; Skip multiply for SDHC cards (cardsort = 01)
+     CMP #2
+     BNE setCommandAddressSDHC
+;;
+;; Convert to bytes by multiplying by 512
+;;
+     CLC
+.loop                ;; for SD the command address is bytes
+     PLA
+     ROL A
+     STA cmdseq%+1, X
+     DEX
+     BNE loop
+     STZ cmdseq%+5   ;; LSB is always 0
+     BCS overflow    ;; if carry is set, overflow has occurred
+     PLA             ;; if the MS byte of the original sector
+     BNE overflow    ;; was non zero, overflow has occurred
+     PLX
+     RTS
+ELSE
+     ;; Usefully, X now points to end of stacked data
      LDA cardsort%   ;; Need to skip multiply for SDHC cards (cardsort = 01)
      TAY
      DEY             ;; Y=&00 no multiply needed, Y<>&00 multiply needed
@@ -339,7 +529,35 @@ ENDIF
      LDA #&00        ;; A=0, EQ, Ok
      STA cmdseq%+5   ;; LSB is always 0
      RTS
+ENDIF
 
+IF HD_MMC_HOG
+
+.invalidDrive
+     JSR GenerateErrorNoSuff        ;; Generate error
+     EQUB &A9         ;; ERR=169
+     EQUS "Invalid drive"
+     EQUB &00
+
+.overflow
+     JSR GenerateErrorNoSuff        ;; Generate error
+     EQUB &A9         ;; ERR=169
+     EQUS "Sector overflow"
+     EQUB &00
+
+
+.setCommandAddressSDHC
+{
+.loop                ;; for SDHC the command address is sectors
+     PLA             ;; copy directly to cmdseq%+2 ...cmdseq%+5
+     STA cmdseq%+2, X
+     DEX
+     BPL loop
+     PLX
+     RTS
+}
+
+ELSE
 .invalidDrive
       TXS           ; Step past stacked data
       LDA #&25      ; A='Invalid drive number'
@@ -348,8 +566,38 @@ ENDIF
 .overflow
       LDA #&21      ; A='Sector out of range'
       RTS
+
+
+ENDIF
+
+
+IF HD_MMC_HOG  ; TODO: compare and REINSTATE JGH
+
+.incCommandAddress
+{
+     LDA cardsort%
+     CMP #2
+     BNE incCommandAddressSDHC
+;; Add 512 to address (Sector always even)
+     INC cmdseq%+4
+.incMS
+     INC cmdseq%+4
+     BNE incDone
+     INC cmdseq%+3
+     BNE incDone
+     INC cmdseq%+2
+.incDone
+     RTS
+
+;; Add one to address
+.incCommandAddressSDHC
+     INC cmdseq%+5
+     BEQ incMS
+     RTS
 }
 
+
+ELSE
 
 ;; Update sector address
 ;; *********************
@@ -373,6 +621,8 @@ ENDIF
      RTS
 }
 
+ENDIF
+
 
 .initializeDriveTable
 {
@@ -385,11 +635,15 @@ ENDIF
 ; This MUST be able to terminate if the hardware is absent.
 ;
      JSR MMC_BEGIN      ; Initialize the card, if not already initialized
+IF NOT(HD_MMC_HOG)       ; TODO: REINSTATE JGH?
      BNE init_exit	; Couldn't initialise
+ENDIF
      CLC                ; C=0 for Read
      JSR MMC_SetupRW
      JSR MMC_StartRead
+IF NOT(HD_MMC_HOG)       ; TODO: REINSTATE JGH?
      BNE init_exit	; Couldn't read
+ENDIF
      LDA #<mbrsector%
      STA datptr% + 0
      LDA #>mbrsector%
@@ -427,7 +681,12 @@ ENDIF
      STZ drivetable% - 1, X     ;; all zeros is treated as an invalid drive
      DEX
      BNE loop
+
+IF HD_MMC_HOG       ; TODO: reinstate JGH 
+     STZ numdrives%             ;; clear the number of drives
+ELSE
      STX numdrives%             ;; clear the number of drives
+ENDIF
         
 .testPartition
      LDY #&04
@@ -454,6 +713,28 @@ ENDIF
      CMP #&FE                   ;; &FE = &BE + &10 * 4
      BNE testPartition
 
+IF HD_MMC_HOG  ; TODO: REINSTATE JGH?
+.done
+     CPX #0                     ;; Did we find any ADFS partitions?
+     BEQ noADFS                 ;; No, then fatal error
+     RTS
+
+.noMBR
+     JSR GenerateErrorNoSuff
+     EQUB &CD
+     EQUS "No MBR!"
+     EQUB &00
+    
+.noADFS
+     JSR GenerateErrorNoSuff
+     EQUB &CD
+     EQUS "No ADFS partitions!"
+     EQUB &00
+}
+
+
+ELSE
+
 .done
      TXA                        ;; Did we find any ADFS partitions?
      BEQ noADFS                 ;; No, then fatal error
@@ -468,3 +749,5 @@ ENDIF
      LDA #&1C			;; A='No ADFS partitions'
      RTS
 }
+
+ENDIF

@@ -7,6 +7,7 @@ DA65=da65 --cpu 65c02
 ROMS=$(addprefix $(BUILDDIR)/, \
 	masIDE.rom \
 	masMMC_mdfs.net.rom \
+	masMMC_hog_SD.rom \
 	masSCSI.rom \
 	bbcSCSI.rom \
 	bbcIDE.rom \
@@ -73,6 +74,7 @@ compares: all comparedirs \
 	compares/org/elkSCSI.da.s \
 	compares/new/masIDE.da.s \
 	compares/new/masMMC_mdfs.net.da.s \
+	compares/new/Hoglet15x/SD.da.s \
 	compares/new/masSCSI.da.s \
 	compares/new/bbcIDE.da.s \
 	compares/new/bbcSCSI.da.s \
@@ -85,6 +87,7 @@ comparedirs:
 	-mkdir -p compares/org
 	-mkdir -p compares/org/Hoglet15x
 	-mkdir -p compares/new
+	-mkdir -p compares/new/Hoglet15x
 
 $(BUILDDIR)/:
 	-mkdir -p $(BUILDDIR)
@@ -109,10 +112,14 @@ compares/org/elkIDE.da.s: orgroms/ADFS103
 compares/new/%.da.s: $(BUILDDIR)/%.rom
 	$(DA65) --comments 4 --start-addr 0x8000 $< >$@
 
+compares/new/Hoglet15x/%.da.s:$(BUILDDIR)/masMMC_hog_%.rom
+	$(DA65) --comments 4 --start-addr 0x8000 $< >$@
+
 
 $(BUILDDIR)/masIDE.rom: adfs.asm $(IDE_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
 $(BUILDDIR)/masSCSI.rom: adfs.asm $(SCSI_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
 $(BUILDDIR)/masMMC_mdfs.net.rom: adfs.asm $(MMC_DRIVERS) $(TUBE_DRIVERS) $(STARMAP)
+$(BUILDDIR)/masMMC_hog_SD.rom: adfs.asm $(MMC_DRIVERS) $(TUBE_DRIVERS) $(STARMAP)
 $(BUILDDIR)/bbcIDE.rom: adfs.asm $(IDE_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
 $(BUILDDIR)/bbcIDEF.rom: adfs.asm $(IDE_DRIVERS_F) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
 $(BUILDDIR)/bbcSCSI.rom: adfs.asm $(SCSI_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
@@ -129,8 +136,8 @@ clean::
 	-rm $(BUILDDIR)/*.rom
 	-rm $(BUILDDIR)/*.lst
 	-rm $(BUILDDIR)/*.noi
-	-rm compares/*.da.s
 	-rm compares/org/*.da.s
 	-rm compares/org/Hoglet15x/*.da.s
 	-rm compares/new/*.da.s
+	-rm compares/new/Hoglet15x/*.da.s
 	-rm $(BUILDDIR)/*.ssd

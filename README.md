@@ -24,6 +24,26 @@
 * The roms above were downloaded from mdfs.net on 17 Feb 2021
 + The Master MMC ROM has some differences (see below)
 
+# ADFS 157 Master/MMC
+
+This seems to be somewhat complicated there are several forks - not all of which appear to work - including the 
+ROM from mdfs.net that I chose to initially base this on.
+
+
+## mdfs.net ADFS157
+
+This has optimisations that allow for the re-inclusion of the Floppy Disc code that was initially omitted to
+allow the extra code needed for the MMC drives
+
+## Hoglet15x
+
+This code has now been folded back in and builds but still has no Floppy Disc code.
+
+## Harmonisation
+
+The single source now builds both the mdfs.net and original Hoglet versions. These will need to be harmonised.
+Any help with this or volunteers for (possibly destructive) testing would be greatly appreciated.
+
 
 # New builds
 

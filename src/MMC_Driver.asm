@@ -46,6 +46,10 @@ ENDIF
 ;; ------------------------------------
               ldy    #&00
 
+IF HD_MMC_HOG
+              nop
+ENDIF
+
               include "TubeCheckAddrAndClaim.asm"
 
 ; Do a data transfer to/from a hard drive device
@@ -79,12 +83,16 @@ ENDIF
 .CommandStart
        PHP		; Save Read/Write in Carry
        JSR MMC_BEGIN    ; Initialize the card, if not already initialized
+IF NOT(HD_MMC_HOG)
        BNE CommandExit1	; Exit if failed to initialise
+ENDIF
        PLP
        PHP              ; Get the the carry flag back: C=0 for read, C=1 for write
        JSR MMC_SetupRW
        JSR setCommandAddress
+IF NOT(HD_MMC_HOG)
        BNE CommandExit1	; Exit if failed to select
+ENDIF
        LDY #9
        LDA (&B0), Y     ; Get the number of sectors to be transferred
        STA sectorcount%
@@ -96,18 +104,25 @@ ENDIF
 
 .SectorWrite
        JSR MMC_StartWrite
+IF NOT(HD_MMC_HOG)
        BNE CommandExit1	; Exit if failed to start
+ENDIF
        JSR MMC_Write256
        JSR MMC_EndWrite
        BRA SectorNext
 
 .SectorRead
        JSR MMC_StartRead
+IF NOT(HD_MMC_HOG)
        BNE CommandExit1	; Exit if failed to start
+ENDIF
        JSR MMC_Read256
        JSR MMC_16Clocks	;; ignore CRC
 
 .SectorNext             ;; Update command block to point to next sector
+IF HD_MMC_HOG
+       JSR    incCommandAddress
+ENDIF
        INC &B3          ;; Increment the MSB of I/O transfer address
        INC &C228        ;; Increment Tube address
        BNE TubeAddr
@@ -115,14 +130,22 @@ ENDIF
        BNE TubeAddr
        INC &C22A
 .TubeAddr
-
+IF NOT(HD_MMC_HOG)
        JSR incCommandAddress	; Increment MMC sector
+ENDIF
        DEC sectorcount%		; Decrement number to do
        BNE SectorLoop		; Loop for all sectors
-       LDA #0			; If we've got to here, all must be ok
 
+IF HD_MMC_HOG
+.CommandExit1
+       PLP
+.CommandExit2
+       LDA #0
+ELSE
+       LDA #0			; If we've got to here, all must be ok
 .CommandExit1
        PLP		; Drop Carry
+ENDIF
 .CommandDone
 .CommandExit
        PHA
@@ -137,9 +160,3 @@ ENDIF
               include       "TubeStartXfer.asm"
 
 
-IF HD_MMC
-; Include MMC low-level driver and User Port driver
-; -------------------------------------------------
-              include       "MMC.asm"
-              include       "MMC_UserPort.asm"
-ENDIF

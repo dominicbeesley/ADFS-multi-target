@@ -6,6 +6,7 @@ FLOPPY=TRUE		; Floppy drivers
 HD_SCSI=TRUE		; SCSI drivers
 HD_IDE=FALSE
 HD_MMC=FALSE
+HD_MMC_HOG=FALSE
 HD_SCSI2=FALSE
 ;
 OPTIMISE=0		; Don't do any code optimisation

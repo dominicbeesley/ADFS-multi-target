@@ -52,6 +52,8 @@ ENDIF
 }
 
 
+IF NOT(HD_MMC_HOG)
+
 ;; *** Send command to MMC ***
 ;; On exit A=result, Z=result=0
 .MMC_DoCommand
@@ -69,6 +71,8 @@ ENDIF
 ;    JMP UP_ReadBits7
     ; Fall though into UP_ReadBits7
 }
+
+ENDIF
 
 
 ;; This is always entered with X and A with the correct values
@@ -134,6 +138,28 @@ ENDIF
     BNE clku1
     RTS             ; A=SR, X=1, Y=0
 }
+
+IF HD_MMC_HOG   ; TODO: Merge with above / JGH
+
+;; *** Send command to MMC ***
+;; On exit A=result, Z=result=0
+.MMC_DoCommand
+    LDX #0
+{
+    LDY #7
+.dcmdu1
+    LDA cmdseq%,X
+    JSR UP_WriteByte
+    INX
+    DEY
+    BNE dcmdu1
+    JSR waitresp_up  ; Returns A,X=values for UP_ReadBits7
+    JMP UP_ReadBits7
+}
+
+ENDIF
+
+
 
 
 ;; wait for response bit
@@ -436,7 +462,6 @@ ENDIF
 
 ;; **** Complete Write Operation *****
 .MMC_EndWrite
-{
     LDY #2
 
     JSR MMC_Clocks
@@ -449,8 +474,10 @@ ENDIF
     ;      101 data rejected due to CRC error
     ;      110 data rejected due to write error
     AND #&1F
+IF NOT(HD_MMC_HOG)   ; TODO: check and reinstate
     CMP #11
     BEQ error_crc
+ENDIF
     CMP #5
     BNE error_write
 
@@ -460,13 +487,19 @@ ENDIF
     CMP #&FF
     BNE ewu2
     RTS        ; Returns with EQ, A=corrupted
+
+IF HD_MMC_HOG
+.error_write
+        jmp errWrite
+ELSE
 .error_crc
     LDA #&11
     RTS
 .error_write
     LDA #&03
     RTS
-}
+
+ENDIF
 
         
 ;; *** Write 512 byte sector from datptr or tube, skipping alternative bytes ***
