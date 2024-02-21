@@ -324,21 +324,29 @@ WKSP_ADFS_322			= WKSP_BASE + &0322
 WKSP_ADFS_331			= WKSP_BASE + &0331
 WKSP_ADFS_332			= WKSP_BASE + &0332
 WKSP_ADFS_333_LASTACCDRV	= WKSP_BASE + &0333
-WKSP_ADFS_334			= WKSP_BASE + &0334
-WKSP_ADFS_33E			= WKSP_BASE + &033E
-WKSP_ADFS_348			= WKSP_BASE + &0348
-WKSP_ADFS_352			= WKSP_BASE + &0352
-WKSP_ADFS_35C			= WKSP_BASE + &035C
-WKSP_ADFS_366			= WKSP_BASE + &0366
-WKSP_ADFS_370			= WKSP_BASE + &0370
-WKSP_ADFS_37A			= WKSP_BASE + &037A
+
+; Per-channel EXT 32 bit value across 4 tables
+WKSP_ADFS_334_CH_EXT_H		= WKSP_BASE + &0334
+WKSP_ADFS_33E_CH_EXT_MH		= WKSP_BASE + &033E
+WKSP_ADFS_348_CH_EXT_ML		= WKSP_BASE + &0348
+WKSP_ADFS_352_CH_EXT_L		= WKSP_BASE + &0352
+
+; Per-channel PTR 32 bit value across 4 tables
+WKSP_ADFS_35C_CH_PTR_H		= WKSP_BASE + &035C
+WKSP_ADFS_366_CH_PTR_MH		= WKSP_BASE + &0366
+WKSP_ADFS_370_CH_PTR_ML		= WKSP_BASE + &0370
+WKSP_ADFS_37A_CH_PTR_L		= WKSP_BASE + &037A
+
+
 WKSP_ADFS_383			= WKSP_BASE + &0383
 WKSP_ADFS_384			= WKSP_BASE + &0384
 WKSP_ADFS_38E			= WKSP_BASE + &038E
 WKSP_ADFS_398			= WKSP_BASE + &0398
 WKSP_ADFS_3A2			= WKSP_BASE + &03A2
 WKSP_ADFS_3AC_CH_FLAGS		= WKSP_BASE + &03AC
-CH_FLAGS_EOF			= $08
+CH_FLAGS_80_WRITEABLE		= $80
+CH_FLAGS_04_ATEOF		= $04			; PTR == EXT
+CH_FLAGS_08_EOF_READ		= $08			; already BGET'd EOF, fail if another BGET
 
 WKSP_ADFS_3B6			= WKSP_BASE + &03B6
 WKSP_ADFS_3C0			= WKSP_BASE + &03C0
@@ -8648,25 +8656,25 @@ ENDIF
 ;; ----------------------------------
 .LA9A8
 		jsr	LA77F				; Check FSM
-.LA9AB		stx	ZP_ADFS_C3_SAVE_X				; Store X, pointer to data word in zero page
+.LA9AB		stx	ZP_ADFS_C3_SAVE_X		; Store X, pointer to data word in zero page
 		pha
-		jsr	CheckSetChannelY				; Check channel and channel flags
-		jsr	LB1E9
+		jsr	CheckSetChannelY		; Check channel and channel flags
+		jsr	setEXTToPTRifAtEOF
 		pla					; Get action back
-		ldy	ZP_ADFS_CF_CHANNEL_OFFS				; Y=offset to channel info
+		ldy	ZP_ADFS_CF_CHANNEL_OFFS		; Y=offset to channel info
 		tax
 		bne	LA9DA				; Jump if not 0, not =PTR
 ;;
 ;; OSARGS 0,Y - Read PTR
 ;; ---------------------
-		ldx	ZP_ADFS_C3_SAVE_X				; Get pointer to data word
-		lda	WKSP_ADFS_37A,Y			; Copy PTR to data word
+		ldx	ZP_ADFS_C3_SAVE_X		; Get pointer to data word
+		lda	WKSP_ADFS_37A_CH_PTR_L,Y	; Copy PTR to data word
 		sta	&00,X
-		lda	WKSP_ADFS_370,Y
+		lda	WKSP_ADFS_370_CH_PTR_ML,Y
 		sta	&01,X
-		lda	WKSP_ADFS_366,Y
+		lda	WKSP_ADFS_366_CH_PTR_MH,Y
 		sta	&02,X
-		lda	WKSP_ADFS_35C,Y
+		lda	WKSP_ADFS_35C_CH_PTR_H,Y
 		sta	&03,X
 .LA9D0		jsr	LB19C
 		lda	#&00				; A=0 - action done
@@ -8680,7 +8688,7 @@ ENDIF
 .LA9DA		dex
 		bne	LAA59				; Jump if not 1, not PTR=
 		lda	WKSP_ADFS_3AC_CH_FLAGS,Y
-		bpl	LAA16
+		bpl	LAA16				; if not open for write/update
 .LA9E2		ldx	ZP_ADFS_C3_SAVE_X
 IF OPTIMISE<4
 		lda	&00,X
@@ -8698,13 +8706,13 @@ ELSE
 		jsr	ArgsData			; Copy data to channel info
 ENDIF
 .LA9FF		lda	&00,X
-		sta	WKSP_ADFS_37A,Y
+		sta	WKSP_ADFS_37A_CH_PTR_L,Y
 		lda	&01,X
-		sta	WKSP_ADFS_370,Y
+		sta	WKSP_ADFS_370_CH_PTR_ML,Y
 		lda	&02,X
-		sta	WKSP_ADFS_366,Y
+		sta	WKSP_ADFS_366_CH_PTR_MH,Y
 		lda	&03,X
-		sta	WKSP_ADFS_35C,Y
+		sta	WKSP_ADFS_35C_CH_PTR_H,Y
 IF USE65C12 AND OPTIMISE >= 1
 		bra	LA9D0
 ELSE
@@ -8714,24 +8722,24 @@ ENDIF
 .LAA16		ldx	ZP_ADFS_C3_SAVE_X
 		ldy	ZP_ADFS_CF_CHANNEL_OFFS
 		sec
-		lda	WKSP_ADFS_352,Y
+		lda	WKSP_ADFS_352_CH_EXT_L,Y
 		sbc	&00,X
-		lda	WKSP_ADFS_348,Y
+		lda	WKSP_ADFS_348_CH_EXT_ML,Y
 		sbc	&01,X
-		lda	WKSP_ADFS_33E,Y
+		lda	WKSP_ADFS_33E_CH_EXT_MH,Y
 		sbc	&02,X
-		lda	WKSP_ADFS_334,Y
+		lda	WKSP_ADFS_334_CH_EXT_H,Y
 		sbc	&03,X
 		bcc	LAA48
 IF OPTIMISE<4
 		lda	&00,X
-		sta	WKSP_ADFS_37A,Y
+		sta	WKSP_ADFS_37A_CH_PTR_L,Y
 		lda	&01,X
-		sta	WKSP_ADFS_370,Y
+		sta	WKSP_ADFS_370_CH_PTR_ML,Y
 		lda	&02,X
-		sta	WKSP_ADFS_366,Y
+		sta	WKSP_ADFS_366_CH_PTR_MH,Y
 		lda	&03,X
-		sta	WKSP_ADFS_35C,Y
+		sta	WKSP_ADFS_35C_CH_PTR_H,Y
 		jmp	LA9D0
 ELSE
 		bcs	LA9FF
@@ -8748,13 +8756,13 @@ ENDIF
 .LAA59		dex
 		bne	LAA75
 		ldx	ZP_ADFS_C3_SAVE_X
-		lda	WKSP_ADFS_352,Y
+		lda	WKSP_ADFS_352_CH_EXT_L,Y
 		sta	&00,X
-		lda	WKSP_ADFS_348,Y
+		lda	WKSP_ADFS_348_CH_EXT_ML,Y
 		sta	&01,X
-		lda	WKSP_ADFS_33E,Y
+		lda	WKSP_ADFS_33E_CH_EXT_MH,Y
 		sta	&02,X
-		lda	WKSP_ADFS_334,Y
+		lda	WKSP_ADFS_334_CH_EXT_H,Y
 		sta	&03,X
 .LAA72		jmp	LA9D0
 
@@ -8764,8 +8772,8 @@ ENDIF
 		bne	LAAB9
 		ldx	ZP_ADFS_C3_SAVE_X
 		lda	WKSP_ADFS_3AC_CH_FLAGS,Y
-		bmi	LAA82
-		jmp	LB0FA
+		bmi	LAA82				; open for update
+		jmp	brkNotOpenUpdate		; not open for update - error
 ;;
 .LAA82
 IF OPTIMISE<4
@@ -8784,14 +8792,14 @@ ELSE
 		jsr	ArgsData			; Copy data to channel info
 ENDIF
 		lda	&00,X
-		sta	WKSP_ADFS_352,Y
+		sta	WKSP_ADFS_352_CH_EXT_L,Y
 		lda	&01,X
-		sta	WKSP_ADFS_348,Y
+		sta	WKSP_ADFS_348_CH_EXT_ML,Y
 		lda	&02,X
-		sta	WKSP_ADFS_33E,Y
+		sta	WKSP_ADFS_33E_CH_EXT_MH,Y
 		lda	&03,X
-		sta	WKSP_ADFS_334,Y
-		jsr	Compare_WKSP_ADFS_334_X_to_WKSP_ADFS_35C
+		sta	WKSP_ADFS_334_CH_EXT_H,Y
+		jsr	CompareEXTtoPTR
 		bcs	LAA72
 		jmp	LA9E2
 
@@ -9102,34 +9110,24 @@ ENDIF
 		lda	WKSP_ADFS_3AC_CH_FLAGS,X	; Get channel flags
 		beq	LACF8				; Channel not open - error
 .LAD24		rts
-;;
-;; &C3AC,X channel flags
-;; &C334,X
-;; &C33E,X
-;; &C348,X
-;; &C352,X
-;; &C35C,X
-;; &C366,X
-;; &C370,X
-;; &C37A,X
-;;
-;; Compare something
+
+;; Compare EXT for current channel to PTR, return CS for PTR<EXT or CC for >=
 ;; -----------------
-.Compare_WKSP_ADFS_334_X_to_WKSP_ADFS_35C		
+.CompareEXTtoPTR		
 		ldx	ZP_ADFS_CF_CHANNEL_OFFS		; Get channel offset
-		lda	WKSP_ADFS_334,X
-		cmp	WKSP_ADFS_35C,X			; Compare something
-		bne	LAD48				; Different, so end with NE+CC/CS
-		lda	WKSP_ADFS_33E,X
-		cmp	WKSP_ADFS_366,X			; Compare something
-		bne	LAD48				; Different, so end with NE+CC/CS
-		lda	WKSP_ADFS_348,X
-		cmp	WKSP_ADFS_370,X			; Compare something
-		bne	LAD48				; Different, so end with NE+CC/CS
-		lda	WKSP_ADFS_352,X
-		cmp	WKSP_ADFS_37A,X			; Compare something
-		bne	LAD48				; Different, so end with NE+CC/CS
-		clc					; All same, set EQ+CC
+		lda	WKSP_ADFS_334_CH_EXT_H,X
+		cmp	WKSP_ADFS_35C_CH_PTR_H,X	
+		bne	LAD48				
+		lda	WKSP_ADFS_33E_CH_EXT_MH,X
+		cmp	WKSP_ADFS_366_CH_PTR_MH,X	
+		bne	LAD48				
+		lda	WKSP_ADFS_348_CH_EXT_ML,X
+		cmp	WKSP_ADFS_370_CH_PTR_ML,X	
+		bne	LAD48				
+		lda	WKSP_ADFS_352_CH_EXT_L,X
+		cmp	WKSP_ADFS_37A_CH_PTR_L,X	
+		bne	LAD48				
+		clc					
 .LAD48		rts
 ;;
 ;; FSC 1 - Read EOF
@@ -9139,8 +9137,8 @@ ENDIF
 		ror	A
 		bcs	LAD5A
 		jsr	LA77F
-		jsr	LB1E9
-		jsr	Compare_WKSP_ADFS_334_X_to_WKSP_ADFS_35C
+		jsr	setEXTToPTRifAtEOF
+		jsr	CompareEXTtoPTR
 .LAD5A		ldx	#&00
 		bcs	LAD5F
 		dex
@@ -9153,7 +9151,7 @@ ENDIF
 .brkEOFandReloadFSM		
 		lda	WKSP_ADFS_3AC_CH_FLAGS,X
 		and	#&C8
-		sta	WKSP_ADFS_3AC_CH_FLAGS,X	; 		WRONG? Clear 'pending EOF' flag
+		sta	WKSP_ADFS_3AC_CH_FLAGS,X	; WRONG? Clear 'pending EOF' flag
 		jsr	ReloadFSMandDIR_ThenBRK		; Generate an error
 		EQUB	&DF				; ERR=223
 		EQUS	"EOF"
@@ -9165,16 +9163,16 @@ ENDIF
 		jsr	CheckSetChannelY		; Check channel and get flags
 		ror	A
 		bcs	LAD9C
-		and	#CH_FLAGS_EOF>>1		; Gone past EOF?
+		and	#CH_FLAGS_08_EOF_READ>>1		; Gone past EOF?
 		bne	brkEOFandReloadFSM		; Generate EOF error
-		jsr	Compare_WKSP_ADFS_334_X_to_WKSP_ADFS_35C				; Compare something
+		jsr	CompareEXTtoPTR				; Compare something
 		bcs	LAD9C				; CS+NE, ok to read byte
 		bne	brkEOFandReloadFSM		; Not same, so generate 'EOF' error
 		jsr	LA77F				; Check various checksums
 		ldx	ZP_ADFS_CF_CHANNEL_OFFS		; Get offset to channel
 		lda	WKSP_ADFS_3AC_CH_FLAGS,X	; Get channel flag
 		and	#&C0
-		ora	#CH_FLAGS_EOF			; Set 'pending EOF' flag, next call will error
+		ora	#CH_FLAGS_08_EOF_READ		; Set 'pending EOF' flag, next call will error
 		sta	WKSP_ADFS_3AC_CH_FLAGS,X
 IF OPTIMISE<6
 		ldy	ZP_ADFS_C2_SAVE_Y		; Restore Y
@@ -9195,18 +9193,18 @@ ENDIF
 IF OPTIMISE<4
 		clc
 		lda	WKSP_ADFS_3CA,X
-		adc	WKSP_ADFS_370,X
+		adc	WKSP_ADFS_370_CH_PTR_ML,X
 		sta	WKSP_ADFS_296
 		lda	WKSP_ADFS_3C0,X
-		adc	WKSP_ADFS_366,X
+		adc	WKSP_ADFS_366_CH_PTR_MH,X
 		sta	WKSP_ADFS_297
 		lda	WKSP_ADFS_3B6,X
-		adc	WKSP_ADFS_35C,X
+		adc	WKSP_ADFS_35C_CH_PTR_H,X
 		sta	WKSP_ADFS_298			; &C296/7/8=&C3CA/B/C,X+&C370/1/2,X
 		lda	#&40
 		jsr	LABE7				; Manipulate various things
 		ldx	ZP_ADFS_CF_CHANNEL_OFFS
-		ldy	WKSP_ADFS_37A,X			; Y=low byte of PTR, offset into buffer
+		ldy	WKSP_ADFS_37A_CH_PTR_L,X			; Y=low byte of PTR, offset into buffer
 ELSE
 		lda	#&40
 		jsr	ChannelUpdate
@@ -9326,16 +9324,16 @@ ENDIF
 		lda	WKSP_ADFS_3A2,X
 		cmp	WKSP_ADFS_29A
 .LAEA6		bcc	LAED0
-		lda	WKSP_ADFS_334,X
+		lda	WKSP_ADFS_334_CH_EXT_H,X
 		cmp	WKSP_ADFS_29D
 		bne	LAECB
-		lda	WKSP_ADFS_33E,X
+		lda	WKSP_ADFS_33E_CH_EXT_MH,X
 		cmp	WKSP_ADFS_29C
 		bne	LAECB
-		lda	WKSP_ADFS_348,X
+		lda	WKSP_ADFS_348_CH_EXT_ML,X
 		cmp	WKSP_ADFS_29B
 		bne	LAECB
-		lda	WKSP_ADFS_352,X
+		lda	WKSP_ADFS_352_CH_EXT_L,X
 		cmp	WKSP_ADFS_29A
 		bne	LAECB
 .LAEC8		jmp	LB0DA
@@ -9540,19 +9538,19 @@ ENDIF
 ;;
 .LAFEC		ldx	ZP_ADFS_CF_CHANNEL_OFFS
 		clc
-		lda	WKSP_ADFS_348,X
+		lda	WKSP_ADFS_348_CH_EXT_ML,X
 		adc	WKSP_ADFS_3CA,X
 		sta	WKSP_ADFS_296
-		lda	WKSP_ADFS_33E,X
+		lda	WKSP_ADFS_33E_CH_EXT_MH,X
 		adc	WKSP_ADFS_3C0,X
 		sta	WKSP_ADFS_297
-		lda	WKSP_ADFS_334,X
+		lda	WKSP_ADFS_334_CH_EXT_H,X
 		adc	WKSP_ADFS_3B6,X
 		sta	WKSP_ADFS_298
 		lda	#&C0
 		jsr	LABE7
 		ldx	ZP_ADFS_CF_CHANNEL_OFFS
-		ldy	WKSP_ADFS_352,X
+		ldy	WKSP_ADFS_352_CH_EXT_L,X
 		lda	#&00
 .LB016		sta	(&BE),Y
 		iny
@@ -9627,13 +9625,13 @@ ENDIF
 ;;
 .LB0BD		ldx	ZP_ADFS_CF_CHANNEL_OFFS
 		lda	WKSP_ADFS_29A
-		sta	WKSP_ADFS_352,X
+		sta	WKSP_ADFS_352_CH_EXT_L,X
 		lda	WKSP_ADFS_29B
-		sta	WKSP_ADFS_348,X
+		sta	WKSP_ADFS_348_CH_EXT_ML,X
 		lda	WKSP_ADFS_29C
-		sta	WKSP_ADFS_33E,X
+		sta	WKSP_ADFS_33E_CH_EXT_MH,X
 		lda	WKSP_ADFS_29D
-		sta	WKSP_ADFS_334,X
+		sta	WKSP_ADFS_334_CH_EXT_H,X
 		jsr	L89D8
 .LB0DA		lda	WKSP_ADFS_2BF
 		sta	WKSP_ADFS_22F
@@ -9654,7 +9652,7 @@ ENDIF
 		sty	WKSP_ADFS_2CF
 		tay
 		bmi	LB112				; Channel is writable
-.LB0FA		jsr	ReloadFSMandDIR_ThenBRK
+.brkNotOpenUpdate		jsr	ReloadFSMandDIR_ThenBRK
 		EQUB	&C1				; ERR=193
 		EQUS	"Not open for update"
 		EQUB	&00
@@ -9665,17 +9663,17 @@ ENDIF
 		bcs	LB14D
 		cmp	#&03
 		beq	LB14D
-		lda	WKSP_ADFS_37A,X
+		lda	WKSP_ADFS_37A_CH_PTR_L,X
 		sec
 		adc	#&00
 		sta	WKSP_ADFS_29A
-		lda	WKSP_ADFS_370,X
+		lda	WKSP_ADFS_370_CH_PTR_ML,X
 		adc	#&00
 		sta	WKSP_ADFS_29B
-		lda	WKSP_ADFS_366,X
+		lda	WKSP_ADFS_366_CH_PTR_MH,X
 		adc	#&00
 		sta	WKSP_ADFS_29C
-		lda	WKSP_ADFS_35C,X
+		lda	WKSP_ADFS_35C_CH_PTR_H,X
 		adc	#&00
 		sta	WKSP_ADFS_29D
 		pla
@@ -9688,18 +9686,18 @@ ENDIF
 IF OPTIMISE<4
 		clc
 		lda	WKSP_ADFS_3CA,X
-		adc	WKSP_ADFS_370,X
+		adc	WKSP_ADFS_370_CH_PTR_ML,X
 		sta	WKSP_ADFS_296
 		lda	WKSP_ADFS_3C0,X
-		adc	WKSP_ADFS_366,X
+		adc	WKSP_ADFS_366_CH_PTR_MH,X
 		sta	WKSP_ADFS_297
 		lda	WKSP_ADFS_3B6,X
-		adc	WKSP_ADFS_35C,X
+		adc	WKSP_ADFS_35C_CH_PTR_H,X
 		sta	WKSP_ADFS_298
 		lda	#&C0
 		jsr	LABE7
 		ldx	ZP_ADFS_CF_CHANNEL_OFFS
-		ldy	WKSP_ADFS_37A,X
+		ldy	WKSP_ADFS_37A_CH_PTR_L,X
 ELSE
 		lda	#&C0
 		jsr	ChannelUpdate
@@ -9718,54 +9716,54 @@ IF OPTIMISE>=4
 		pha
 		clc
 		lda	WKSP_ADFS_3CA,X
-		adc	WKSP_ADFS_370,X
+		adc	WKSP_ADFS_370_CH_PTR_ML,X
 		sta	WKSP_ADFS_296
 		lda	WKSP_ADFS_3C0,X
-		adc	WKSP_ADFS_366,X
+		adc	WKSP_ADFS_366_CH_PTR_MH,X
 		sta	WKSP_ADFS_297
 		lda	WKSP_ADFS_3B6,X
-		adc	WKSP_ADFS_35C,X
+		adc	WKSP_ADFS_35C_CH_PTR_H,X
 		sta	WKSP_ADFS_298			; &C296/7/8=&C3CA/B/C,X+&C370/1/2,X
 		pla
 		jsr	LABE7				; Manipulate various things
 		ldx	ZP_ADFS_CF_CHANNEL_OFFS
-		ldy	WKSP_ADFS_37A,X			; Y=low byte of PTR, offset into buffer
+		ldy	WKSP_ADFS_37A_CH_PTR_L,X			; Y=low byte of PTR, offset into buffer
 		rts
 ENDIF
 
 .LB180		ldx	ZP_ADFS_CF_CHANNEL_OFFS
-		inc	WKSP_ADFS_37A,X
+		inc	WKSP_ADFS_37A_CH_PTR_L,X
 		bne	LB17F
 		bit	WKSP_ADFS_2CF
 		bmi	LB18F
 		jsr	LA77F
-.LB18F		inc	WKSP_ADFS_370,X
+.LB18F		inc	WKSP_ADFS_370_CH_PTR_ML,X
 		bne	LB19C
-		inc	WKSP_ADFS_366,X
+		inc	WKSP_ADFS_366_CH_PTR_MH,X
 		bne	LB19C
-		inc	WKSP_ADFS_35C,X
-.LB19C		jsr	LB1E9
-		pha
+		inc	WKSP_ADFS_35C_CH_PTR_H,X
+.LB19C		jsr	setEXTToPTRifAtEOF
+		pha					; save returned flags
 		sec
-		lda	WKSP_ADFS_370,X
-		sbc	WKSP_ADFS_348,X
-		lda	WKSP_ADFS_366,X
-		sbc	WKSP_ADFS_33E,X
-		lda	WKSP_ADFS_35C,X
-		sbc	WKSP_ADFS_334,X
-		bcc	LB1DE
-		lda	WKSP_ADFS_37A,X
-		cmp	WKSP_ADFS_352,X
-		bne	LB1C1
+		lda	WKSP_ADFS_370_CH_PTR_ML,X
+		sbc	WKSP_ADFS_348_CH_EXT_ML,X
+		lda	WKSP_ADFS_366_CH_PTR_MH,X
+		sbc	WKSP_ADFS_33E_CH_EXT_MH,X
+		lda	WKSP_ADFS_35C_CH_PTR_H,X
+		sbc	WKSP_ADFS_334_CH_EXT_H,X
+		bcc	LB1DE				; jump is sector of PTR < sector of EXT
+		lda	WKSP_ADFS_37A_CH_PTR_L,X
+		cmp	WKSP_ADFS_352_CH_EXT_L,X
+		bne	LB1C1				; jump if PTR<>EXT
 		pla
-		ora	#&04
+		ora	#CH_FLAGS_04_ATEOF
 		pha
 .LB1C1		sec
-		lda	WKSP_ADFS_348,X
+		lda	WKSP_ADFS_348_CH_EXT_ML,X
 		sbc	WKSP_ADFS_398,X
-		lda	WKSP_ADFS_33E,X
+		lda	WKSP_ADFS_33E_CH_EXT_MH,X
 		sbc	WKSP_ADFS_38E,X
-		lda	WKSP_ADFS_334,X
+		lda	WKSP_ADFS_334_CH_EXT_H,X
 		sbc	WKSP_ADFS_384,X
 		bcc	LB1D9
 		pla
@@ -9779,23 +9777,28 @@ ENDIF
 		and	#&F9
 .LB1E5		sta	WKSP_ADFS_3AC_CH_FLAGS,X
 		rts
-;;
-.LB1E9		ldx	ZP_ADFS_CF_CHANNEL_OFFS				; Get channel offset
+;; copy PTR into EXT
+.setEXTToPTRifAtEOF	
+{
+		ldx	ZP_ADFS_CF_CHANNEL_OFFS				; Get channel offset
 		lda	WKSP_ADFS_3AC_CH_FLAGS,X
 		pha
-		and	#&04
-		beq	LB20B
-		lda	WKSP_ADFS_37A,X
-		sta	WKSP_ADFS_352,X
-		lda	WKSP_ADFS_370,X
-		sta	WKSP_ADFS_348,X
-		lda	WKSP_ADFS_366,X
-		sta	WKSP_ADFS_33E,X
-		lda	WKSP_ADFS_35C,X
-		sta	WKSP_ADFS_334,X
-.LB20B		pla
+		and	#CH_FLAGS_04_ATEOF
+		beq	skLB20B
+		lda	WKSP_ADFS_37A_CH_PTR_L,X
+		sta	WKSP_ADFS_352_CH_EXT_L,X
+		lda	WKSP_ADFS_370_CH_PTR_ML,X
+		sta	WKSP_ADFS_348_CH_EXT_ML,X
+		lda	WKSP_ADFS_366_CH_PTR_MH,X
+		sta	WKSP_ADFS_33E_CH_EXT_MH,X
+		lda	WKSP_ADFS_35C_CH_PTR_H,X
+		sta	WKSP_ADFS_334_CH_EXT_H,X
+.skLB20B	pla
 		and	#&C0
 		bne	LB1E5
+}
+
+; check fall through - is this a bra or is there a case where all files should close?
 
 .starCLOSE		
 		lda	#&00				; A=0 for CLOSE
@@ -9830,7 +9833,7 @@ ENDIF
 ;; Open a file
 ;; -----------
 .LB23E		ldx	#&09				; Look for a spare channel
-.LB240		lda	WKSP_ADFS_3AC_CH_FLAGS,X			; Check channel flags
+.LB240		lda	WKSP_ADFS_3AC_CH_FLAGS,X	; Check channel flags
 		beq	LB260				; Found a spare channel
 		dex					; Loop to next channel
 		bpl	LB240				; Keep going until run out of channels
@@ -9856,7 +9859,7 @@ ENDIF
 IF OPTIMISE<4
 		ldx	#&09
 .LB277		lda	WKSP_ADFS_3AC_CH_FLAGS,X
-		bpl	LB2AA
+		bpl	LB2AA				; skip if not open for update/write
 		lda	WKSP_ADFS_3B6,X
 		and	#&E0
 		cmp	WKSP_ADFS_317_CURDRV
@@ -9892,16 +9895,16 @@ ENDIF
 .LB2B6		ldy	#&12
 		ldx	ZP_ADFS_CF_CHANNEL_OFFS
 		lda	(&B6),Y
-		sta	WKSP_ADFS_352,X
+		sta	WKSP_ADFS_352_CH_EXT_L,X
 		iny
 		lda	(&B6),Y
-		sta	WKSP_ADFS_348,X
+		sta	WKSP_ADFS_348_CH_EXT_ML,X
 		iny
 		lda	(&B6),Y
-		sta	WKSP_ADFS_33E,X
+		sta	WKSP_ADFS_33E_CH_EXT_MH,X
 		iny
 		lda	(&B6),Y
-		sta	WKSP_ADFS_334,X
+		sta	WKSP_ADFS_334_CH_EXT_H,X
 .LB2D1		ldy	#&12
 		ldx	ZP_ADFS_CF_CHANNEL_OFFS
 		lda	(&B6),Y
@@ -9935,10 +9938,10 @@ ENDIF
 		lda	WKSP_ADFS_316
 		sta	WKSP_ADFS_3D4,X
 		lda	#&00
-		sta	WKSP_ADFS_37A,X
-		sta	WKSP_ADFS_370,X
-		sta	WKSP_ADFS_366,X
-		sta	WKSP_ADFS_35C,X
+		sta	WKSP_ADFS_37A_CH_PTR_L,X
+		sta	WKSP_ADFS_370_CH_PTR_ML,X
+		sta	WKSP_ADFS_366_CH_PTR_MH,X
+		sta	WKSP_ADFS_35C_CH_PTR_H,X
 		lda	WKSP_ADFS_2A0
 		sta	WKSP_ADFS_3AC_CH_FLAGS,X
 		txa
@@ -10017,10 +10020,10 @@ ENDIF
 		jsr	L8FE8
 .LB3CD		lda	#&00
 		ldx	ZP_ADFS_CF_CHANNEL_OFFS
-		sta	WKSP_ADFS_352,X
-		sta	WKSP_ADFS_348,X
-		sta	WKSP_ADFS_33E,X
-		sta	WKSP_ADFS_334,X
+		sta	WKSP_ADFS_352_CH_EXT_L,X
+		sta	WKSP_ADFS_348_CH_EXT_ML,X
+		sta	WKSP_ADFS_33E_CH_EXT_MH,X
+		sta	WKSP_ADFS_334_CH_EXT_H,X
 		jmp	LB2D1
 ;;
 ;; CLOSE a channel
@@ -10060,8 +10063,8 @@ ENDIF
 ;; Close a channel with Y=handle
 ;; -----------------------------
 .LB406		jsr	CheckSetChannelY				; Check channel and get flags
-.LB409		jsr	LB1E9				; Check something and set flags
-		ldy	WKSP_ADFS_3AC_CH_FLAGS,X			; Get flags
+.LB409		jsr	setEXTToPTRifAtEOF					
+		ldy	WKSP_ADFS_3AC_CH_FLAGS,X			; Get flags (TODO: to TAY optimize away - this is done above)
 IF USE65C12
 		stz	WKSP_ADFS_3AC_CH_FLAGS,X			; Clear flags
 ELSE
@@ -10069,17 +10072,17 @@ ELSE
 		sta	WKSP_ADFS_3AC_CH_FLAGS,X			; Clear flags
 ENDIF
 		tya					; Pass flags to A
-		bpl	LB435				; Jump ahead if b7=0
-		lda	WKSP_ADFS_352,X
+		bpl	LB435				; Jump ahead if not open for write/update
+		lda	WKSP_ADFS_352_CH_EXT_L,X
 		cmp	WKSP_ADFS_3A2,X
 		bne	LB442
-		lda	WKSP_ADFS_348,X
+		lda	WKSP_ADFS_348_CH_EXT_ML,X
 		cmp	WKSP_ADFS_398,X
 		bne	LB442
-		lda	WKSP_ADFS_33E,X
+		lda	WKSP_ADFS_33E_CH_EXT_MH,X
 		cmp	WKSP_ADFS_38E,X
 		bne	LB442
-		lda	WKSP_ADFS_334,X
+		lda	WKSP_ADFS_334_CH_EXT_H,X
 		cmp	WKSP_ADFS_384,X
 		bne	LB442				; Jump ahead with difference
 .LB435		jsr	LAAB9				; Write buffer?
@@ -10092,45 +10095,45 @@ ENDIF
 ;; Update directory entry?
 ;; -----------------------
 .LB442		jsr	LADD4
-		lda	WKSP_ADFS_352,X
+		lda	WKSP_ADFS_352_CH_EXT_L,X
 		cmp	#&01
 		lda	WKSP_ADFS_234
-		adc	WKSP_ADFS_348,X
+		adc	WKSP_ADFS_348_CH_EXT_ML,X
 		sta	WKSP_ADFS_234
 		lda	WKSP_ADFS_235
-		adc	WKSP_ADFS_33E,X
+		adc	WKSP_ADFS_33E_CH_EXT_MH,X
 		sta	WKSP_ADFS_235
 		lda	WKSP_ADFS_236
-		adc	WKSP_ADFS_334,X
+		adc	WKSP_ADFS_334_CH_EXT_H,X
 		sta	WKSP_ADFS_236
 		lda	WKSP_ADFS_3A2,X
 		cmp	#&01
 		lda	WKSP_ADFS_398,X
-		sbc	WKSP_ADFS_348,X
+		sbc	WKSP_ADFS_348_CH_EXT_ML,X
 		sta	WKSP_ADFS_237
 		lda	WKSP_ADFS_38E,X
-		sbc	WKSP_ADFS_33E,X
+		sbc	WKSP_ADFS_33E_CH_EXT_MH,X
 		sta	WKSP_ADFS_237 + 1
 		lda	WKSP_ADFS_384,X
-		sbc	WKSP_ADFS_334,X
+		sbc	WKSP_ADFS_334_CH_EXT_H,X
 		sta	WKSP_ADFS_237 + 2
-		lda	WKSP_ADFS_352,X
+		lda	WKSP_ADFS_352_CH_EXT_L,X
 		bne	LB497
 		inc	WKSP_ADFS_237
 		bne	LB497
 		inc	WKSP_ADFS_237 + 1
 		bne	LB497
 		inc	WKSP_ADFS_237 + 2
-.LB497		lda	WKSP_ADFS_352,X
+.LB497		lda	WKSP_ADFS_352_CH_EXT_L,X
 		ldy	#&12
 		sta	(&B8),Y
-		lda	WKSP_ADFS_348,X
+		lda	WKSP_ADFS_348_CH_EXT_ML,X
 		iny
 		sta	(&B8),Y
-		lda	WKSP_ADFS_33E,X
+		lda	WKSP_ADFS_33E_CH_EXT_MH,X
 		iny
 		sta	(&B8),Y
-		lda	WKSP_ADFS_334,X
+		lda	WKSP_ADFS_334_CH_EXT_H,X
 		iny
 		sta	(&B8),Y
 		jsr	L84E1				; Calculate something in FSM
@@ -10324,7 +10327,7 @@ ENDIF
 		tay
 		jsr	CheckSetChannelY
 		php
-		jsr	LB1E9
+		jsr	setEXTToPTRifAtEOF
 		ldx	ZP_ADFS_CF_CHANNEL_OFFS
 		lda	WKSP_ADFS_3B6,X
 		jsr	LB56C
@@ -10333,7 +10336,7 @@ ENDIF
 		lda	WKSP_ADFS_2B4
 		cmp	#&03
 		bcs	LB614
-		jmp	LB0FA
+		jmp	brkNotOpenUpdate
 ;;
 .LB614		lda	WKSP_ADFS_2B4
 		and	#&01
@@ -10366,19 +10369,19 @@ ENDIF
 .LB64E		ldy	#&09
 		ldx	ZP_ADFS_CF_CHANNEL_OFFS
 		lda	WKSP_ADFS_29A
-		sta	WKSP_ADFS_37A,X
+		sta	WKSP_ADFS_37A_CH_PTR_L,X
 		sta	(&C6),Y
 		iny
 		lda	WKSP_ADFS_29B
-		sta	WKSP_ADFS_370,X
+		sta	WKSP_ADFS_370_CH_PTR_ML,X
 		sta	(&C6),Y
 		iny
 		lda	WKSP_ADFS_29C
-		sta	WKSP_ADFS_366,X
+		sta	WKSP_ADFS_366_CH_PTR_MH,X
 		sta	(&C6),Y
 		iny
 		lda	WKSP_ADFS_29D
-		sta	WKSP_ADFS_35C,X
+		sta	WKSP_ADFS_35C_CH_PTR_H,X
 		sta	(&C6),Y
 		lda	WKSP_ADFS_2B4
 		cmp	#&03
@@ -10394,7 +10397,7 @@ ENDIF
 		bpl	LB680
 		jmp	LB6FE
 ;;
-.LB690		jsr	Compare_WKSP_ADFS_334_X_to_WKSP_ADFS_35C
+.LB690		jsr	CompareEXTtoPTR
 		bcs	LB67C
 		beq	LB67C
 IF USE65C12
@@ -10405,16 +10408,16 @@ ELSE
 ENDIF
 		ldx	ZP_ADFS_CF_CHANNEL_OFFS
 		sec
-		lda	WKSP_ADFS_352,X
+		lda	WKSP_ADFS_352_CH_EXT_L,X
 		sbc	&C8
 		sta	WKSP_ADFS_240
-		lda	WKSP_ADFS_348,X
+		lda	WKSP_ADFS_348_CH_EXT_ML,X
 		sbc	&C9
 		sta	WKSP_ADFS_241
-		lda	WKSP_ADFS_33E,X
+		lda	WKSP_ADFS_33E_CH_EXT_MH,X
 		sbc	&CA
 		sta	WKSP_ADFS_242
-		lda	WKSP_ADFS_334,X
+		lda	WKSP_ADFS_334_CH_EXT_H,X
 		sbc	&CB
 		sta	WKSP_ADFS_243
 		ldx	#&03
@@ -10427,24 +10430,24 @@ ENDIF
 		dex
 		bpl	LB6C2
 		ldx	ZP_ADFS_CF_CHANNEL_OFFS
-		lda	WKSP_ADFS_352,X
+		lda	WKSP_ADFS_352_CH_EXT_L,X
 		sta	WKSP_ADFS_29A
-		sta	WKSP_ADFS_37A,X
+		sta	WKSP_ADFS_37A_CH_PTR_L,X
 		sta	(&C6),Y
 		iny
-		lda	WKSP_ADFS_348,X
+		lda	WKSP_ADFS_348_CH_EXT_ML,X
 		sta	WKSP_ADFS_29B
-		sta	WKSP_ADFS_370,X
+		sta	WKSP_ADFS_370_CH_PTR_ML,X
 		sta	(&C6),Y
 		iny
-		lda	WKSP_ADFS_33E,X
+		lda	WKSP_ADFS_33E_CH_EXT_MH,X
 		sta	WKSP_ADFS_29C
-		sta	WKSP_ADFS_366,X
+		sta	WKSP_ADFS_366_CH_PTR_MH,X
 		sta	(&C6),Y
 		iny
-		lda	WKSP_ADFS_334,X
+		lda	WKSP_ADFS_334_CH_EXT_H,X
 		sta	WKSP_ADFS_29D
-		sta	WKSP_ADFS_35C,X
+		sta	WKSP_ADFS_35C_CH_PTR_H,X
 		sta	(&C6),Y
 .LB6FE		ldy	#&01
 		ldx	#&03
