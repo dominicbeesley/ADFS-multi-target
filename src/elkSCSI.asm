@@ -2,6 +2,7 @@
 ; ----------------------------------------
 
 TARGETOS=0		; 0=Electron
+AUTOHAZEL=FALSE		; Autohazel for blitter
 FLOPPY=TRUE		; Floppy drivers
 HD_SCSI=TRUE
 HD_IDE=FALSE

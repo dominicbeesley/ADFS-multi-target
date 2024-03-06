@@ -92,7 +92,7 @@ ELSE
 CONFIG_BIT_FD_SPEED	= &10
 ENDIF
 
-IF TARGETOS > 1
+IF TARGETOS > 1 OR AUTOHAZEL
 WKSP_BASE			= &C000
 ELSE
 WKSP_BASE			= &0E00
@@ -5240,7 +5240,7 @@ ENDIF
 ;; Low service call routines address-1 low bytes
 ;; ---------------------------------------------
 .L9AAC		EQUB	<(Serv0-1)			; Serv0 - L9AD5 - Null
-IF TARGETOS > 1
+IF TARGETOS > 1 OR AUTOHAZEL
 		EQUB	<(Serv0-1)			; Serv1 - L9AD5 - Null
 ELSE
 		EQUB	<(Serv1-1)			; Serv1 - L9AD5 - Null
@@ -5257,7 +5257,7 @@ ENDIF
 ;; Low service call routines address-1 high bytes
 ;; ----------------------------------------------
 .L9AB6		EQUB	>(Serv0-1)
-IF TARGETOS > 1
+IF TARGETOS > 1 OR AUTOHAZEL
 		EQUB	>(Serv0-1)
 ELSE
 		EQUB	>(Serv1-1)
@@ -5271,7 +5271,7 @@ ENDIF
 		EQUB	>(Serv8-1)
 		EQUB	>(Serv9-1)
 
-IF TARGETOS > 1
+IF TARGETOS > 1 OR AUTOHAZEL
 
 ;;
 ;; High service call routines address-1 low bytes
@@ -5280,9 +5280,11 @@ IF TARGETOS > 1
 		EQUB	<(Serv22-1)			; Serv22 - Serv22 - High w/s
 		EQUB	<(Serv0-1)			; Serv23 - Serv0 - Null
 		EQUB	<(Serv24-1)			; Serv24 - Serv24 - Hazel count
+IF NOT(AUTOHAZEL)
 		EQUB	<(Serv25-1)			; Serv25 - Serv25 - FS Info
 		EQUB	<(Serv26-1)			; Serv26 - Serv26 - *SHUT
 		EQUB	<(Serv0-1)			; Serv27 - Serv0 - Null
+ENDIF
 ;;
 ;; High service call routines address-1 high bytes
 ;; -----------------------------------------------
@@ -5290,15 +5292,11 @@ IF TARGETOS > 1
 		EQUB	>(Serv22-1)
 		EQUB	>(Serv0-1)
 		EQUB	>(Serv24-1)
+IF NOT(AUTOHAZEL)
 		EQUB	>(Serv25-1)
 		EQUB	>(Serv26-1)
 		EQUB	>(Serv0-1)
-
-ELSE
-.L9AC0
-.L9AC7
-							;TODO: not sure here
-
+ENDIF
 
 ENDIF
 
@@ -5308,7 +5306,8 @@ ENDIF
 ;;
 .ServiceCallHandlerL9ACE
 
-IF TARGETOS > 1
+IF TARGETOS > 1 OR AUTOHAZEL
+	IF USE65C12
 		bit	&0DF0,X				; Check ROM w/s byte
 		bpl	L9AD6				; &00-&7F -> Check bit6
 		bvs	L9AD8				; &C0-&FF -> ROM enabled
@@ -5317,6 +5316,17 @@ IF TARGETOS > 1
 ;; --------------------------------------------
 .Serv0		rts					; &80-&BF -> ROM disabled
 .L9AD6		bvs	Serv0				; &40-&7F -> ROM disabled
+	ELSE
+		pha
+		lda	&0DF0,X				; Check ROM w/s byte
+		rol	A
+		eor	&0DF0,X				; Check ROM w/s byte
+		rol	A
+		pla
+		bcc	_hazOk
+.Serv0		rts
+._hazOk
+	ENDIF
 ELSE
 		pha
 		cmp	#$01
@@ -5342,7 +5352,7 @@ ENDIF
 ;; workspace somewhere in &40xx-&BFxx, then the ROM is disabled.
 ;;
 .L9AD8		cmp	#&12				; Select filing system?
-IF TARGETOS = 0 AND HD_SCSI
+IF (TARGETOS = 0 AND HD_SCSI) OR AUTOHAZEL
 		bne	_elkL9AC4
 		jmp	L9B4C
 ._elkL9AC4
@@ -5350,7 +5360,7 @@ ELSE
 		beq	L9B4C				; Jump to check FS
 ENDIF
 		cmp	#&0A				; Service call 10 or higher?
-IF TARGETOS > 1
+IF TARGETOS > 1 OR AUTOHAZEL
 		bcs	L9AED				; Jump forward with higher calls
 ELSE
 		bcs	Serv0
@@ -5364,22 +5374,30 @@ ENDIF
 		ldx	ZP_MOS_CURROM			; Get ROM number back into X
 		rts					; Jump to service routine
 
-IF TARGETOS > 1
+IF TARGETOS > 1 OR AUTOHAZEL
 ;;
 ;; Service calls &21 to &27
 ;; ------------------------
 .L9AED		cmp	#&21				; Check against the lowest value
 		bcc	Serv0				; Quit with calls <&21
+IF AUTOHAZEL
+		cmp	#$26
+ELSE
 		cmp	#&28
+ENDIF
 		bcs	Serv0				; Quit with calls >&27
 		tax					; Pass service call into X
 		lda	L9AC7-&21,X			; Index into address table
 		pha					; Push service routine address
 		lda	L9AC0-&21,X			; onto stack
+IF USE65C12
 		bra	L9AE8				; Jump back to jump to service routine
+ELSE
+		jmp	L9AE8
+ENDIF
 ENDIF
 
-IF TARGETOS <= 1
+IF TARGETOS <= 1 AND NOT(AUTOHAZEL)
 ;;
 ;;
 ;; Serv1 - Low workspace claim
@@ -5421,7 +5439,7 @@ ENDIF
 ;; on this call.
 ;;
 .Serv2
-IF TARGETOS > 1
+IF TARGETOS > 1 OR AUTOHAZEL
 		lda	&0DF0,X				; Get workspace pointer
 		cmp	#&DC				; Is it set to <&DC00?
 		bcc	L9B0A				; Use existing value if it is
@@ -5434,6 +5452,16 @@ ELSE
 		tya
 		pha
 ENDIF
+
+ELSE
+							;new BBC
+		tya
+		sta	$0DF0, X
+		pha
+ENDIF 
+
+
+IF TARGETOS > 1
 ;;
 ;; Now do some initialisation. Look for a hard drive.
 ;;
@@ -5443,10 +5471,6 @@ ELSE
 		jsr	L9A88				; Read BREAK type
 ENDIF
 ELSE ; TARGETOS <= 1
-							;new BBC
-		tya
-		sta	$0DF0, X
-		pha
 IF PRESERVE_CONTEXT AND TARGETOS > 0
 		jsr	ReadBreak
 ELSE
@@ -5525,7 +5549,10 @@ ELSE
 		tay
 ENDIF
 		ldx	ZP_MOS_CURROM				; Get ROM number back into X
-IF TARGETOS > 1
+IF AUTOHAZEL
+		lda	&0DF0,X				; Check w/s pointer
+		bmi	L9B47				; Exit if using high workspace
+ELIF TARGETOS > 1
 		bit	&0DF0,X				; Check w/s pointer
 		bmi	L9B47				; Exit if using high workspace
 ENDIF
@@ -5899,7 +5926,7 @@ ENDIF
 		EQUW	my_OSFIND:EQUB &FF		; OSFIND
 		EQUW	my_FSCV:EQUB &FF		; FSCV
 
-IF TARGETOS > 1
+IF TARGETOS > 1 OR AUTOHAZEL
 
 ;;
 ;;
@@ -5922,6 +5949,10 @@ IF TARGETOS > 1
 ;; =============================================
 .Serv24		dey					; ADFS needs one page
 		rts
+
+ENDIF
+
+IF TARGETOS > 1
 ;;
 ;; Serv25 - Return filing system information
 ;; =========================================

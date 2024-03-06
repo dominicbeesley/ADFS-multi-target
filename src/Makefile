@@ -15,6 +15,7 @@ ROMS=$(addprefix $(BUILDDIR)/, \
 	masBM_XDFS.rom \
 	masSCSI.rom \
 	bbcSCSI.rom \
+	bbcSCSI_AH.rom \
 	bbcIDE.rom \
 	elkIDE.rom \
 	elkSCSI.rom \
@@ -54,6 +55,7 @@ $(BUILDDIR)/adfsroms.ssd: $(ROMS)
 #	dfs add -l 0xFFFF8000 -e 0xFFFF8000 -f "ADFS107" $@ elkMMC.rom
 
 	dfs add -l 0xFFFF8000 -e 0xFFFF8000 -f "ADFS130" $@ $(BUILDDIR)/bbcSCSI.rom
+	dfs add -l 0xFFFF8000 -e 0xFFFF8000 -f "ADFSH30" $@ $(BUILDDIR)/bbcSCSI_AH.rom
 	dfs add -l 0xFFFF8000 -e 0xFFFF8000 -f "ADFS133" $@ $(BUILDDIR)/bbcIDE.rom
 #	dfs add -l 0xFFFF8000 -e 0xFFFF8000 -f "ADFS137" $@ bbcMMC.rom
 	dfs add -l 0xFFFF8000 -e 0xFFFF8000 -f "ADFS134" $@ $(BUILDDIR)/bbcSCS2.rom
@@ -163,6 +165,7 @@ $(BUILDDIR)/masBM_XDFS.rom: adfs.asm $(SCSI_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) 
 $(BUILDDIR)/bbcIDE.rom: adfs.asm $(IDE_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
 $(BUILDDIR)/bbcIDEF.rom: adfs.asm $(IDE_DRIVERS_F) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
 $(BUILDDIR)/bbcSCSI.rom: adfs.asm $(SCSI_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
+$(BUILDDIR)/bbcSCSI_AH.rom: adfs.asm $(SCSI_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
 $(BUILDDIR)/bbcSCS2.rom: adfs.asm $(SCSI2_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
 $(BUILDDIR)/elkIDE.rom: adfs.asm $(IDE_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
 $(BUILDDIR)/elkSCSI.rom: adfs.asm $(SCSI_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
