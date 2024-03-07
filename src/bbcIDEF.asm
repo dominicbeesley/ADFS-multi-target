@@ -16,7 +16,6 @@ UNSUPPORTED_OSFILE=TRUE ; Unknown OSFILE returns A corrupted
 PRESERVE_CONTEXT=TRUE	; Ctrl-Break preserves context
 LARGE_DISK=FALSE	; Future development
 TRIM_REDUNDANT=FALSE	; Don't remove redundant code
-OPTIMISE=0		; Don't do any code optimisation
 EXTERNAL=TRUE		; External support
 ;
 USE65C12=FALSE

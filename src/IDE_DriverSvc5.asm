@@ -46,15 +46,7 @@ ENDIF ; TARGETOS = 0
 		lda	#&00
 		sta	WKSP_ADFS_331			; Clear the flag
 		ldx	WKSP_ADFS_2D4			; Get channel being used
-IF OPTIMISE<3
 		jsr	GenerateErrorSuffX				; Generate 'Data lost' error with X=channel
 		EQUB	&CA				; ERR=202
 		EQUS	"Data lost, channel"
 		EQUB	&00
-ELSE
-		stx	WKSP_ADFS_2D5_CUR_CHANNEL			; Store channel for error generation
-		jsr	GenerateErrorNoSuff				; Generate 'Data lost' error +' on channel NNN'
-		EQUB	&CA				; ERR=202
-		EQUS	"Data lost"
-		EQUB	&00
-ENDIF

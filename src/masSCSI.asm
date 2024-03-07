@@ -9,7 +9,6 @@ HD_MMC=FALSE
 HD_MMC_HOG=FALSE
 HD_SCSI2=FALSE
 ;
-OPTIMISE=0		; Don't do any code optimisation
 FULL_INFO=FALSE		; Truncated *INFO
 FULL_ACCESS=FALSE	; Truncated OSFILE 1-4
 UNSUPPORTED_OSFILE=FALSE	; Unknown OSFILE returns A corrupted

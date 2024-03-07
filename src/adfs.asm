@@ -20,16 +20,7 @@
 ; Does not yet build correctly for BBC or Electron.
 
 
-; OPTIMISE flag sets how hard to optimise
-; 1 Use 65C12 coding where possible
-; 	;; TODO : ASK JGH - there are a lot of 65c12 instructions included even
-							;if this is 0 so I've added USE65C12 around those to turn the off for
-							;BBC / Elk / 6502A builds but qualified with OPTIMISE in other places?
-; 2 Subroutines for ReadCMOS, DiskSpeed, SetAttr, GetFilename, NextEntry, PointToCtrl
-; 3 Rewritten disk error generation
-; 4 Crunch OSARGS, BGET/BPUT update, CheckOpen
-; 5 Tail optimise sector_address to side/track/sector, LoadFSM, RootSector
-; 6 Merge *CAT/*EX, loop some code, crunch BGET return, FloppyORA_STEP_SET_FDC_CMD, CheckAddr, SectToCtrl
+;TODO: reinstate some JGH optimisations, with testing
 
 ; Other options, set from launch file:
 ; TARGETOS		Target machine MOS

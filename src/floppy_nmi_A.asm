@@ -77,16 +77,10 @@ ELSE
 		lda	#&00
 ENDIF
 		sta	&A3
-IF OPTIMISE<6
 		ora	NMIVARS_FDC_CMD_STEP
-
 IF TARGETOS<>0 OR NOT(HD_SCSI)
 		sta	FDC_CMD				; FDC Status/Command
 ENDIF	; ELK SCSI
-
-ELSE
-		jsr	FloppyORA_STEP_SET_FDC_CMD
-ENDIF
 
 IF TARGETOS=0 AND HD_SCSI
 		jmp	FloppyWaitNMIFinish2elk
@@ -95,9 +89,3 @@ ELSE
 ENDIF
 
 
-IF OPTIMISE>=6
-.FloppyORA_STEP_SET_FDC_CMD
-		ora	NMIVARS_FDC_CMD_STEP
-		sta	FDC_CMD				; FDC Status/Command
-		rts
-ENDIF

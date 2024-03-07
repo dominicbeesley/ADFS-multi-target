@@ -122,7 +122,6 @@ ENDIF ; ELK SCSI
 		lda	WKSP_ADFS_202,X
 		tax
 		pla
-IF OPTIMISE<5
 		ldy	#&FF
 		jsr	XA_DIV16_TO_YA
 		sta	&A4
@@ -133,9 +132,6 @@ IF OPTIMISE<5
 		bmi	LBACF
 		sta	&A5
 		jsr	FloppySetSide1
-ELSE
-		jsr	FloppyCalcTrackSectorFromXA
-ENDIF
 .LBACF		lda	NMIVARS_SIDE
 		sta	DRVSEL				; Drive control register
 		ror	A
@@ -178,14 +174,8 @@ IF TARGETOS=0 AND HD_SCSI
 		ora	NMIVARS_FDC_CMD_STEP
 		jsr	FloppyWaitNMIFinish2elk
 ELSE
-
-IF OPTIMISE<6
 		ora	NMIVARS_FDC_CMD_STEP
 		sta	FDC_CMD				; FDC Status/Command
-ELSE
-		jsr	FloppyORA_STEP_SET_FDC_CMD
-ENDIF	; OPT 6
-
 		jsr	FloppyWaitNMIFinish
 ENDIF ; ELK SCSI
 		lda	&A1
@@ -345,7 +335,6 @@ ENDIF
 ;  b2-b0 FDrive
 ;
 .FloppyGetStepRate
-IF OPTIMISE<2
 IF USE65C12
 		stz	NMIVARS_CMD_PRECOMP		; Set to zero
 		stz	WKSP_ADFS_2E8_FDC_CMD_STEP			; Set to zero
@@ -400,18 +389,6 @@ IF TARGETOS<>0 OR NOT(HD_SCSI)
 		lda	#&02				; If FDrive=1,3,5,7 set NMIVARS_CMD_PRECOMP=2
 		sta	NMIVARS_CMD_PRECOMP
 ENDIF ; ELK SCSI
-ELSE  ; OPTIMISE>=2
-		jsr	L9A7F				; Read ADFS CMOS byte
-		pha
-		and	#&02
-		beq	LBBF6
-		lda	#&03
-.LBBF6		sta	WKSP_ADFS_2E8_FDC_CMD_STEP			; If FDrive=2,3,6,7 set &C2E8=3
-		pla
-		and	#CONFIG_BIT_FD_SPEED
-		asl	A
-		sta	NMIVARS_CMD_PRECOMP		; If FDrive=1,3,5,7 set NMIVARS_CMD_PRECOMP=2
-ENDIF
 .LBC00		rts
 
 ; Claim NMI space
