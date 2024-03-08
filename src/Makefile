@@ -7,6 +7,7 @@ DA65=da65
 ROMS=$(addprefix $(BUILDDIR)/, \
 	masIDE.rom \
 	masMMC_hog_SD.rom \
+	masMMC_hog_SDT.rom \
 	masSCSI.rom \
 	bbcSCSI.rom \
 	bbcIDE.rom \
@@ -71,6 +72,7 @@ compares: all comparedirs \
 	compares/org/elkSCSI.da.s \
 	compares/new/masIDE.da.s \
 	compares/new/Hoglet15x/SD.da.s \
+	compares/new/Hoglet15x/SDT.da.s \
 	compares/new/Hoglet15x/ORIG.da.s \
 	compares/new/Hoglet15x/IDE.da.s \
 	compares/new/masSCSI.da.s \
@@ -136,7 +138,8 @@ compares/new/Hoglet15x/IDE.da.s:compares/new/masIDE.da.s
 
 $(BUILDDIR)/masIDE.rom: adfs.asm $(IDE_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
 $(BUILDDIR)/masSCSI.rom: adfs.asm $(SCSI_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
-$(BUILDDIR)/masMMC_hog_SD.rom: adfs.asm $(MMC_DRIVERS) $(TUBE_DRIVERS) $(STARMAP)
+$(BUILDDIR)/masMMC_hog_SD.rom: adfs.asm $(MMC_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) 
+$(BUILDDIR)/masMMC_hog_SDT.rom: adfs.asm $(MMC_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) 
 $(BUILDDIR)/bbcIDE.rom: adfs.asm $(IDE_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
 $(BUILDDIR)/bbcIDEF.rom: adfs.asm $(IDE_DRIVERS_F) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
 $(BUILDDIR)/bbcSCSI.rom: adfs.asm $(SCSI_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
@@ -147,7 +150,7 @@ $(BUILDDIR)/elkSCSI.rom: adfs.asm $(SCSI_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(F
 
 
 $(BUILDDIR)/%.rom $(BUILDDIR)/%.lst: %.asm 
-		$(AS) -i $< -o $@ -v -d > $(basename $@).lst
+		$(AS) $(ASFLAGS) $(ASFLAGS2) -i $< -o $@ -v -d > $(basename $@).lst
 		scripts/beebasmlst2sym.pl -r $(ROMNO) <$(basename $@).lst >$(basename $@).noi
 clean::
 	-rm $(BUILDDIR)/*.rom
