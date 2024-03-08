@@ -71,6 +71,8 @@ compares: all comparedirs \
 	compares/org/elkSCSI.da.s \
 	compares/new/masIDE.da.s \
 	compares/new/Hoglet15x/SD.da.s \
+	compares/new/Hoglet15x/ORIG.da.s \
+	compares/new/Hoglet15x/IDE.da.s \
 	compares/new/masSCSI.da.s \
 	compares/new/bbcIDE.da.s \
 	compares/new/bbcSCSI.da.s \
@@ -108,6 +110,13 @@ compares/new/%.da.s: $(BUILDDIR)/%.rom
 
 compares/new/Hoglet15x/%.da.s:$(BUILDDIR)/masMMC_hog_%.rom
 	$(DA65) --comments 4 --start-addr 0x8000 $< >$@
+
+#duplicates of our ROMS to compare against Hoglet's
+compares/new/Hoglet15x/ORIG.da.s:compares/new/masSCSI.da.s
+	cp $< $@
+compares/new/Hoglet15x/IDE.da.s:compares/new/masIDE.da.s
+	cp $< $@
+
 
 
 $(BUILDDIR)/masIDE.rom: adfs.asm $(IDE_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
