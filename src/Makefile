@@ -60,7 +60,7 @@ $(BUILDDIR)/adfsroms.ssd: $(ROMS)
 	dfs read -w "*.*" -i -d ~/hostfs/roms65 $@
 
 
-HOGLETORGS=$(addsuffix .da.s, $(addprefix compares/org/Hoglet15x/, $(notdir $(wildcard orgroms/Hoglet15x/*))))
+HOGLETORGS=$(addsuffix .da.s, $(addprefix compares/org/Hoglet15x/, $(notdir $(filter-out %.md, $(wildcard orgroms/Hoglet15x/*)))))
 
 compares: all comparedirs \
 	compares/org/masIDE.da.s \

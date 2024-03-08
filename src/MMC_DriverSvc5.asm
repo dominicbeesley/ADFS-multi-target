@@ -11,38 +11,11 @@ IF HD_MMC_HOG	; TODO remove this lot?
 		lda	&85				; Merge with current drive
 		ora	WKSP_ADFS_317_CURDRV
 		sta	&85
-		sta	WKSP_ADFS_333_LASTACCDRV			; Store for any error
+		sta	WKSP_ADFS_333_LASTACCDRV		; Store for any error
 		lda	#&7F
 		rts
 
-		equb	&03
-		lda		#$05
-		rts
-
-
-;;
-.LAB9B
-IF USE65C12
-		phy					; Send something to SCSI
-ELSE
-		tya
-		pha
-ENDIF
-		lda	#&00
-		sta	&FC43					; TODO: remove!
-IF USE65C12
-		lda	#ADFS_FLAGS_ENSURING
-		trb	ZP_ADFS_FLAGS			; Clear 'files being ensured'
-ELSE
-		ror	ZP_ADFS_FLAGS			; Clear 'files being ensured'
-		clc					; ; and #ADFS_FLAGS_ENSURING EOR &FF
-		rol	ZP_ADFS_FLAGS
-ENDIF
-		lda	&FC40					; TODO: remove!
-		jsr	SCSI_WaitforReq
-		ora	&FC40			; Get SCSI result
-		sta	WKSP_ADFS_331			; Save for error handler later
-		jmp	L9DB4				; Restore Y,X, claim call
+		equb	&03				; TODO: Can trim this?
 
 
 ; Check for data loss
