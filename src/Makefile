@@ -3,7 +3,7 @@ BUILDDIR=build
 
 AS=beebasm
 ASFLAGS=
-DA65=da65 --cpu 65c02
+DA65=da65
 ROMS=$(addprefix $(BUILDDIR)/, \
 	masIDE.rom \
 	masMMC_hog_SD.rom \
@@ -91,11 +91,11 @@ $(BUILDDIR)/:
 	-mkdir -p $(BUILDDIR)
 
 compares/org/Hoglet15x/%.da.s: orgroms/Hoglet15x/%
-	$(DA65) --comments 4 --start-addr 0x8000 $< >$@
+	$(DA65)  --cpu 65c02 --comments 4 --start-addr 0x8000 $< >$@
 compares/org/masIDE.da.s: orgroms/ADFS153
-	$(DA65) --comments 4 --start-addr 0x8000 $< >$@
+	$(DA65)  --cpu 65c02 --comments 4 --start-addr 0x8000 $< >$@
 compares/org/masSCSI.da.s: orgroms/ADFS150
-	$(DA65) --comments 4 --start-addr 0x8000 $< >$@
+	$(DA65)  --cpu 65c02 --comments 4 --start-addr 0x8000 $< >$@
 compares/org/bbcSCSI.da.s: orgroms/ADFS130
 	$(DA65) --comments 4 --start-addr 0x8000 $< >$@
 compares/org/bbcIDE.da.s: orgroms/ADFS133
@@ -105,11 +105,15 @@ compares/org/elkSCSI.da.s: orgroms/ADFS100
 compares/org/elkIDE.da.s: orgroms/ADFS103
 	$(DA65) --comments 4 --start-addr 0x8000 $< >$@
 
-compares/new/%.da.s: $(BUILDDIR)/%.rom
-	$(DA65) --comments 4 --start-addr 0x8000 $< >$@
+compares/new/mas%.da.s: $(BUILDDIR)/mas%.rom
+	$(DA65)  --cpu 65c02 --comments 4 --start-addr 0x8000 $< >$@
+compares/new/bbc%.da.s: $(BUILDDIR)/bbc%.rom
+	$(DA65)  --comments 4 --start-addr 0x8000 $< >$@
+compares/new/elk%.da.s: $(BUILDDIR)/elk%.rom
+	$(DA65)  --comments 4 --start-addr 0x8000 $< >$@
 
 compares/new/Hoglet15x/%.da.s:$(BUILDDIR)/masMMC_hog_%.rom
-	$(DA65) --comments 4 --start-addr 0x8000 $< >$@
+	$(DA65) --cpu 65c02 --comments 4 --start-addr 0x8000 $< >$@
 
 #duplicates of our ROMS to compare against Hoglet's
 compares/new/Hoglet15x/ORIG.da.s:compares/new/masSCSI.da.s

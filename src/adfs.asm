@@ -6174,30 +6174,19 @@ ELSE
 ENDIF
 ;;
 .L9DF6		jsr	L92A8
-IF NOT(HD_IDE AND TARGETOS = 1)
 		EQUS	&0D, "Advanced DFS "		; Help string
-ELSE
-		EQUS	&0D, "Acorn ADFS "		; Help string
-ENDIF
 		EQUB	(VERSION DIV 256)+48		; Version string
 		EQUB	"."
 		EQUB	((VERSION AND &F0) DIV 16)+48
 		EQUB	(VERSION AND &0F)+48
-IF HD_IDE AND TARGETOS = 1
-		EQUB	"r23"
-ENDIF
 		EQUB	&8D
 		rts
 .Serv9
 
 		tya
 		pha
-IF HD_IDE AND TARGETOS = 1
-		jsr	GetChar
-ELSE
 		lda	(&F2),Y
 		cmp	#&20
-ENDIF
 		bcs	L9E3E
 		jsr	L9DF6
 		jsr	L92A8
