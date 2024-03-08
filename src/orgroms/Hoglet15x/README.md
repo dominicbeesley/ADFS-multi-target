@@ -16,5 +16,5 @@ These files taken from https://github.com/hoglet67/ADFS.git : 82c7b3bebc43ed34d7
 |IDFS	| Internal[^1] VFS SCSI				|  0    |  N	| FE8x  |
 |XDFS	| Second external SCSI provided by hacked Pi1MHz|  -	|  N    | FC44  |
 
-[^1]: Master internal port for SCSI boards
+[^1]: Master internal port for VFS boards
 [^2]: Code shifted along by one byte, to try to validate referenced are still correct
