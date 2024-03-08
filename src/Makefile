@@ -92,28 +92,39 @@ $(BUILDDIR)/:
 
 compares/org/Hoglet15x/%.da.s: orgroms/Hoglet15x/%
 	$(DA65)  --cpu 65c02 --comments 4 --start-addr 0x8000 $< >$@
+	sed -i 1,4d $@
 compares/org/masIDE.da.s: orgroms/ADFS153
 	$(DA65)  --cpu 65c02 --comments 4 --start-addr 0x8000 $< >$@
+	sed -i 1,4d $@
 compares/org/masSCSI.da.s: orgroms/ADFS150
 	$(DA65)  --cpu 65c02 --comments 4 --start-addr 0x8000 $< >$@
+	sed -i 1,4d $@
 compares/org/bbcSCSI.da.s: orgroms/ADFS130
 	$(DA65) --comments 4 --start-addr 0x8000 $< >$@
+	sed -i 1,4d $@
 compares/org/bbcIDE.da.s: orgroms/ADFS133
 	$(DA65) --comments 4 --start-addr 0x8000 $< >$@
+	sed -i 1,4d $@
 compares/org/elkSCSI.da.s: orgroms/ADFS100
 	$(DA65) --comments 4 --start-addr 0x8000 $< >$@
+	sed -i 1,4d $@
 compares/org/elkIDE.da.s: orgroms/ADFS103
 	$(DA65) --comments 4 --start-addr 0x8000 $< >$@
+	sed -i 1,4d $@
 
 compares/new/mas%.da.s: $(BUILDDIR)/mas%.rom
 	$(DA65)  --cpu 65c02 --comments 4 --start-addr 0x8000 $< >$@
+	sed -i 1,4d $@
 compares/new/bbc%.da.s: $(BUILDDIR)/bbc%.rom
 	$(DA65)  --comments 4 --start-addr 0x8000 $< >$@
+	sed -i 1,4d $@
 compares/new/elk%.da.s: $(BUILDDIR)/elk%.rom
 	$(DA65)  --comments 4 --start-addr 0x8000 $< >$@
+	sed -i 1,4d $@
 
 compares/new/Hoglet15x/%.da.s:$(BUILDDIR)/masMMC_hog_%.rom
 	$(DA65) --cpu 65c02 --comments 4 --start-addr 0x8000 $< >$@
+	sed -i 1,4d $@
 
 #duplicates of our ROMS to compare against Hoglet's
 compares/new/Hoglet15x/ORIG.da.s:compares/new/masSCSI.da.s
