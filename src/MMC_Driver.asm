@@ -8,7 +8,6 @@
 
 
 ;;; MMC settings
-_VIA_BASE  =VIABASE             ; Base Address of 6522 VIA
 MAX_DRIVES          = 2         ; Don't make this bigger than 2 or the drive table below will overflow
 
 attempts%           = &C2E9     ; 1 byte

@@ -36,10 +36,31 @@
 ; LARGE_DISK		Future development
 ; TRIM_REDUNDANT	Remove redundant code
 
-
+IF HD_XDFS
+ADFS_FS_NO=10
+CHANNEL_RANGE_HI=&59
+CHANNEL_RANGE_LO=&50
+SELFS_CHAR=ASC("B")
+SELFS_CHAR_NOMOUNT=ASC("G")
+FLAG_NOTFADFS=&FF
+FLAG_ADFS=&44				; TODO: this doesn't look right!
+FLAG_FADFS=&44
+OSWORD_BASE=&60
+NAMESTR="XDFS"
+NAMESTR_REV="sfdx"
+ELSE
 ADFS_FS_NO=8
 CHANNEL_RANGE_HI=&39
 CHANNEL_RANGE_LO=&30
+SELFS_CHAR=ASC("A")
+SELFS_CHAR_NOMOUNT=ASC("F")
+FLAG_NOTFADFS=&FF
+FLAG_ADFS=&43
+FLAG_FADFS=&44
+OSWORD_BASE=&70
+NAMESTR="ADFS"
+NAMESTR_REV="sfda"
+ENDIF
 
 
 ; Sanity check
@@ -415,7 +436,6 @@ IF   TARGETOS=0
   FDCRES =&20		; Reset FDC
   FDCSIDE=&04		; Side select
   ROMSEL =&FE05		; ROM select register
-  VIABASE=&FC60		; 6522 VIA
   TUBEIO =&FCE5		; Tube data port
   TUBEIOSTAT =&FCE4
   FILEBLK=&02E2		; OSFILE control block
@@ -428,20 +448,22 @@ ELIF TARGETOS=1 OR TARGETOS=2
   FDCRES =&20		; Reset FDC
   FDCSIDE=&04		; Side select
   ROMSEL =&FE30		; ROM select register
-  VIABASE=&FE60		; 6522 VIA
   TUBEIO =&FEE5		; Tube data port
   TUBEIOSTAT = &FEE4
   FILEBLK=&02EE	  ; OSFILE control block
   WS=&E00-WKSP_ADFS_000_FSM_S0		; Offset to workspace from WKSP_ADFS_000_FSM_S0
 ELIF TARGETOS>2
   VERBASE=&150		; Master
-  HDDBASE=&FC40		; Hard drive controller
+IF HD_XDFS
+  	HDDBASE=&FC44		; Hard drive controller
+ELSE
+  	HDDBASE=&FC40		; Hard drive controller
+ENDIF
   FDCBASE=&FE28		; Floppy controller
   DRVSEL =FDCBASE-4	; Drive control register
   FDCRES =&04		; Reset FDC
   FDCSIDE=&10		; Side select
   ROMSEL =&FE30		; ROM select register
-  VIABASE=&FE60		; 6522 VIA
   TUBEIO =&FEE5		; Tube data port
   TUBEIOSTAT = &FEE4
   FILEBLK=&02EE		; OSFILE control block
@@ -589,7 +611,7 @@ ORG &8000
 		EQUB	&82				; Service ROM, 6502 code
 		EQUB	L8017-L8000			; Offset to (C) string
 		EQUB	VERSION AND &FF			; Binary version number
-		EQUS	"Acorn ADFS",0			; ROM Title
+		EQUS	"Acorn ", NAMESTR, 0		; ROM Title
 		EQUB	(VERSION DIV 256)+48		; Version string
 IF TARGETOS <=1
 		EQUB	'.'
@@ -1369,11 +1391,14 @@ ENDIF
 ; This is done for 'Data lost, channel NNN at :D/SSSSSS' which could even
 ; become 'Data lost, channel NNN at :D/SSSSSS on channel NNN'. Would be better
 ; to generate the 'Data lost' error as a channel error.
+
+;TODO: HD_XDFS - this needs to subtract offset to make an ASCII number?
+
 		cmp	#CHANNEL_RANGE_LO
 		bcs	L839B				; &30+, jump to check if channel number
 .L8395		jsr	L8451				; Insert disk error as hex number
 		jmp	L83A2
-.L839B		cmp	#&3A
+.L839B		cmp	#CHANNEL_RANGE_HI+1
 		bcs	L8395				; &3A+, not a channel number, jump back
 		jsr	L846D				; Insert number in decimal
 .L83A2		ldx	#&04
@@ -5197,10 +5222,10 @@ ENDIF
 		EQUB	&0D
 .L9A9C
 IF TARGETOS > 1
-		EQUS	"E.-ADFS-$.!BOOT"		; *Exec option
-ELSE
+		EQUS	"E.-", NAMESTR, "-$.!BOOT"		; *Exec option
+ELSE ; TARGETOS
 		EQUS	"E.$.!BOOT"			; *Exec option
-ENDIF
+ENDIF ; TARGETOS
 		EQUB	&0D
 IF (L9A92 AND &FF00)<>(L9A9C AND &FF00)
 		error	"Boot strings run over page boundary"
@@ -5518,13 +5543,13 @@ IF TARGETOS > 1
 ;;
 ;; Select ADFS
 ;; ===========
-.L9B4A		ldy	#&08				; Y=8 to select ADFS
+.L9B4A		ldy	#ADFS_FS_NO			; Y=8 to select ADFS
 ENDIF
 ;;
 ;;
 ;; Serv12 - Select filing system
 ;; =============================
-.L9B4C		cpy	#&08
+.L9B4C		cpy	#ADFS_FS_NO
 		bne	L9B49				; No, quit
 .L9B50
 IF USE65C12
@@ -5564,19 +5589,20 @@ ELSE
 		lda	$028D				; 9B50 AD 8D 02                 ...
 ENDIF
 		beq	L9B74
-		ldx	#&44
+		ldx	#FLAG_FADFS
 ._lbbc9B57
 		dex					; 9B57 CA                       .
-ENDIF							; TARGETOS
+ENDIF ; TARGETOS
 
 
-IF NOT(TRIM_REDUNDANT) OR HD_MMC_HOG
+IF NOT(HD_XDFS) AND (NOT(TRIM_REDUNDANT) OR HD_MMC_HOG)
 		cpx	#&79				; '->' pressed?
 		beq	L9B74				; Yes
 ENDIF
-		cpx	#&41				; 'A' pressed?
+
+		cpx	#SELFS_CHAR			; 'A' pressed?
 		beq	L9B74				; Yes
-		cpx	#&43				; 'F' pressed?
+		cpx	#FLAG_ADFS			; 'F' pressed?
 		beq	L9B72				; Yes, jump to select FS
 		pla
 		tay					; Restore Boot flag
@@ -5615,7 +5641,7 @@ ELSE
 ENDIF
 		beq	L9B85				; Jump forward if soft BREAK
 		pla					; With Hard BREAK and power on
-		lda	#&43				; ...change key pressed to 'fadfs'
+		lda	#FLAG_ADFS			; ...change key pressed to 'fadfs'
 		pha
 ELSE							; TARGETOS <=1
 		ldy	#$00				; 9B71 A0 00                    ..
@@ -5624,7 +5650,7 @@ ELSE							; TARGETOS <=1
 
 ENDIF							; TARGETOS
 .L9B85		jsr	L92A8				; Print FS banner
-		EQUS	"Acorn ADFS", &0D, &8D
+		EQUS	"Acorn ", NAMESTR, &0D, &8D
 ;;
 ;; Select ADFS
 ;; ===========
@@ -5726,7 +5752,7 @@ IF TARGETOS <= 1
 ENDIF
 
 		pla					; Get selection flag from stack
-		cmp	#&43				; '*fadfs'/F-Break type of selection?
+		cmp	#FLAG_ADFS			; '*fadfs'/F-Break type of selection?
 		bne	L9C18				; No, jump to keep context
 		jsr	InvalidateFSMandDIR				; Set context to &FFFFFFFF when *fadfs
 .L9C18		ldy	#&03				; Copy current context to backup context
@@ -5902,8 +5928,8 @@ IF TARGETOS > 1
 ;;
 ;; Serv25 - Return filing system information
 ;; =========================================
-.Serv25		ldx	#&0A
-.L9CEC		lda	L9CFA,X				; Copy information
+.Serv25		ldx	#FSINFOLEN-1
+.L9CEC		lda	FSINFO,X				; Copy information
 		sta	(&F2),Y
 		iny
 		dex
@@ -5915,15 +5941,17 @@ IF TARGETOS > 1
 ;;
 ;; Filing system information
 ;; -------------------------
-.L9CFA		EQUB	ADFS_FS_NO			; Filing system number
+.FSINFO		EQUB	ADFS_FS_NO			; Filing system number
 		EQUB	CHANNEL_RANGE_HI		; Highest handle used
 		EQUB	CHANNEL_RANGE_LO		; Lowest handle used
 		EQUS	"    "
-
-ENDIF
-
 .str_SFDA		
-		EQUS	"sfda"				; "adfs" filing system name
+		EQUS	NAMESTR_REV			; "adfs" filing system name
+FSINFOLEN=P%-FSINFO
+ELSE ; TARGETOS <= 1
+.str_SFDA		
+		EQUS    NAMESTR_REV
+ENDIF
 IF TARGETOS > 1
 ;;
 ;; Serv26 - *SHUT
@@ -5972,14 +6000,18 @@ ELSE
 		tya
 		pha					; Save command pointer
 ENDIF
-		lda	#&FF				; Flag not '*fadfs'
+		lda	#FLAG_NOTFADFS			; Flag not '*fadfs'
 		pha
 		lda	(&F2),Y				; Get first character
 		ora	#&20				; Force to lower case
-		cmp	#&66				; Is it 'f' of 'fadfs'?
+IF HD_XDFS
+		cmp	#ASC("Y") OR &20		; Is it 'y' of 'yxdfs'? TODOXDFS: this looks wrong! is it?
+ELSE
+		cmp	#SELFS_CHAR_NOMOUNT OR &20	; Is it 'f' of 'fadfs'?
+ENDIF
 		bne	L9D34				; No, jump past
 		pla					; Lose previous flag
-		lda	#&43				; Change flags to indicate '*fadfs'
+		lda	#FLAG_ADFS			; Change flags to indicate '*fadfs'
 		pha
 		iny					; Point to next character
 .L9D34		ldx	#&03				; 'adfs' is 3+1 characters
@@ -6038,9 +6070,9 @@ ELSE
 ENDIF
 IF TARGETOS > 1						; ; TODO this removed to make adfs130 identical - put it back?
 		lda	&EF				; Get OSWORD number
-		cmp	#&70
+		cmp	#OSWORD_BASE
 		bcc	L9DBA				; If <&70, exit unclaimed
-		cmp	#&74
+		cmp	#OSWORD_BASE+4
 		bcs	L9DBA				; If >&73, exit unclaimed
 ENDIF
 ;;
@@ -6052,7 +6084,7 @@ ENDIF
 		lda	#&00
 		tay
 		jsr	OSARGS				; Get current filing system
-		cmp	#&08				; Is is ADFS?
+		cmp	#ADFS_FS_NO			; Is is ADFS?
 IF TARGETOS > 1						
 		beq	L9D76				; Yes, jump to continue
 		jsr	L9B4A				; Select ADFS if ADFS not selected
@@ -6060,7 +6092,7 @@ ELSE
 		bne	L9DBA				; exit
 ENDIF
 .L9D76		lda	&EF				; Get OSWORD number
-		cmp	#&72				; Is it &72?
+		cmp	#OSWORD_BASE+2			; Is it &72?
 		bne	L9DC0				; No, jump ahead
 ;;
 ;;
@@ -6141,7 +6173,7 @@ ENDIF
 		lda	#&08				; A=8 to exit with OSWORD unclaimed
 		rts
 
-.L9DC0		cmp	#&73
+.L9DC0		cmp	#OSWORD_BASE+3
 		bne	L9DD0
 		ldy	#&04
 .L9DC6		lda	WKSP_ADFS_2D0_ERR_SECTOR,Y
@@ -6149,7 +6181,7 @@ ENDIF
 		dey
 		bpl	L9DC6
 		bmi	L9DB4
-.L9DD0		cmp	#&70
+.L9DD0		cmp	#OSWORD_BASE
 		bne	L9DE3
 		lda	WKSP_ADFS_800_DIR_BUFFER + &FA
 		ldy	#&00
@@ -6159,7 +6191,7 @@ ENDIF
 		sta	(&F0),Y
 		jmp	L9DB4
 ;;
-.L9DE3		cmp	#&71
+.L9DE3		cmp	#OSWORD_BASE+1
 		bne	L9DBA
 		jsr	LA1EA
 		ldy	#&03
@@ -6174,12 +6206,19 @@ ELSE
 ENDIF
 ;;
 .L9DF6		jsr	L92A8
+
+IF HD_XDFS
+		EQUS	&0D, "External ADFS 1.50"	; Help string
+		EQUB	&8D
+
+ELSE
 		EQUS	&0D, "Advanced DFS "		; Help string
 		EQUB	(VERSION DIV 256)+48		; Version string
 		EQUB	"."
 		EQUB	((VERSION AND &F0) DIV 16)+48
 		EQUB	(VERSION AND &0F)+48
 		EQUB	&8D
+ENDIF ; HD_XDFS
 		rts
 .Serv9
 
@@ -6192,8 +6231,7 @@ ENDIF
 		jsr	L92A8
 
 
-
-		EQUS	"  ADFS", &8D
+		EQUS	"  ", NAMESTR, &8D
 .L9E22
 		pla
 		tay
@@ -6762,7 +6800,7 @@ ENDIF
 		bne	LA16F
 		clc
 		txa
-		adc	#'0'
+		adc	#CHANNEL_RANGE_LO
 		tay
 		lda	#&00
 		jsr	my_OSFIND
@@ -8026,7 +8064,7 @@ IF TARGETOS > 1
 		bne	LA9A8				; Jump with OSARGS Y<>0, info on channel
 		tay
 		bne	LA984				; Jump with OSARGS Y=0, A<>0, info on filing system
-		lda	#&08				; OSARGS 0,0 - return filing system number
+		lda	#ADFS_FS_NO			; OSARGS 0,0 - return filing system number
 .LA983		rts
 ;;
 ;; OSARGS Y=0, A<>0 - Info on filing system
@@ -9327,7 +9365,7 @@ ENDIF
 		sta	WKSP_ADFS_3AC_CH_FLAGS,X
 		txa
 		clc
-		adc	#&30
+		adc	#CHANNEL_RANGE_LO
 		pha
 		jsr	LB19C
 		pla
@@ -10321,6 +10359,7 @@ IF TARGETOS > 1
 	ENDIF
 	IF HD_SCSI
 		EQUB	&A9				; 'A'corn revision 9
+		;TODOXDFS: this is actually at BFFC on BeebMasters' ROM?
 	ENDIF
 ELIF TARGETOS = 1 OR NOT(HD_SCSI)
 		EQUS	"and Hugo."

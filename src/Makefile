@@ -8,6 +8,11 @@ ROMS=$(addprefix $(BUILDDIR)/, \
 	masIDE.rom \
 	masMMC_hog_SD.rom \
 	masMMC_hog_SDT.rom \
+	masMMC_hog_SD2.rom \
+	masMMC_hog_SD2T.rom \
+	masMMC_hog_SD3.rom \
+	masMMC_hog_SD3T.rom \
+	masBM_XDFS.rom \
 	masSCSI.rom \
 	bbcSCSI.rom \
 	bbcIDE.rom \
@@ -73,8 +78,13 @@ compares: all comparedirs \
 	compares/new/masIDE.da.s \
 	compares/new/Hoglet15x/SD.da.s \
 	compares/new/Hoglet15x/SDT.da.s \
+	compares/new/Hoglet15x/SD2.da.s \
+	compares/new/Hoglet15x/SD2T.da.s \
+	compares/new/Hoglet15x/SD3.da.s \
+	compares/new/Hoglet15x/SD3T.da.s \
 	compares/new/Hoglet15x/ORIG.da.s \
 	compares/new/Hoglet15x/IDE.da.s \
+	compares/new/Hoglet15x/XDFS.da.s \
 	compares/new/masSCSI.da.s \
 	compares/new/bbcIDE.da.s \
 	compares/new/bbcSCSI.da.s \
@@ -128,6 +138,11 @@ compares/new/Hoglet15x/%.da.s:$(BUILDDIR)/masMMC_hog_%.rom
 	$(DA65) --cpu 65c02 --comments 4 --start-addr 0x8000 $< >$@
 	sed -i 1,4d $@
 
+compares/new/Hoglet15x/%.da.s:$(BUILDDIR)/masBM_%.rom
+	$(DA65) --cpu 65c02 --comments 4 --start-addr 0x8000 $< >$@
+	sed -i 1,4d $@
+
+
 #duplicates of our ROMS to compare against Hoglet's
 compares/new/Hoglet15x/ORIG.da.s:compares/new/masSCSI.da.s
 	cp $< $@
@@ -140,6 +155,11 @@ $(BUILDDIR)/masIDE.rom: adfs.asm $(IDE_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLO
 $(BUILDDIR)/masSCSI.rom: adfs.asm $(SCSI_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
 $(BUILDDIR)/masMMC_hog_SD.rom: adfs.asm $(MMC_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) 
 $(BUILDDIR)/masMMC_hog_SDT.rom: adfs.asm $(MMC_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) 
+$(BUILDDIR)/masMMC_hog_SD2.rom: adfs.asm $(MMC_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) 
+$(BUILDDIR)/masMMC_hog_SD2T.rom: adfs.asm $(MMC_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) 
+$(BUILDDIR)/masMMC_hog_SD3.rom: adfs.asm $(MMC_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) 
+$(BUILDDIR)/masMMC_hog_SD3T.rom: adfs.asm $(MMC_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) 
+$(BUILDDIR)/masBM_XDFS.rom: adfs.asm $(SCSI_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
 $(BUILDDIR)/bbcIDE.rom: adfs.asm $(IDE_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
 $(BUILDDIR)/bbcIDEF.rom: adfs.asm $(IDE_DRIVERS_F) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
 $(BUILDDIR)/bbcSCSI.rom: adfs.asm $(SCSI_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
