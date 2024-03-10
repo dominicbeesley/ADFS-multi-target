@@ -1389,13 +1389,13 @@ ENDIF
 ; become 'Data lost, channel NNN at :D/SSSSSS on channel NNN'. Would be better
 ; to generate the 'Data lost' error as a channel error.
 
-;TODO: HD_XDFS - this needs to subtract offset to make an ASCII number?
+;TODOXDFS - this needs to subtract offset to make an ASCII number?
 
-		cmp	#CHANNEL_RANGE_LO
+		cmp	#ASC("0")
 		bcs	L839B				; &30+, jump to check if channel number
 .L8395		jsr	L8451				; Insert disk error as hex number
 		jmp	L83A2
-.L839B		cmp	#CHANNEL_RANGE_HI+1
+.L839B		cmp	#ASC("9")+1
 		bcs	L8395				; &3A+, not a channel number, jump back
 		jsr	L846D				; Insert number in decimal
 .L83A2		ldx	#&04
@@ -5997,7 +5997,13 @@ ELSE
 		tya
 		pha					; Save command pointer
 ENDIF
+
+; TODOXDFS: Not sure why?
+IF HD_XDFS
+		lda 	#&FF
+ELSE ; XDFS
 		lda	#KEYCODE_SELFS_MOUNT			; Flag not '*fadfs'
+ENDIF ; XDFS
 		pha
 		lda	(&F2),Y				; Get first character
 		ora	#&20				; Force to lower case
@@ -6608,10 +6614,19 @@ ENDIF
 		lda	#&C7
 		ldy	#&00				; Do OSBYTE &C7,0,0
 		jsr	L84C6				; Set SPOOL handle to 0, returning X=SPOOL, Y=Escape/Break flags
+
+;TODOXDFS: I think this is maybe wrong?
+IF HD_XDFS
+		cpx	#&30
+		bcc	LA053				; Not an ADFS handle
+		cpx	#&3A
+		bcs	LA053				; Not an ADFS handle
+ELSE ; XDFS
 		cpx	#CHANNEL_RANGE_LO
 		bcc	LA053				; Not an ADFS handle
 		cpx	#CHANNEL_RANGE_HI+1
 		bcs	LA053				; Not an ADFS handle
+ENDIF
 							;This looks like we need a LDY #0 here as if *FX200,<>0, Y will be <>0
 		jsr	OSBYTE				; Restore SPOOL handle, we can safely SPOOL to ourself
 		ldx	#&00				; Don't need to restore again
@@ -8347,7 +8362,12 @@ ENDIF
 		sta	WKSP_ADFS_204,X
 		and	#&1E
 		ror	A
+; TODOXDFS: I think this is wrong
+IF HD_XDFS
+		ora	#&30
+ELSE ; XDFS
 		ora	#CHANNEL_RANGE_LO
+ENDIF ; XDFS
 		sta	WKSP_ADFS_2D4			; Save channel number for error message
 		lda	WKSP_ADFS_201,X
 		sta	WKSP_ADFS_2D0_ERR_SECTOR
@@ -10341,7 +10361,7 @@ ENDIF ; NOT HOG
 
 
 IF TARGETOS > 1
-	IF P%<&BFFF
+	IF P%<&BFFF AND NOT(HD_XDFS)
 		ORG	&BFFF
 	ENDIF
 	IF HD_MMC
