@@ -40,11 +40,9 @@ IF HD_XDFS
 ADFS_FS_NO=10
 CHANNEL_RANGE_HI=&59
 CHANNEL_RANGE_LO=&50
-SELFS_CHAR=ASC("B")
-SELFS_CHAR_NOMOUNT=ASC("G")
-FLAG_NOTFADFS=&FF
-FLAG_ADFS=&44				; TODO: this doesn't look right!
-FLAG_FADFS=&44
+KEYCODE_SELFS_MOUNT=&42			; OSBYTE 7A KEYCODE X
+KEYCODE_SELFS_NOMOUNT=&44		; OSYBTE 7A KEYCODE Y
+SELFS_CHAR_NOMOUNT=ASC("Y")
 OSWORD_BASE=&60
 NAMESTR="XDFS"
 NAMESTR_REV="sfdx"
@@ -52,11 +50,10 @@ ELSE
 ADFS_FS_NO=8
 CHANNEL_RANGE_HI=&39
 CHANNEL_RANGE_LO=&30
-SELFS_CHAR=ASC("A")
+KEYCODE_SELFS_MOUNT=&41		; OSBYTE 7A KEYCODE A
+KEYCODE_SELFS_NOMOUNT=&43 ; OSBYTE 7A KEYCODE F
 SELFS_CHAR_NOMOUNT=ASC("F")
 FLAG_NOTFADFS=&FF
-FLAG_ADFS=&43
-FLAG_FADFS=&44
 OSWORD_BASE=&70
 NAMESTR="ADFS"
 NAMESTR_REV="sfda"
@@ -5589,7 +5586,7 @@ ELSE
 		lda	$028D				; 9B50 AD 8D 02                 ...
 ENDIF
 		beq	L9B74
-		ldx	#FLAG_FADFS
+		ldx	#KEYCODE_SELFS_NOMOUNT+1
 ._lbbc9B57
 		dex					; 9B57 CA                       .
 ENDIF ; TARGETOS
@@ -5600,9 +5597,9 @@ IF NOT(HD_XDFS) AND (NOT(TRIM_REDUNDANT) OR HD_MMC_HOG)
 		beq	L9B74				; Yes
 ENDIF
 
-		cpx	#SELFS_CHAR			; 'A' pressed?
+		cpx	#KEYCODE_SELFS_MOUNT			; 'A' pressed?
 		beq	L9B74				; Yes
-		cpx	#FLAG_ADFS			; 'F' pressed?
+		cpx	#KEYCODE_SELFS_NOMOUNT			; 'F' pressed?
 		beq	L9B72				; Yes, jump to select FS
 		pla
 		tay					; Restore Boot flag
@@ -5641,7 +5638,7 @@ ELSE
 ENDIF
 		beq	L9B85				; Jump forward if soft BREAK
 		pla					; With Hard BREAK and power on
-		lda	#FLAG_ADFS			; ...change key pressed to 'fadfs'
+		lda	#KEYCODE_SELFS_NOMOUNT			; ...change key pressed to 'fadfs'
 		pha
 ELSE							; TARGETOS <=1
 		ldy	#$00				; 9B71 A0 00                    ..
@@ -5752,7 +5749,7 @@ IF TARGETOS <= 1
 ENDIF
 
 		pla					; Get selection flag from stack
-		cmp	#FLAG_ADFS			; '*fadfs'/F-Break type of selection?
+		cmp	#KEYCODE_SELFS_NOMOUNT			; '*fadfs'/F-Break type of selection?
 		bne	L9C18				; No, jump to keep context
 		jsr	InvalidateFSMandDIR				; Set context to &FFFFFFFF when *fadfs
 .L9C18		ldy	#&03				; Copy current context to backup context
@@ -6000,18 +5997,14 @@ ELSE
 		tya
 		pha					; Save command pointer
 ENDIF
-		lda	#FLAG_NOTFADFS			; Flag not '*fadfs'
+		lda	#KEYCODE_SELFS_MOUNT			; Flag not '*fadfs'
 		pha
 		lda	(&F2),Y				; Get first character
 		ora	#&20				; Force to lower case
-IF HD_XDFS
-		cmp	#ASC("Y") OR &20		; Is it 'y' of 'yxdfs'? TODOXDFS: this looks wrong! is it?
-ELSE
 		cmp	#SELFS_CHAR_NOMOUNT OR &20	; Is it 'f' of 'fadfs'?
-ENDIF
 		bne	L9D34				; No, jump past
 		pla					; Lose previous flag
-		lda	#FLAG_ADFS			; Change flags to indicate '*fadfs'
+		lda	#KEYCODE_SELFS_NOMOUNT			; Change flags to indicate '*fadfs'
 		pha
 		iny					; Point to next character
 .L9D34		ldx	#&03				; 'adfs' is 3+1 characters
@@ -6020,7 +6013,7 @@ ENDIF
 		cmp	#&2E				; Is it '.'?
 		beq	L9D47				; Jump to match abbreviated command
 		ora	#&20				; Force to lower case
-		cmp	str_SFDA,X				; Compare with 'adfs' in FSInfo block
+		cmp	str_SFDA,X			; Compare with 'adfs' in FSInfo block
 		bne	L9D57				; No match, abandon scanning
 		dex					; Decrease length/pointer
 		bpl	L9D36				; Loop for all four characters
