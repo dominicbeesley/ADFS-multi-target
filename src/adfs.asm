@@ -10361,6 +10361,7 @@ ENDIF ; NOT HOG
 
 
 IF TARGETOS > 1
+	; TODOXDFS - the A9 byte (I think this is a JGH revision number thing?) is not at end of rom, mistake?
 	IF P%<&BFFF AND NOT(HD_XDFS)
 		ORG	&BFFF
 	ENDIF
