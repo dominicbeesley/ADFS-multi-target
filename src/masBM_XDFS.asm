@@ -3,6 +3,7 @@
 
 TARGETOS=3		; 3=Master
 FLOPPY=TRUE		; Floppy drivers
+AUTOHAZEL=FALSE		; Autohazel for blitter
 HD_SCSI=TRUE		; SCSI drivers
 HD_IDE=FALSE
 HD_MMC=FALSE
