@@ -25,8 +25,8 @@ The original binaries for these ROMs are in /src/orgroms
 |               | 153[^1]       | IDE   | Y     | Y     |
 | Master 3.50   | 203[^1]       | SCSI  | N     |       | Rom not tested
 
-[^1] The roms above were downloaded from mdfs.net on 17 Feb 2021
-[^2] The roms above were downloaded from mdfs.net on 8  Mar 2024
+[^1]: The roms above were downloaded from mdfs.net on 17 Feb 2021
+[^2]: The roms above were downloaded from mdfs.net on 8  Mar 2024
 
 ## ROMS from Hoglet's 157 repo
 
@@ -39,20 +39,20 @@ IDE, MMC, Internal VFS port devices
 |-------|-----------------------------------------------|-------|-------|-------|-------|--------
 |SD     | User port                                     |  N    |  N    | FE60  |   Y   |  Y
 |SDT    | User port                                     |  Y    |  N    | FE60  |   Y   |  Y
-|SD2    | Internal[^1] user port                        |  N    |  N    | FE80  |   Y   |  Y
-|SD2T   | Internal[^1] user port                        |  Y    |  N    | FE80  |   Y   |  Y
+|SD2    | Internal[^3] user port                        |  N    |  N    | FE80  |   Y   |  Y
+|SD2T   | Internal[^3] user port                        |  Y    |  N    | FE80  |   Y   |  Y
 |SD3    | Econet user port                              |  N    |  N    | FEA0  |   Y   |  Y
 |SD3T   | Econet user port                              |  Y    |  N    | FEA0  |   Y   |  Y
 |ORIG   | Original ADFS 150 SCSI + Floppy               |  -    |  Y    | FC40  |   Y   |  Y
 |MM     | Memory mapped SPI port for BeebFPGA           |  -    |  ?    | FEDC  |   N   |  
-|IDE    | IDE Patched ADFS e.g. for DataCentre / JGH?   |  -    |  Y    | FC40  |   Y   |  N[^3]
-|IDE2   | IDE Test version[^2]                          |  -    |  Y    | FC40  |   N   |  
-|IDFS   | Internal[^1] VFS SCSI                         |  0    |  N    | FE8x  |   N   |  
+|IDE    | IDE Patched ADFS e.g. for DataCentre / JGH?   |  -    |  Y    | FC40  |   Y   |  N[^5]
+|IDE2   | IDE Test version[^4]                          |  -    |  Y    | FC40  |   N   |  
+|IDFS   | Internal[^3] VFS SCSI                         |  0    |  N    | FE8x  |   N   |  
 |XDFS   | Second external at VFS address                |  -    |  N    | FC44  |   Y   |  Y
 
-[^1]: Master internal port for VFS boards
-[^2]: Code shifted along by one byte, to try to validate referenced are still correct
-[^3]: The code in Hoglet's repo appears to be behind MDFS.net - testing and rationalisation required
+[^3]: Master internal port for VFS boards
+[^4]: Code shifted along by one byte, to try to validate referenced are still correct
+[^5]: The code in Hoglet's repo appears to be behind MDFS.net - testing and rationalisation required
 
 # New builds
 
