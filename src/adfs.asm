@@ -92,7 +92,7 @@ ELSE
 CONFIG_BIT_FD_SPEED	= &10
 ENDIF
 
-IF TARGETOS > 1
+IF TARGETOS > 1 OR AUTOHAZEL
 WKSP_BASE			= &C000
 ELSE
 WKSP_BASE			= &0E00
@@ -436,7 +436,6 @@ IF   TARGETOS=0
   TUBEIO =&FCE5		; Tube data port
   TUBEIOSTAT =&FCE4
   FILEBLK=&02E2		; OSFILE control block
-  WS=&E00-WKSP_ADFS_000_FSM_S0		; Offset to workspace from WKSP_ADFS_000_FSM_S0
 ELIF TARGETOS=1 OR TARGETOS=2
   VERBASE=&130		; BBC B, BBC B+
   HDDBASE=&FC40		; Hard drive controller
@@ -448,7 +447,6 @@ ELIF TARGETOS=1 OR TARGETOS=2
   TUBEIO =&FEE5		; Tube data port
   TUBEIOSTAT = &FEE4
   FILEBLK=&02EE	  ; OSFILE control block
-  WS=&E00-WKSP_ADFS_000_FSM_S0		; Offset to workspace from WKSP_ADFS_000_FSM_S0
 ELIF TARGETOS>2
   VERBASE=&150		; Master
 IF HD_XDFS
@@ -464,7 +462,6 @@ ENDIF
   TUBEIO =&FEE5		; Tube data port
   TUBEIOSTAT = &FEE4
   FILEBLK=&02EE		; OSFILE control block
-  WS=0			; Offset to workspace from WKSP_ADFS_000_FSM_S0
 ENDIF
 
 FDC_CMD 		= FDCBASE
@@ -616,7 +613,9 @@ ENDIF
 		EQUB	((VERSION AND &F0)DIV 16)+48
 		EQUB	(VERSION AND &0F)+48
 .L8017		EQUB	&00				; Copyright string
-IF HD_SCSI2
+IF AUTOHAZEL
+		EQUS    "(C)2024 Dossy-AH",0
+ELIF HD_SCSI2
 		EQUS	"(C)2018 Dossy",0
 ELIF HD_MMC_HOG
 		EQUS	"(C)1984",0
@@ -2300,9 +2299,9 @@ IF TARGETOS <= 1
 		sta	$B5				; 8915 85 B5                    ..
 		jsr	LA50D				; 8917 20 CF A4                  ..
 		lda	$B4				; 891A A5 B4                    ..
-		sta	$10D6				; 891C 8D D6 10                 ...
+		sta	WKSP_ADFS_2D6			; 891C 8D D6 10                 ...
 		lda	$B5				; 891F A5 B5                    ..
-		sta	$10D7				; 8921 8D D7 10                 ...
+		sta	WKSP_ADFS_2D7_SHADOW_SAVE	; 8921 8D D7 10                 ...
 		pla					; 8924 68                       h
 		sta	$B5				; 8925 85 B5                    ..
 		pla					; 8927 68                       h
@@ -5240,7 +5239,7 @@ ENDIF
 ;; Low service call routines address-1 low bytes
 ;; ---------------------------------------------
 .L9AAC		EQUB	<(Serv0-1)			; Serv0 - L9AD5 - Null
-IF TARGETOS > 1
+IF TARGETOS > 1 OR AUTOHAZEL
 		EQUB	<(Serv0-1)			; Serv1 - L9AD5 - Null
 ELSE
 		EQUB	<(Serv1-1)			; Serv1 - L9AD5 - Null
@@ -5257,7 +5256,7 @@ ENDIF
 ;; Low service call routines address-1 high bytes
 ;; ----------------------------------------------
 .L9AB6		EQUB	>(Serv0-1)
-IF TARGETOS > 1
+IF TARGETOS > 1 OR AUTOHAZEL
 		EQUB	>(Serv0-1)
 ELSE
 		EQUB	>(Serv1-1)
@@ -5271,7 +5270,7 @@ ENDIF
 		EQUB	>(Serv8-1)
 		EQUB	>(Serv9-1)
 
-IF TARGETOS > 1
+IF TARGETOS > 1 OR AUTOHAZEL
 
 ;;
 ;; High service call routines address-1 low bytes
@@ -5280,9 +5279,11 @@ IF TARGETOS > 1
 		EQUB	<(Serv22-1)			; Serv22 - Serv22 - High w/s
 		EQUB	<(Serv0-1)			; Serv23 - Serv0 - Null
 		EQUB	<(Serv24-1)			; Serv24 - Serv24 - Hazel count
+IF NOT(AUTOHAZEL)
 		EQUB	<(Serv25-1)			; Serv25 - Serv25 - FS Info
 		EQUB	<(Serv26-1)			; Serv26 - Serv26 - *SHUT
 		EQUB	<(Serv0-1)			; Serv27 - Serv0 - Null
+ENDIF
 ;;
 ;; High service call routines address-1 high bytes
 ;; -----------------------------------------------
@@ -5290,15 +5291,11 @@ IF TARGETOS > 1
 		EQUB	>(Serv22-1)
 		EQUB	>(Serv0-1)
 		EQUB	>(Serv24-1)
+IF NOT(AUTOHAZEL)
 		EQUB	>(Serv25-1)
 		EQUB	>(Serv26-1)
 		EQUB	>(Serv0-1)
-
-ELSE
-.L9AC0
-.L9AC7
-							;TODO: not sure here
-
+ENDIF
 
 ENDIF
 
@@ -5308,7 +5305,8 @@ ENDIF
 ;;
 .ServiceCallHandlerL9ACE
 
-IF TARGETOS > 1
+IF TARGETOS > 1 OR AUTOHAZEL
+	IF USE65C12
 		bit	&0DF0,X				; Check ROM w/s byte
 		bpl	L9AD6				; &00-&7F -> Check bit6
 		bvs	L9AD8				; &C0-&FF -> ROM enabled
@@ -5317,6 +5315,17 @@ IF TARGETOS > 1
 ;; --------------------------------------------
 .Serv0		rts					; &80-&BF -> ROM disabled
 .L9AD6		bvs	Serv0				; &40-&7F -> ROM disabled
+	ELSE
+		pha
+		lda	&0DF0,X				; Check ROM w/s byte
+		rol	A
+		eor	&0DF0,X				; Check ROM w/s byte
+		rol	A
+		pla
+		bcc	_hazOk
+.Serv0		rts
+._hazOk
+	ENDIF
 ELSE
 		pha
 		cmp	#$01
@@ -5342,7 +5351,7 @@ ENDIF
 ;; workspace somewhere in &40xx-&BFxx, then the ROM is disabled.
 ;;
 .L9AD8		cmp	#&12				; Select filing system?
-IF TARGETOS = 0 AND HD_SCSI
+IF (TARGETOS = 0 AND HD_SCSI) OR AUTOHAZEL
 		bne	_elkL9AC4
 		jmp	L9B4C
 ._elkL9AC4
@@ -5350,7 +5359,7 @@ ELSE
 		beq	L9B4C				; Jump to check FS
 ENDIF
 		cmp	#&0A				; Service call 10 or higher?
-IF TARGETOS > 1
+IF TARGETOS > 1 OR AUTOHAZEL
 		bcs	L9AED				; Jump forward with higher calls
 ELSE
 		bcs	Serv0
@@ -5364,22 +5373,30 @@ ENDIF
 		ldx	ZP_MOS_CURROM			; Get ROM number back into X
 		rts					; Jump to service routine
 
-IF TARGETOS > 1
+IF TARGETOS > 1 OR AUTOHAZEL
 ;;
 ;; Service calls &21 to &27
 ;; ------------------------
 .L9AED		cmp	#&21				; Check against the lowest value
 		bcc	Serv0				; Quit with calls <&21
+IF AUTOHAZEL
+		cmp	#$26
+ELSE
 		cmp	#&28
+ENDIF
 		bcs	Serv0				; Quit with calls >&27
 		tax					; Pass service call into X
 		lda	L9AC7-&21,X			; Index into address table
 		pha					; Push service routine address
 		lda	L9AC0-&21,X			; onto stack
+IF USE65C12
 		bra	L9AE8				; Jump back to jump to service routine
+ELSE
+		jmp	L9AE8
+ENDIF
 ENDIF
 
-IF TARGETOS <= 1
+IF TARGETOS <= 1 AND NOT(AUTOHAZEL)
 ;;
 ;;
 ;; Serv1 - Low workspace claim
@@ -5421,7 +5438,7 @@ ENDIF
 ;; on this call.
 ;;
 .Serv2
-IF TARGETOS > 1
+IF TARGETOS > 1 OR AUTOHAZEL
 		lda	&0DF0,X				; Get workspace pointer
 		cmp	#&DC				; Is it set to <&DC00?
 		bcc	L9B0A				; Use existing value if it is
@@ -5434,6 +5451,16 @@ ELSE
 		tya
 		pha
 ENDIF
+
+ELSE
+							;new BBC
+		tya
+		sta	$0DF0, X
+		pha
+ENDIF 
+
+
+IF TARGETOS > 1
 ;;
 ;; Now do some initialisation. Look for a hard drive.
 ;;
@@ -5443,10 +5470,6 @@ ELSE
 		jsr	L9A88				; Read BREAK type
 ENDIF
 ELSE ; TARGETOS <= 1
-							;new BBC
-		tya
-		sta	$0DF0, X
-		pha
 IF PRESERVE_CONTEXT AND TARGETOS > 0
 		jsr	ReadBreak
 ELSE
@@ -5525,7 +5548,10 @@ ELSE
 		tay
 ENDIF
 		ldx	ZP_MOS_CURROM				; Get ROM number back into X
-IF TARGETOS > 1
+IF AUTOHAZEL
+		lda	&0DF0,X				; Check w/s pointer
+		bmi	L9B47				; Exit if using high workspace
+ELIF TARGETOS > 1
 		bit	&0DF0,X				; Check w/s pointer
 		bmi	L9B47				; Exit if using high workspace
 ENDIF
@@ -5899,7 +5925,7 @@ ENDIF
 		EQUW	my_OSFIND:EQUB &FF		; OSFIND
 		EQUW	my_FSCV:EQUB &FF		; FSCV
 
-IF TARGETOS > 1
+IF TARGETOS > 1 OR AUTOHAZEL
 
 ;;
 ;;
@@ -5922,6 +5948,10 @@ IF TARGETOS > 1
 ;; =============================================
 .Serv24		dey					; ADFS needs one page
 		rts
+
+ENDIF
+
+IF TARGETOS > 1
 ;;
 ;; Serv25 - Return filing system information
 ;; =========================================
@@ -8123,9 +8153,9 @@ ENDIF
 		stx	ZP_ADFS_C3_SAVE_X				; A962 86 C3                    ..
 		dey					; A964 88                       .
 		bne	LA992				; A965 D0 15                    ..
-		lda	$10D6				; A967 AD D6 10                 ...
+		lda	WKSP_ADFS_2D6			; A967 AD D6 10                 ...
 		sta	$00,x				; A96A 95 00                    ..
-		lda	$10D7				; A96C AD D7 10                 ...
+		lda	WKSP_ADFS_2D7_SHADOW_SAVE	; A96C AD D7 10                 ...
 		sta	$01,x				; A96F 95 01                    ..
 		dey					; A971 88                       .
 		sty	$02,x				; A972 94 02                    ..
@@ -8814,11 +8844,11 @@ IF TARGETOS <= 1
 ._lbbcAEC1
 		sec					; AEC1 38                       8
 		lda	#$00				; AEC2 A9 00                    ..
-		adc	$109C				; AEC4 6D 9C 10                 m..
-		sta	$109E				; AEC7 8D 9E 10                 ...
+		adc	WKSP_ADFS_29C			; AEC4 6D 9C 10                 m..
+		sta	WKSP_ADFS_29E			; AEC7 8D 9E 10                 ...
 		lda	#$00				; AECA A9 00                    ..
-		adc	$109D				; AECC 6D 9D 10                 m..
-		sta	$109F				; AECF 8D 9F 10                 ...
+		adc	WKSP_ADFS_29C+1			; AECC 6D 9D 10                 m..
+		sta	WKSP_ADFS_29E+1			; AECF 8D 9F 10                 ...
 		bcc	_lbbcAED7			; AED2 90 03                    ..
 		jmp	L867F				; AED4 4C 56 86
 ._lbbcAED7

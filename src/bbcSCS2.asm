@@ -5,6 +5,7 @@
 ; -----------------------------------------
 
 TARGETOS=1		; 1=BBC B (also B+)
+AUTOHAZEL=FALSE		; Autohazel for blitter
 FLOPPY=TRUE		; Floppy drivers
 HD_SCSI=FALSE		; SCSI drivers
 HD_IDE=FALSE
