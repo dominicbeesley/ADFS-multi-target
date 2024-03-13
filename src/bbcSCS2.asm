@@ -11,6 +11,7 @@ HD_IDE=FALSE
 HD_MMC=FALSE
 HD_MMC_HOG=FALSE
 HD_SCSI2=TRUE
+HD_XDFS=FALSE
 ;
 FULL_INFO=FALSE		; Truncated *INFO
 FULL_ACCESS=FALSE	; Truncated OSFILE 1-4
@@ -18,7 +19,6 @@ UNSUPPORTED_OSFILE=FALSE ; Unknown OSFILE returns A corrupted
 PRESERVE_CONTEXT=FALSE	; Ctrl-Break loses context
 LARGE_DISK=FALSE	; Future development
 TRIM_REDUNDANT=FALSE	; Don't remove redundant code
-OPTIMISE=0		; Don't do any code optimisation
 EXTERNAL=FALSE		; External support
 ;
 USE65C12=FALSE		; TODO: this only for testing on blitter!

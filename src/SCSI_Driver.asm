@@ -2,13 +2,9 @@
 ;; Hard drive hardware is present. Check what drive is being accessed.
 ;;
 .HD_Command
-IF OPTIMISE<6
               ldy    #&06
               lda    (&B0),Y                     	; Get drive
               ora    WKSP_ADFS_317_CURDRV        	; OR with current drive
-ELSE
-              jsr    GetDrive
-ENDIF
 IF FLOPPY
               bmi    CommandExecFloppyOp         	; Jump back with 4,5,6,7 as floppies
 ENDIF
@@ -26,12 +22,8 @@ ENDIF
 		lda	(&B0),Y
 		jsr	SCSI_send_byteA			; Send to SCSI data port
 		iny
-IF OPTIMISE<6
 		lda	(&B0),Y				; Get Drive
 		ora	WKSP_ADFS_317_CURDRV		; OR with current drive
-ELSE
-		jsr	GetDriveY
-ENDIF
 		sta	WKSP_ADFS_333_LASTACCDRV
 		jmp	L814C				; Send rest of command block
 ;;

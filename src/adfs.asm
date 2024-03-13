@@ -20,16 +20,7 @@
 ; Does not yet build correctly for BBC or Electron.
 
 
-; OPTIMISE flag sets how hard to optimise
-; 1 Use 65C12 coding where possible
-; 	;; TODO : ASK JGH - there are a lot of 65c12 instructions included even
-							;if this is 0 so I've added USE65C12 around those to turn the off for
-							;BBC / Elk / 6502A builds but qualified with OPTIMISE in other places?
-; 2 Subroutines for ReadCMOS, DiskSpeed, SetAttr, GetFilename, NextEntry, PointToCtrl
-; 3 Rewritten disk error generation
-; 4 Crunch OSARGS, BGET/BPUT update, CheckOpen
-; 5 Tail optimise sector_address to side/track/sector, LoadFSM, RootSector
-; 6 Merge *CAT/*EX, loop some code, crunch BGET return, FloppyORA_STEP_SET_FDC_CMD, CheckAddr, SectToCtrl
+;TODO: reinstate some JGH optimisations, with testing
 
 ; Other options, set from launch file:
 ; TARGETOS		Target machine MOS
@@ -45,19 +36,28 @@
 ; LARGE_DISK		Future development
 ; TRIM_REDUNDANT	Remove redundant code
 
-
-; Testing 2016/04/09
-;  TRIM_REDUNDANT works.
-;  OPTIMISE=1 works (use 65c12 ops)
-;  OPTIMISE=2 works (subroutines for major chunks)
-;  OPTIMISE=3 works (rewritten disk error routine)
-;  OPTIMISE=4 works (crunched OSARGS, BGET/BPUT, CheckOpen)
-;  OPTIMISE=5 works (tail optimised sector_addr conversion, LoadFSM, RootSector)
-;  OPTIMISE=6 testing, appears to work
-
+IF HD_XDFS
+ADFS_FS_NO=10
+CHANNEL_RANGE_HI=&59
+CHANNEL_RANGE_LO=&50
+KEYCODE_SELFS_MOUNT=&42			; OSBYTE 7A KEYCODE X
+KEYCODE_SELFS_NOMOUNT=&44		; OSYBTE 7A KEYCODE Y
+SELFS_CHAR_NOMOUNT=ASC("Y")
+OSWORD_BASE=&60
+NAMESTR="XDFS"
+NAMESTR_REV="sfdx"
+ELSE
 ADFS_FS_NO=8
 CHANNEL_RANGE_HI=&39
 CHANNEL_RANGE_LO=&30
+KEYCODE_SELFS_MOUNT=&41		; OSBYTE 7A KEYCODE A
+KEYCODE_SELFS_NOMOUNT=&43 ; OSBYTE 7A KEYCODE F
+SELFS_CHAR_NOMOUNT=ASC("F")
+FLAG_NOTFADFS=&FF
+OSWORD_BASE=&70
+NAMESTR="ADFS"
+NAMESTR_REV="sfda"
+ENDIF
 
 
 ; Sanity check
@@ -433,7 +433,6 @@ IF   TARGETOS=0
   FDCRES =&20		; Reset FDC
   FDCSIDE=&04		; Side select
   ROMSEL =&FE05		; ROM select register
-  VIABASE=&FC60		; 6522 VIA
   TUBEIO =&FCE5		; Tube data port
   TUBEIOSTAT =&FCE4
   FILEBLK=&02E2		; OSFILE control block
@@ -446,20 +445,22 @@ ELIF TARGETOS=1 OR TARGETOS=2
   FDCRES =&20		; Reset FDC
   FDCSIDE=&04		; Side select
   ROMSEL =&FE30		; ROM select register
-  VIABASE=&FE60		; 6522 VIA
   TUBEIO =&FEE5		; Tube data port
   TUBEIOSTAT = &FEE4
   FILEBLK=&02EE	  ; OSFILE control block
   WS=&E00-WKSP_ADFS_000_FSM_S0		; Offset to workspace from WKSP_ADFS_000_FSM_S0
 ELIF TARGETOS>2
   VERBASE=&150		; Master
-  HDDBASE=&FC40		; Hard drive controller
+IF HD_XDFS
+  	HDDBASE=&FC44		; Hard drive controller
+ELSE
+  	HDDBASE=&FC40		; Hard drive controller
+ENDIF
   FDCBASE=&FE28		; Floppy controller
   DRVSEL =FDCBASE-4	; Drive control register
   FDCRES =&04		; Reset FDC
   FDCSIDE=&10		; Side select
   ROMSEL =&FE30		; ROM select register
-  VIABASE=&FE60		; 6522 VIA
   TUBEIO =&FEE5		; Tube data port
   TUBEIOSTAT = &FEE4
   FILEBLK=&02EE		; OSFILE control block
@@ -607,7 +608,7 @@ ORG &8000
 		EQUB	&82				; Service ROM, 6502 code
 		EQUB	L8017-L8000			; Offset to (C) string
 		EQUB	VERSION AND &FF			; Binary version number
-		EQUS	"Acorn ADFS",0			; ROM Title
+		EQUS	"Acorn ", NAMESTR, 0		; ROM Title
 		EQUB	(VERSION DIV 256)+48		; Version string
 IF TARGETOS <=1
 		EQUB	'.'
@@ -1027,13 +1028,9 @@ IF FLOPPY
 		jsr	DoFloppySCSICommandIND		; Do floppy operation
 		beq	L8110				; Completed ok
 		pha					; Save result
-IF OPTIMISE<6
 		ldy	#&06				; Update ADFS error infomation
 		lda	(&B0),Y				; Get Drive+Sector b16-b19
 		ora	WKSP_ADFS_317_CURDRV		; OR with current drive
-ELSE
-		jsr	GetDrive
-ENDIF
 		sta	WKSP_ADFS_2D0_ERR_SECTOR+2	; Store
 		iny
 		lda	(&B0),Y				; Get Sector b8-b15
@@ -1044,7 +1041,7 @@ ENDIF
 		pla					; Restore result
 		sta	WKSP_ADFS_2D3_ERR_CODE		; Store
 .L8110		rts
-ENDIF
+ENDIF ; FLOPPY
 IF HD_MMC
 							;Do an MMC data transfer
 							;-----------------------
@@ -1120,7 +1117,6 @@ ENDIF
 ;	&7F Unknown result
 ; See the BeebWiki for full info
 ;
-IF OPTIMISE<3
 .GenerateError						; L82BD	
 		cmp	#&25				; Hard drive error &25 (Bad drive)?
 		beq	L82B4				; Jump to give 'Not found' error
@@ -1129,7 +1125,7 @@ IF OPTIMISE<3
 		cmp	#&6F				; Floppy error &2F (Abort)?
 		bne	L82DC				; If no, report a disk error
 ;;
-IF TARGETOS > 1		; TODO: not sure this is becessary
+IF TARGETOS > 1		; TODO: not sure this is necessary
 .ErrorEscapeACKInvalidReloadFSM		
 		jsr	InvalidateFSMandDIR		; Invalidate FSM and DIR in memory
 .ErrorEscapeACKReloadFSM		
@@ -1171,47 +1167,6 @@ ENDIF
 		EQUB	&C9				; ERR=201
 		EQUS	"Disc protected"
 		EQUB	&00
-ELSE
-.GenerateError		pha					; Save disk error number for later
-		and	#&3F				; Drop HDD/FDD flag from bit 6
-		beq	L830B				; &40->&00-> Disc write protected
-; If there is space, add things like MMC card not formatted, No ADFS partition, etc.
-		cmp	#&25				; Bad drive
-		beq	L82B4				; Jump to give 'Not found' error
-		cmp	#&2F
-		beq	ErrorEscapeACKInvalidReloadFSM				; Abort -> Escape
-							;All other results, give generic error message
-		jsr	L89D8				; Load FSM and root directory
-	IF USE65C12
-		plx					; Get disk error number back
-	ELSE
-		pla
-		tax
-	ENDIF
-		jsr	GenerateErrorSuffX				; Generate error with number in X
-		EQUB	&C7				; ERR=199
-		EQUS	"Disc error"
-		EQUB	&00
-IF TARGETOS > 1
-.ErrorEscapeACKInvalidReloadFSM		jsr	InvalidateFSMandDIR				; Invalidate FSM and DIR in memory
-.ErrorEscapeACKReloadFSM		lda	#&7E
-		jsr	OSBYTE				; Acknowledge Escape state
-		jsr	ReloadFSMandDIR_ThenBRK				; Reload FSM and DIR, generate an error
-ELSE
-	; beeb acks later shome mishtake?
-.ErrorEscapeACKInvalidReloadFSM		lda	#&7E
-		jsr	OSBYTE				; Acknowledge Escape state
-		jsr	InvalidateFSMandDIR				; Invalidate FSM and DIR in memory
-		jsr	ReloadFSMandDIR_ThenBRK				; Reload FSM and DIR, generate an error		
-ENDIF
-		EQUB	&11				; ERR=17
-		EQUS	"Escape"
-		EQUB	&00
-.L830B		jsr	L834E				; Do something, then generate an error
-		EQUB	&C9				; ERR=201
-		EQUS	"Disc protected"
-		EQUB	&00
-ENDIF
 ;
 IF HD_IDE
 .TubeStore
@@ -1428,22 +1383,21 @@ ENDIF
 		lda	#&20
 		sta	&0100,Y				; Add a space
 		txa
-IF OPTIMISE<3
 ; This initially looks like a bug, if X=&30-&39 it inserts in decimal as though
 ; it's a channel number, but then continues to append disk error information.
 ; This is done for 'Data lost, channel NNN at :D/SSSSSS' which could even
 ; become 'Data lost, channel NNN at :D/SSSSSS on channel NNN'. Would be better
 ; to generate the 'Data lost' error as a channel error.
-		cmp	#CHANNEL_RANGE_LO
+
+;TODOXDFS - this needs to subtract offset to make an ASCII number?
+
+		cmp	#ASC("0")
 		bcs	L839B				; &30+, jump to check if channel number
 .L8395		jsr	L8451				; Insert disk error as hex number
 		jmp	L83A2
-.L839B		cmp	#&3A
+.L839B		cmp	#ASC("9")+1
 		bcs	L8395				; &3A+, not a channel number, jump back
 		jsr	L846D				; Insert number in decimal
-ELSE
-		jsr	L8451				; Insert disk error as hex number
-ENDIF
 .L83A2		ldx	#&04
 .L83A4		iny
 		lda	L8440,X				; Insert ' at :'
@@ -1888,11 +1842,7 @@ ENDIF
 		cpy	#&03
 		bne	L8646
 		plp
-IF USE65C12 AND OPTIMISE >= 1
-		bra	L863D
-ELSE
 		jmp	L863D
-ENDIF
 ;;
 .L865B		ldx	#&FF
 		stx	&B3
@@ -2149,31 +2099,18 @@ ENDIF
 		jsr	L93CC
 		jsr	LA714
 .L8815
-IF USE65C12 AND OPTIMISE >= 1
-		lda	(&B6)				; Get first byte of directory entry
-ELSE
 		ldy	#&00
 		lda	(&B6),Y				; Get first byte of directory entry
-ENDIF
 		beq	L882E				; End of directory
 		jsr	L8756				; Check entry is valid
 		beq	L8830
 		bcc	L8830
-IF OPTIMISE<2
 		lda	&B6				; Step to next entry
 		adc	#&19				; &B6/7=&B6/7+26 (25+Cy)
 		sta	&B6
 		bcc	L8815
 		inc	&B7
 		bne	L8815
-ELSE
-		jsr	NextEntry
-IF USE65C12
-		bra	L8815
-ELSE
-		jmp	L8815
-ENDIF
-ENDIF
 .L882E		cmp	#&0F
 .L8830		rts
 
@@ -2281,13 +2218,9 @@ ELSE
 		ora	#ADFS_FLAGS_FSM_INCONSISTENT
 		sta	ZP_ADFS_FLAGS
 ENDIF
-IF OPTIMISE<5
 		ldx	#<L8831				; Point to 'load FSM' control block
 		ldy	#>L8831
 		jsr	L82AE				; Load FSM
-ELSE
-		jsr	LoadFSM
-ENDIF
 IF USE65C12
 		lda	#ADFS_FLAGS_FSM_INCONSISTENT
 		trb	ZP_ADFS_FLAGS			; Clear 'FSM inconsistant' flag
@@ -2308,14 +2241,9 @@ ENDIF
 		jsr	L82AE				; Load '$'
 		lda	#&02
 		sta	WKSP_ADFS_314			; Set CURR to &000002 - '$'
-IF USE65C12 AND OPTIMISE >= 1
-		stz	WKSP_ADFS_315
-		stz	WKSP_ADFS_316
-ELSE
 		lda	#&00
 		sta	WKSP_ADFS_315
 		sta	WKSP_ADFS_316
-ENDIF
 		jsr	LB4B9
 		ldy	#&00
 		jsr	L8743
@@ -2413,27 +2341,8 @@ ENDIF
 ; Step to next directory entry
 ; ----------------------------
 ; Directory pointer at &B6/7=&B6/7+26
-IF OPTIMISE>=2
-.NextEntry
-		lda	#&1A
-.NextEntryA
-		clc
-		adc	&B6
-		sta	&B6
-		bcc	NextEntryDone
-		inc	&B7
-.NextEntryDone
-IF USE65C12
-		lda	(&B6)				; Check first byte of entry
-ELSE
-		ldy	#&00
-		lda	(&B6),Y				; Check first byte of entry
-ENDIF
-		rts
-ENDIF
 
 .L8964
-IF OPTIMISE<2
 		clc					; Step to next directory entry
 		lda	&B6				; &B6/7=&B6/7+26
 		adc	#&1A
@@ -2442,9 +2351,6 @@ IF OPTIMISE<2
 		inc	&B7
 .L896F		ldy	#&00
 		lda	(&B6),Y				; Check first byte of entry
-ELSE
-		jsr	NextEntry			; Step to next entry, return EQ if at end
-ENDIF
 		beq	L8961				; &00 - end of directory
 		jsr	L8756				; Check directory entry is valid
 		bne	L8964				; Step to next entry
@@ -2480,15 +2386,11 @@ ENDIF
 		dey
 		bpl	L89AB
 .L89B4
-IF OPTIMISE<5
 		ldx	#&0A
 .L89B6		lda	L883C,X				; Get byte from 'load $' control block
 		sta	WKSP_ADFS_215_DSKOPSAV_RET,X			; Store into workspace control block
 		dex
 		bpl	L89B6
-ELSE
-		jsr	RootSector
-ENDIF
 		ldx	#&02
 		ldy	#&16				; Point to object's SECT entry
 .L89C3		lda	(&B6),Y				; Copy object's SECT entry to workspace
@@ -2500,17 +2402,6 @@ ENDIF
 		jsr	L82AA				; Do disk access, load the directory
 		jmp	L88FD				; Jump to parse next path component
 
-IF OPTIMISE>=5
-.RootSector
-		ldx	#&0A
-.RootSecLp
-		lda	L883C,X				; Get byte from 'load $' control block
-		sta	WKSP_ADFS_215_DSKOPSAV_RET,X			; Store into workspace control block
-		dex
-		bpl	RootSecLp
-		rts
-ENDIF
-
 .L89D5		lda	WKSP_ADFS_2C0
 .L89D8		pha
 		lda	WKSP_ADFS_22F
@@ -2519,17 +2410,12 @@ ENDIF
 		sta	WKSP_ADFS_317_CURDRV
 		lda	#&FF
 		sta	WKSP_ADFS_22F
-IF OPTIMISE<5
 		ldx	#<L8831				; Point to 'load FSM' control block
 		ldy	#>L8831
 		jsr	L82AE				; Load FSM
-ELSE
-		jsr	LoadFSM
-ENDIF
 .L89EF		lda	WKSP_ADFS_22E
 		cmp	#&FF
 		beq	L8A22
-IF OPTIMISE<5
 		tax
 		ldy	#&0A
 .L89F9		lda	L883C,Y				; Copy parameter block to load '$'
@@ -2538,12 +2424,6 @@ IF OPTIMISE<5
 		bpl	L89F9
 		stx	WKSP_ADFS_316			; Modify control block to be
 		stx	WKSP_ADFS_21B_DSKOPSAV_SEC			; 'load directory' control block
-ELSE
-		tay
-		jsr	RootSector			; Copy parameters to &C215
-		sty	WKSP_ADFS_316			; Modify control block to be
-		sty	WKSP_ADFS_21B_DSKOPSAV_SEC			; 'load directory' control block
-ENDIF
 		lda	WKSP_ADFS_22D
 		sta	WKSP_ADFS_315
 		sta	WKSP_ADFS_21B_DSKOPSAV_SEC+1
@@ -2899,12 +2779,8 @@ ENDIF ; not SCSI2
 ;; If name is '^' or '@', Bad name, otherwise Not found.
 ;; -----------------------------------------------------
 .L8BD3
-IF USE65C12 AND OPTIMISE > 1
-		lda	(&B4)				; Get first character
-ELSE
 		ldy	#&00
 		lda	(&B4),Y				; Get first character
-ENDIF
 		cmp	#&5E				; Is it '^' - parent directory
 		bne	L8BDE				; No, skip past
 .L8BDB		jmp	L8760				; Jump to give 'Bad name'
@@ -2932,12 +2808,8 @@ ENDIF
 ;; =================
 .L8C10		jsr	L8BBE
 		bne	L8BD3
-IF USE65C12 AND OPTIMISE > 1
-		lda	(&B6)				; Check 'R' bit
-ELSE
 		ldy	#&00				; Point to first byte of directory entry
 		lda	(&B6),Y				; Check 'R' bit
-ENDIF
 		bpl	L8BFB				; No 'R', jump to error
 .L8C1B		ldy	#&06				; Point to control block
 		lda	(&B8),Y				; Get file/addr flag
@@ -2960,12 +2832,8 @@ ENDIF
 		sta	WKSP_ADFS_215_DSKOPSAV_RET			; Set flag byte to 1
 		lda	#&08
 		sta	WKSP_ADFS_21A_DSKOPSAV_CMD			; Command 'read'
-IF USE65C12 AND OPTIMISE > 1
-		stz	WKSP_ADFS_21F_DSKOPSAV_CTL
-ELSE
 		lda	#&00
 		sta	WKSP_ADFS_21F_DSKOPSAV_CTL
-ENDIF
 		ldy	#&16
 		ldx	#&03
 .L8C4E		lda	(&B6),Y
@@ -3101,16 +2969,12 @@ ENDIF
 .L8CD1		jmp	L89D5
 ;;
 .L8CD4
-IF OPTIMISE<2
 		ldy	#&00				; Copy filename pointer to &B4/5
 		lda	(&B8),Y				; Control+0
 		sta	&B4
 		iny
 		lda	(&B8),Y				; Control+1
 		sta	&B5
-ELSE
-		jsr	GetFilename			; Copy filename pointer to &B4/5
-ENDIF
 .L8CDE		jsr	L8DC8
 		jsr	L8FE8
 		beq	L8CEC
@@ -3167,18 +3031,10 @@ ENDIF
 ;
 .L8D2C
 .CheckOpenAll
-IF OPTIMISE>=4
-		lda	#&FF				; Check b7-b0 of &C3AC,X
-ENDIF
 .CheckOpen
 		ldx	#&09				; 9+1 channels to check
 .L8D2E
-IF OPTIMISE<4
 		lda	WKSP_ADFS_3AC_CH_FLAGS,X			; Check if channel flags are &00
-ELSE
-		pha					; Save check mask
-		and	WKSP_ADFS_3AC_CH_FLAGS,X			; Mask with channel flags
-ENDIF
 		beq	L8D74
 		lda	WKSP_ADFS_3B6,X
 		and	#&E0
@@ -3202,9 +3058,6 @@ ENDIF
 		EQUS	"Can't - File open"
 		EQUB	&00
 .L8D74
-IF OPTIMISE>=4
-		pla					; Get check mask back
-ENDIF
 		dex
 		bpl	L8D2E				; Loop through all channels
 		inx					; Return with X=&00, EQ
@@ -3404,18 +3257,13 @@ ENDIF
 		lda	#>(WKSP_ADFS_400_DIR_BUFFER + &05)
 		sta	&B7
 .L8ECB
-IF USE65C12 AND OPTIMISE > 1
-		lda	(&B6),Y				; Get first byte of directory entry
-ELSE
 		ldy	#&00
 		lda	(&B6),Y				; Get first byte of directory entry
-ENDIF
 		beq	L8EF8				; &00 - end of directory
 .L8ECF		ldy	#&19				; Point to object's sequence number
 		lda	(&B6),Y
 		cmp	WKSP_ADFS_800_DIR_BUFFER + &FA
 		beq	L8EE7
-IF OPTIMISE<2
 		clc					; Step to next entry
 		lda	&B6				; &B6/7=&B6/7+26
 		adc	#&1A
@@ -3423,15 +3271,6 @@ IF OPTIMISE<2
 		bcc	L8ECB
 		inc	&B7
 		bcs	L8ECB
-ELSE
-		jsr	NextEntry			; Step to next entry
-IF USE65C12
-		bra	L8ECB				; Loop back
-ELSE
-		jmp	L8ECB				; Loop back
-ENDIF
-ENDIF
-
 .L8EE7		lda	WKSP_ADFS_800_DIR_BUFFER + &FA
 		clc
 		sed
@@ -3439,11 +3278,7 @@ ENDIF
 		cld
 		sta	WKSP_ADFS_800_DIR_BUFFER + &FA	; Store checksum at end of dir
 		sta	WKSP_ADFS_400_DIR_BUFFER	; Store checksum at start of dir
-IF USE65C12 AND OPTIMISE >= 1
-		bra	L8EC3
-ELSE
 		jmp	L8EC3
-ENDIF
 ;;
 .L8EF8		pla					; Save dir entry pointer
 		sta	&B7
@@ -3461,15 +3296,10 @@ ENDIF
 		bne	L8F0C
 		lda	#&0A
 		sta	WKSP_ADFS_21A_DSKOPSAV_CMD
-IF USE65C12 AND OPTIMISE >=1
-		stz	WKSP_ADFS_21E_DSKOPSAV_SECCNT
-		stz	WKSP_ADFS_21F_DSKOPSAV_CTL
-ELSE
 		lda	#&00
 		sta	WKSP_ADFS_21E_DSKOPSAV_SECCNT
 		lda	#&00
 		sta	WKSP_ADFS_21F_DSKOPSAV_CTL
-ENDIF
 		ldy	#&12
 .L8F26		lda	(&B6),Y
 		sta	WKSP_ADFS_20E,Y
@@ -3520,11 +3350,7 @@ ENDIF
 ;;
 .L8F7F		jsr	L8F57
 		jsr	L8A42
-IF USE65C12 AND OPTIMISE >= 1
-		bra	L8F8B
-ELSE
 		jmp	L8F8B
-ENDIF
 ;;
 .L8F88		jsr	L8F57
 .L8F8B		jsr	L8F91
@@ -3533,17 +3359,12 @@ ENDIF
 ;;
 .L8F91		jsr	LA714
 		jsr	L9012
-IF OPTIMISE<5
 		ldx	#&0A
 .L8F99		lda	L883C,X				; Copy control block to load '$'
 		sta	WKSP_ADFS_215_DSKOPSAV_RET,X
 		dex
 		bpl	L8F99
-ELSE
-		jsr	RootSector
-ENDIF
 		lda	#&0A				; Change action to 'Write'
-IF OPTIMISE<6
 		sta	WKSP_ADFS_21A_DSKOPSAV_CMD			; Update action
 		lda	WKSP_ADFS_314			; Change sector to new dir to create
 		sta	WKSP_ADFS_21B_DSKOPSAV_SEC+2
@@ -3551,9 +3372,6 @@ IF OPTIMISE<6
 		sta	WKSP_ADFS_21B_DSKOPSAV_SEC+1
 		lda	WKSP_ADFS_316
 		sta	WKSP_ADFS_21B_DSKOPSAV_SEC
-ELSE
-		jsr	SectorToControl
-ENDIF
 		jsr	L82AA
 		lda	WKSP_ADFS_317_CURDRV
 		jsr	LB5C5				; X=(A DIV 16)
@@ -3582,24 +3400,6 @@ ELSE
 ENDIF
 		lda	#&00
 		rts
-
-IF OPTIMISE>=6
-.SectorToControl
-		sta	WKSP_ADFS_21A_DSKOPSAV_CMD			; Update action
-		lda	WKSP_ADFS_314			; Change sector to new dir to create
-		sta	WKSP_ADFS_21B_DSKOPSAV_SEC+2
-		lda	WKSP_ADFS_315
-		sta	WKSP_ADFS_21B_DSKOPSAV_SEC+1
-		lda	WKSP_ADFS_316
-		sta	WKSP_ADFS_21B_DSKOPSAV_SEC
-		rts
-.GetDrive
-		ldy	#&06
-.GetDriveY
-		lda	(&B0),Y
-		ora	WKSP_ADFS_317_CURDRV
-		rts
-ENDIF
 
 .L8FE8		jsr	L8870
 		php
@@ -3893,7 +3693,6 @@ ENDIF
 		EQUB	&00
 ;;
 .L9177
-IF OPTIMISE<4
 		ldy	#&12
 		ldx	#&02
 		lda	(&B6),Y
@@ -3911,9 +3710,6 @@ IF OPTIMISE<4
 		dey
 		dex
 		bpl	L918E
-ELSE
-		jsr	L8E03
-ENDIF
 		ldy	#&03
 		lda	(&B6),Y				; Get 'D' bit
 		bpl	L921B				; Not a directory
@@ -3958,14 +3754,9 @@ ENDIF
 		bpl	L9203
 		lda	#&02
 		sta	WKSP_ADFS_31C			; Set Previous Directory to $
-IF USE65C12 AND OPTIMISE >= 1
-		stz	WKSP_ADFS_31D
-		stz	WKSP_ADFS_31E
-ELSE
 		lda	#&00
 		sta	WKSP_ADFS_31D
 		sta	WKSP_ADFS_31E
-ENDIF
 .L921B		ldy	#&04
 		lda	(&B6),Y				; Check 'E' bit
 		bmi	L9224				; Jump if 'E' set
@@ -4005,12 +3796,8 @@ IF HD_MMC_HOG	; TODO: check and reinstate JGH
 		tya
 ELSE		
 
-	IF USE65C12 AND OPTIMISE >=1 AND NOT(HD_MMC)
-		stz	WKSP_ADFS_2D5_CUR_CHANNEL
-	ELSE
 		ldx	#&00
-		stx	WKSP_ADFS_2D5_CUR_CHANNEL			; Clear last channel used
-	ENDIF
+		stx	WKSP_ADFS_2D5_CUR_CHANNEL	; Clear last channel used
 		asl	A				; Index into dispatch table
 		tax
 ENDIF
@@ -4034,37 +3821,15 @@ ELSE
 		tya
 		pha
 ENDIF
-IF OPTIMISE<2
 		ldy	#&00				; Get filename address
 		lda	(&B8),Y
 		sta	&B4
 		iny
 		lda	(&B8),Y
 		sta	&B5				; &B4/5=>filename
-ELSE
-		jsr	GetFilename
-ENDIF
 		pla					; Get function to A
 .L9270		rts					; Jump to subroutine
 
-IF OPTIMISE>=2
-; Get filename address from control block to &B4/5
-; ------------------------------------------------
-.GetFilename
-IF USE65C12 AND OPTIMISE >= 1
-		lda	(&B8)				; Get filename address
-		sta	&B4
-		ldy	#&01
-ELSE
-		ldy	#&00				; Get filename address
-		lda	(&B8),Y
-		sta	&B4
-		iny
-ENDIF
-		lda	(&B8),Y
-		sta	&B5				; &B4/5=>filename
-		rts
-ENDIF
 
 ; On dispatch, (&B8)=>control block, (&B4)=>filename, A=function, Y=1, X=corrupted
 ; Subroutine should return A=filetype, XY=>control block
@@ -4132,12 +3897,8 @@ ENDIF
 		rts					; Jump to address via stack
 ;;
 .L92CB		pha
-IF USE65C12 AND OPTIMISE > 1
-		phx
-ELSE
 		txa
 		pha
-ENDIF
 		lda	&B6
 		pha
 		lda	&B7
@@ -4153,12 +3914,8 @@ ENDIF
 		sta	&B7
 		pla
 		sta	&B6
-IF USE65C12 AND OPTIMISE > 1
-		plx
-ELSE
 		pla
 		tax
-ENDIF
 		pla
 		rts
 ;;
@@ -4189,11 +3946,7 @@ ENDIF
 .L9300		dex					; Dec. padding needed
 		bmi	L9309				; All done
 		jsr	LA036				; Print a space
-IF USE65C12 AND OPTIMISE >= 1
-		bra	L9300				; Loop to print padding
-ELSE
 		jmp	L9300				; Loop to print padding
-ENDIF
 ;;
 .L9309		lda	#&28
 IF TARGETOS > 1
@@ -4316,12 +4069,8 @@ ENDIF							; Display digit
 		sta	WKSP_ADFS_22B			; Display in four columns
 
 .L93E3
-IF USE65C12 AND OPTIMISE >= 1
-		lda	(&B6)				; Check first byte of entry
-ELSE
 		ldy	#&00
 		lda	(&B6),Y				; Check first byte of entry
-ENDIF
 		beq	L940C				; &00 - end of directory
 .L93E9		jsr	L92E5				; Print filename, access, cycle
 		dec	WKSP_ADFS_22B			; Decrement number of columns
@@ -4333,15 +4082,9 @@ IF TARGETOS > 1
 ELSE
 		jsr	OSNEWL
 ENDIF							; Print newline without spooling
-IF USE65C12 AND OPTIMISE >= 1
-		bra	L93FF				; Step to next entry
-ELSE
 		jmp	L93FF				; Step to next entry
-ENDIF
-
 .L93FC		jsr	LA036				; Print a space without spooling
 .L93FF
-IF OPTIMISE<2
 		clc					; Step to next entry
 		lda	&B6				; &B6/7=&B6/7+26
 		adc	#&1A
@@ -4349,11 +4092,6 @@ IF OPTIMISE<2
 		bcc	L93E3
 		inc	&B7
 		bcs	L93E3
-ELSE
-		jsr	NextEntry			; Step to next entry
-		bne	L93E9				; Not end of directory, loop back
-ENDIF
-
 .L940C		lda	WKSP_ADFS_22B
 		cmp	#&04
 		beq	L9423
@@ -4388,24 +4126,14 @@ ENDIF
 ;;
 ;; FSC 9 - *EX
 ;; =============
-IF OPTIMISE>=6
-.CatOrEx
-		beq	L93DB				; = &00 -> do CAT
-		bne	L943D				; <>&00 -> do EX
-ENDIF
 .starEX		
 		jsr	L9478
 .L943D		jsr	L9331				; Print catalogue header
 .L9440
-IF USE65C12 AND OPTIMISE >= 1
-		lda	(&B6)				; Check first byte of directory entry
-ELSE
 		ldy	#&00
 		lda	(&B6),Y				; Check first byte of directory entry
-ENDIF
 		beq	L9423				; &00 - end of directory
 .L9446		jsr	L9508				; Print info for this entry
-IF OPTIMISE<2
 		clc					; Step to next entry
 		lda	&B6				; &B6/7=&B6/7+26
 		adc	#&1A
@@ -4416,14 +4144,6 @@ IF USE65C12
 		bra	L9440
 ELSE
 		bcs	L9440
-ENDIF
-ELSE
-		jsr	NextEntry			; Step to next entry
-IF USE65C12 AND OPTIMISE >= 1
-		bra	L9440				; Loop back
-ELSE
-		jmp	L9440				; Loop back
-ENDIF
 ENDIF
 
 .L9456		ldy	#&00				; Point to first character, prepare Y=0 for later
@@ -4472,15 +4192,11 @@ ENDIF
 		dey
 		bpl	L94A6
 .L94AF
-IF OPTIMISE<5
 		ldx	#&0A
 .L94B1		lda	L883C,X
 		sta	WKSP_ADFS_215_DSKOPSAV_RET,X
 		dex
 		bpl	L94B1
-ELSE
-		jsr	RootSector
-ENDIF
 		ldx	#&02
 		ldy	#&16
 .L94BE		lda	(&B6),Y
@@ -4650,14 +4366,10 @@ ENDIF
 		sta	WKSP_ADFS_240
 		lda	&B5
 		sta	WKSP_ADFS_241
-IF OPTIMISE<2
 		lda	#<WKSP_ADFS_240			; &B8/9=>&C240
 		sta	&B8
 		lda	#>WKSP_ADFS_240
 		sta	&B9
-ELSE
-		jsr	PointToCtrl			; &B8/9=>&C240, control block in workspace
-ENDIF
 		jsr	L8DFE
 		ldy	#&09
 		lda	WKSP_ADFS_237
@@ -4669,14 +4381,6 @@ ENDIF
 		EQUS	"Already exists"
 		EQUB	&00
 
-IF OPTIMISE>=2
-.PointToCtrl
-		lda	#<WKSP_ADFS_240		; Point &B8/9=>&C240, control block in workspace
-		sta	&B8
-		lda	#>WKSP_ADFS_240
-		sta	&B9
-		rts
-ENDIF
 
 .L95BE		lda	(&B4),Y				; Get filename character
 		and	#&7F
@@ -4691,24 +4395,16 @@ ENDIF
 		jsr	L8F5D
 		ldy	#&03				; Point to 'D' bit
 .L95D6
-IF OPTIMISE<2
 		lda	(&B6),Y				; Set attribute bit
 		ora	#&80
 		sta	(&B6),Y
-ELSE
-		jsr	SetAttr				; Set attribute bit
-ENDIF
 		dey
 		cpy	#&01
 		bne	L95D6
 		dey
-IF OPTIMISE<2
 		lda	(&B6),Y				; Set attribute bit
 		ora	#&80
 		sta	(&B6),Y
-ELSE
-		jsr	SetAttr				; Set attribute bit
-ENDIF
 		lda	#&00
 		tax
 		tay
@@ -4904,7 +4600,6 @@ ENDIF
 .L978A		lda	#>WKSP_ADFS_400_DIR_BUFFER	; page of dir buffer
 		sta	WKSP_ADFS_216_DSKOPSAV_MEMADDR+1
 		lda	#&08				; Change action to 'Read'
-IF OPTIMISE<6
 		sta	WKSP_ADFS_21A_DSKOPSAV_CMD
 		lda	WKSP_ADFS_314
 		sta	WKSP_ADFS_21B_DSKOPSAV_SEC+2
@@ -4912,36 +4607,23 @@ IF OPTIMISE<6
 		sta	WKSP_ADFS_21B_DSKOPSAV_SEC+1
 		lda	WKSP_ADFS_316
 		sta	WKSP_ADFS_21B_DSKOPSAV_SEC
-ELSE
-		jsr	SectorToControl
-ENDIF
 		lda	#&05
 		sta	WKSP_ADFS_21E_DSKOPSAV_SECCNT
 		jmp	L82AE
 
 .L97AE
-IF USE65C12 AND OPTIMISE >= 1
-		stz	WKSP_ADFS_2AB
-		stz	WKSP_ADFS_2AC
-		stz	WKSP_ADFS_2AD
-ELSE
 		lda	#&00
 		sta	WKSP_ADFS_2AB
 		sta	WKSP_ADFS_2AC
 		sta	WKSP_ADFS_2AD
-ENDIF
 .L97B9		lda	#&FF
 		sta	WKSP_ADFS_2A2
 		sta	WKSP_ADFS_2A3
 		sta	WKSP_ADFS_2A4
 		jsr	L93CC
 .L97C7
-IF USE65C12 AND OPTIMISE >= 1
-		lda	(&B6)				; Get first byte of directory entry
-ELSE
 		ldy	#&00
 		lda	(&B6),Y				; Get first byte of directory entry
-ENDIF
 		bne	L97DC				; Not &00, not end of directory
 .L97CD		lda	WKSP_ADFS_2A2
 		and	WKSP_ADFS_2A3
@@ -4985,7 +4667,6 @@ ENDIF
 		lda	&B7
 		sta	&B5
 .L9811
-IF OPTIMISE<2
 		lda	&B6				; Step to next entry
 		clc					; &B6/7=&B6/7+26
 		adc	#&1A
@@ -4993,14 +4674,6 @@ IF OPTIMISE<2
 		bcc	L97C7
 		inc	&B7
 		bcs	L97C7
-ELSE
-		jsr	NextEntry			; Step to next entry
-IF USE65C12 AND OPTIMISE >= 1
-		bra	L97C7				; Loop back
-ELSE
-		jmp	L97C7				; Loop back
-ENDIF
-ENDIF
 .L981E		lda	&B4
 		sta	&B6
 		lda	&B5
@@ -5104,12 +4777,8 @@ ENDIF
 		jsr	L97AE
 		jsr	L93CC
 .L98E2
-IF USE65C12 AND OPTIMISE >= 1
-		lda	(&B6)				; Check first byte of directory entry
-ELSE
 		ldy	#&00
 		lda	(&B6),Y				; Check first byte of directory entry
-ENDIF
 		beq	L9913				; &00 - end of directory
 .L98E8		ldy	#&03
 		lda	(&B6),Y				; Check 'D' bit
@@ -5147,7 +4816,6 @@ ENDIF
 		lda	(&C0),Y
 		sta	&B6
 .L9930
-IF OPTIMISE<2
 		clc					; Step to next entry
 		lda	&B6				; &B6/7=&B6/7+26
 		adc	#&1A
@@ -5158,15 +4826,6 @@ IF USE65C12
 		bra	L98E2
 ELSE
 		bcs	L98E2
-ENDIF
-
-ELSE
-		jsr	NextEntry
-IF USE65C12 AND OPTIMISE >= 1
-		bra	L98E2				; Loop back
-ELSE
-		jmp	L98E2				; Loop back
-ENDIF
 ENDIF
 .L993D		jmp	L89D8
 ;
@@ -5203,14 +4862,9 @@ ELSE
 ENDIF
 		lda	(&B6),Y				; Get 'D' bit
 		and	#&80
-IF USE65C12 AND OPTIMISE >= 1
-		ora	(&B6)				; Copy 'D' bit into 'R' bit
-		sta	(&B6)				; Forces dirs to always have 'R'
-ELSE
 		ldy	#&00
 		ora	(&B6),Y				; Copy 'D' bit into 'R' bit
 		sta	(&B6),Y				; Forces dirs to always have 'R'
-ENDIF
 
 .L996A		sta	WKSP_ADFS_22B			; Store 'E' or 'D'+'R' bit
 		ldy	#&00				; Step past filename
@@ -5252,13 +4906,9 @@ ELSE
 
 		jsr	L994A				; Clear all other bits
 		ldy	#&04				; Point to 'E' bit
-IF OPTIMISE<2
 		lda	(&B6),Y				; Set 'E' attribute bit
 		ora	#&80
 		sta	(&B6),Y
-ELSE
-		jsr	SetAttr				; Set 'E' attribute bit
-ENDIF
 		sta	WKSP_ADFS_22B			; Set 'E/D has been used' flag
 		bmi	L99BD
 ENDIF
@@ -5289,13 +4939,9 @@ ELSE
 ENDIF
 		txa
 		tay
-IF OPTIMISE<2
 		lda	(&B6),Y				; Set access bit
 		ora	#&80
 		sta	(&B6),Y
-ELSE
-		jsr	SetAttr				; Set access bit
-ENDIF
 IF USE65C12
 		ply
 		bra	L99BD
@@ -5303,13 +4949,6 @@ ELSE
 		pla
 		tay
 		bne	L99BD
-ENDIF
-IF OPTIMISE>=2
-.SetAttr
-		lda	(&B6),Y				; Set access bit
-		ora	#&80
-		sta	(&B6),Y
-		rts
 ENDIF
 
 ;;
@@ -5328,25 +4967,17 @@ ENDIF
 		pha
 		lda	&B5
 		pha
-IF OPTIMISE<2
 		lda	#<WKSP_ADFS_240			; &B8/9=>&C240
 		sta	&B8
 		lda	#>WKSP_ADFS_240
 		sta	&B9
-ELSE
-		jsr	PointToCtrl			; &B8/9=>&C240
-ENDIF
 		jsr	starINFO
 		pla
 		sta	&B5
 		pla
 		sta	&B4
 		jsr	L92A8
-IF OPTIMISE<1
 		EQUS	"Destroy ?", &A0
-ELSE
-		EQUS	"Destroy?", &A0
-ENDIF
 		ldx	#&03
 .L9A0F		jsr	&FFE0
 		cmp	#' '
@@ -5398,11 +5029,7 @@ IF TARGETOS > 1
 		sta	&B5
 		pla
 		sta	&B4
-IF USE65C12 AND OPTIMISE >= 1
-		bra	L9A29
-ELSE
 		jmp	L9A29
-ENDIF
 ENDIF
 
 ;;
@@ -5592,10 +5219,10 @@ ENDIF
 		EQUB	&0D
 .L9A9C
 IF TARGETOS > 1
-		EQUS	"E.-ADFS-$.!BOOT"		; *Exec option
-ELSE
+		EQUS	"E.-", NAMESTR, "-$.!BOOT"		; *Exec option
+ELSE ; TARGETOS
 		EQUS	"E.$.!BOOT"			; *Exec option
-ENDIF
+ENDIF ; TARGETOS
 		EQUB	&0D
 IF (L9A92 AND &FF00)<>(L9A9C AND &FF00)
 		error	"Boot strings run over page boundary"
@@ -5913,13 +5540,13 @@ IF TARGETOS > 1
 ;;
 ;; Select ADFS
 ;; ===========
-.L9B4A		ldy	#&08				; Y=8 to select ADFS
+.L9B4A		ldy	#ADFS_FS_NO			; Y=8 to select ADFS
 ENDIF
 ;;
 ;;
 ;; Serv12 - Select filing system
 ;; =============================
-.L9B4C		cpy	#&08
+.L9B4C		cpy	#ADFS_FS_NO
 		bne	L9B49				; No, quit
 .L9B50
 IF USE65C12
@@ -5937,12 +5564,8 @@ ENDIF
 ;; Serv3 - Boot filing system
 ;; ==========================
 .Serv3
-IF USE65C12 AND OPTIMISE > 1
-		phy
-ELSE
 		tya
 		pha					; Save Boot flag
-ENDIF
 		lda	#&7A
 		jsr	OSBYTE				; Scan keyboard
 		inx					; No key pressed?
@@ -5963,26 +5586,23 @@ ELSE
 		lda	$028D				; 9B50 AD 8D 02                 ...
 ENDIF
 		beq	L9B74
-		ldx	#&44
+		ldx	#KEYCODE_SELFS_NOMOUNT+1
 ._lbbc9B57
 		dex					; 9B57 CA                       .
-ENDIF							; TARGETOS
+ENDIF ; TARGETOS
 
 
-IF NOT(TRIM_REDUNDANT) OR HD_MMC_HOG
+IF NOT(HD_XDFS) AND (NOT(TRIM_REDUNDANT) OR HD_MMC_HOG)
 		cpx	#&79				; '->' pressed?
 		beq	L9B74				; Yes
 ENDIF
-		cpx	#&41				; 'A' pressed?
+
+		cpx	#KEYCODE_SELFS_MOUNT			; 'A' pressed?
 		beq	L9B74				; Yes
-		cpx	#&43				; 'F' pressed?
+		cpx	#KEYCODE_SELFS_NOMOUNT			; 'F' pressed?
 		beq	L9B72				; Yes, jump to select FS
-IF USE65C12 AND OPTIMISE > 1
-		ply
-ELSE
 		pla
 		tay					; Restore Boot flag
-ENDIF
 		ldx	ZP_MOS_CURROM				; Restore ROM number
 		lda	#&03				; Restore A=FSBoot
 		rts					; Return unclaimed
@@ -6018,7 +5638,7 @@ ELSE
 ENDIF
 		beq	L9B85				; Jump forward if soft BREAK
 		pla					; With Hard BREAK and power on
-		lda	#&43				; ...change key pressed to 'fadfs'
+		lda	#KEYCODE_SELFS_NOMOUNT			; ...change key pressed to 'fadfs'
 		pha
 ELSE							; TARGETOS <=1
 		ldy	#$00				; 9B71 A0 00                    ..
@@ -6027,7 +5647,7 @@ ELSE							; TARGETOS <=1
 
 ENDIF							; TARGETOS
 .L9B85		jsr	L92A8				; Print FS banner
-		EQUS	"Acorn ADFS", &0D, &8D
+		EQUS	"Acorn ", NAMESTR, &0D, &8D
 ;;
 ;; Select ADFS
 ;; ===========
@@ -6129,7 +5749,7 @@ IF TARGETOS <= 1
 ENDIF
 
 		pla					; Get selection flag from stack
-		cmp	#&43				; '*fadfs'/F-Break type of selection?
+		cmp	#KEYCODE_SELFS_NOMOUNT			; '*fadfs'/F-Break type of selection?
 		bne	L9C18				; No, jump to keep context
 		jsr	InvalidateFSMandDIR				; Set context to &FFFFFFFF when *fadfs
 .L9C18		ldy	#&03				; Copy current context to backup context
@@ -6305,8 +5925,8 @@ IF TARGETOS > 1
 ;;
 ;; Serv25 - Return filing system information
 ;; =========================================
-.Serv25		ldx	#&0A
-.L9CEC		lda	L9CFA,X				; Copy information
+.Serv25		ldx	#FSINFOLEN-1
+.L9CEC		lda	FSINFO,X				; Copy information
 		sta	(&F2),Y
 		iny
 		dex
@@ -6318,15 +5938,17 @@ IF TARGETOS > 1
 ;;
 ;; Filing system information
 ;; -------------------------
-.L9CFA		EQUB	ADFS_FS_NO			; Filing system number
+.FSINFO		EQUB	ADFS_FS_NO			; Filing system number
 		EQUB	CHANNEL_RANGE_HI		; Highest handle used
 		EQUB	CHANNEL_RANGE_LO		; Lowest handle used
 		EQUS	"    "
-
-ENDIF
-
 .str_SFDA		
-		EQUS	"sfda"				; "adfs" filing system name
+		EQUS	NAMESTR_REV			; "adfs" filing system name
+FSINFOLEN=P%-FSINFO
+ELSE ; TARGETOS <= 1
+.str_SFDA		
+		EQUS    NAMESTR_REV
+ENDIF
 IF TARGETOS > 1
 ;;
 ;; Serv26 - *SHUT
@@ -6375,14 +5997,15 @@ ELSE
 		tya
 		pha					; Save command pointer
 ENDIF
-		lda	#&FF				; Flag not '*fadfs'
+
+		lda 	#&FF
 		pha
 		lda	(&F2),Y				; Get first character
 		ora	#&20				; Force to lower case
-		cmp	#&66				; Is it 'f' of 'fadfs'?
+		cmp	#SELFS_CHAR_NOMOUNT OR &20	; Is it 'f' of 'fadfs'?
 		bne	L9D34				; No, jump past
 		pla					; Lose previous flag
-		lda	#&43				; Change flags to indicate '*fadfs'
+		lda	#KEYCODE_SELFS_NOMOUNT			; Change flags to indicate '*fadfs'
 		pha
 		iny					; Point to next character
 .L9D34		ldx	#&03				; 'adfs' is 3+1 characters
@@ -6391,7 +6014,7 @@ ENDIF
 		cmp	#&2E				; Is it '.'?
 		beq	L9D47				; Jump to match abbreviated command
 		ora	#&20				; Force to lower case
-		cmp	str_SFDA,X				; Compare with 'adfs' in FSInfo block
+		cmp	str_SFDA,X			; Compare with 'adfs' in FSInfo block
 		bne	L9D57				; No match, abandon scanning
 		dex					; Decrease length/pointer
 		bpl	L9D36				; Loop for all four characters
@@ -6441,9 +6064,9 @@ ELSE
 ENDIF
 IF TARGETOS > 1						; ; TODO this removed to make adfs130 identical - put it back?
 		lda	&EF				; Get OSWORD number
-		cmp	#&70
+		cmp	#OSWORD_BASE
 		bcc	L9DBA				; If <&70, exit unclaimed
-		cmp	#&74
+		cmp	#OSWORD_BASE+4
 		bcs	L9DBA				; If >&73, exit unclaimed
 ENDIF
 ;;
@@ -6455,7 +6078,7 @@ ENDIF
 		lda	#&00
 		tay
 		jsr	OSARGS				; Get current filing system
-		cmp	#&08				; Is is ADFS?
+		cmp	#ADFS_FS_NO			; Is is ADFS?
 IF TARGETOS > 1						
 		beq	L9D76				; Yes, jump to continue
 		jsr	L9B4A				; Select ADFS if ADFS not selected
@@ -6463,7 +6086,7 @@ ELSE
 		bne	L9DBA				; exit
 ENDIF
 .L9D76		lda	&EF				; Get OSWORD number
-		cmp	#&72				; Is it &72?
+		cmp	#OSWORD_BASE+2			; Is it &72?
 		bne	L9DC0				; No, jump ahead
 ;;
 ;;
@@ -6518,13 +6141,8 @@ ENDIF
 ;; Store result value and claim call
 ;; ---------------------------------
 .L9DB0
-IF USE65C12 AND OPTIMISE >= 1
-		sta	(&BA)				; Store result in control block
-ELSE
 		ldy	#&00				; Point to result byte
 		sta	(&BA),Y				; Store result in control block
-ENDIF
-IF OPTIMISE<2
 ; Claim OSWORD service call
 ; -------------------------
 .L9DB4		ldx	ZP_MOS_CURROM				; Restore ROM number to X
@@ -6548,26 +6166,8 @@ ELSE
 ENDIF
 		lda	#&08				; A=8 to exit with OSWORD unclaimed
 		rts
-ELSE
-; Claim OSWORD service call
-; -------------------------
-.L9DB4		lda	#&00				; A=0 to claim OSWORD
-		beq	L9DBC
 
-; Exit from OSWORD service call
-; -----------------------------
-.L9DBA		lda	#&08				; A=8 to exit with OSWORD unclaimed
-.L9DBC		ldx	ZP_MOS_CURROM				; Restore ROM number to X
-IF USE65C12
-		ply					; Restore Y
-ELSE
-		pla					; Restore Y
-		tay
-ENDIF
-		rts
-ENDIF
-
-.L9DC0		cmp	#&73
+.L9DC0		cmp	#OSWORD_BASE+3
 		bne	L9DD0
 		ldy	#&04
 .L9DC6		lda	WKSP_ADFS_2D0_ERR_SECTOR,Y
@@ -6575,7 +6175,7 @@ ENDIF
 		dey
 		bpl	L9DC6
 		bmi	L9DB4
-.L9DD0		cmp	#&70
+.L9DD0		cmp	#OSWORD_BASE
 		bne	L9DE3
 		lda	WKSP_ADFS_800_DIR_BUFFER + &FA
 		ldy	#&00
@@ -6583,13 +6183,9 @@ ENDIF
 		lda	ZP_ADFS_FLAGS
 		iny
 		sta	(&F0),Y
-IF USE65C12 AND OPTIMISE >= 1
-		bra	L9DB4
-ELSE
 		jmp	L9DB4
-ENDIF
 ;;
-.L9DE3		cmp	#&71
+.L9DE3		cmp	#OSWORD_BASE+1
 		bne	L9DBA
 		jsr	LA1EA
 		ldy	#&03
@@ -6604,48 +6200,35 @@ ELSE
 ENDIF
 ;;
 .L9DF6		jsr	L92A8
-IF OPTIMISE<6 AND NOT(HD_IDE AND TARGETOS = 1)
-		EQUS	&0D, "Advanced DFS "		; Help string
+
+IF HD_XDFS
+		EQUS	&0D, "External ADFS 1.50"	; Help string
+		EQUB	&8D
+
 ELSE
-		EQUS	&0D, "Acorn ADFS "		; Help string
-ENDIF
+		EQUS	&0D, "Advanced DFS "		; Help string
 		EQUB	(VERSION DIV 256)+48		; Version string
 		EQUB	"."
 		EQUB	((VERSION AND &F0) DIV 16)+48
 		EQUB	(VERSION AND &0F)+48
-IF HD_IDE AND TARGETOS = 1
-		EQUB	"r23"
-ENDIF
 		EQUB	&8D
+ENDIF ; HD_XDFS
 		rts
 .Serv9
 
-IF USE65C12 AND OPTIMISE > 1
-		phy
-ELSE
 		tya
 		pha
-ENDIF
-IF HD_IDE AND TARGETOS = 1
-		jsr	GetChar
-ELSE
 		lda	(&F2),Y
 		cmp	#&20
-ENDIF
 		bcs	L9E3E
 		jsr	L9DF6
 		jsr	L92A8
 
 
-
-		EQUS	"  ADFS", &8D
+		EQUS	"  ", NAMESTR, &8D
 .L9E22
-IF USE65C12 AND OPTIMISE > 1
-		ply
-ELSE
 		pla
 		tay
-ENDIF
 		ldx	ZP_MOS_CURROM
 		lda	#&09
 .L9E28		rts
@@ -7026,10 +6609,19 @@ ENDIF
 		lda	#&C7
 		ldy	#&00				; Do OSBYTE &C7,0,0
 		jsr	L84C6				; Set SPOOL handle to 0, returning X=SPOOL, Y=Escape/Break flags
+
+;TODOXDFS: I think this is maybe wrong?
+IF HD_XDFS
+		cpx	#&30
+		bcc	LA053				; Not an ADFS handle
+		cpx	#&3A
+		bcs	LA053				; Not an ADFS handle
+ELSE ; XDFS
 		cpx	#CHANNEL_RANGE_LO
 		bcc	LA053				; Not an ADFS handle
 		cpx	#CHANNEL_RANGE_HI+1
 		bcs	LA053				; Not an ADFS handle
+ENDIF
 							;This looks like we need a LDY #0 here as if *FX200,<>0, Y will be <>0
 		jsr	OSBYTE				; Restore SPOOL handle, we can safely SPOOL to ourself
 		ldx	#&00				; Don't need to restore again
@@ -7211,7 +6803,7 @@ ENDIF
 		bne	LA16F
 		clc
 		txa
-		adc	#'0'
+		adc	#CHANNEL_RANGE_LO
 		tay
 		lda	#&00
 		jsr	my_OSFIND
@@ -7673,7 +7265,6 @@ ENDIF
 		bpl	LA4B3
 		rts
 
-IF OPTIMISE<6
 ; *LCAT
 ; =====
 .starLCAT		jsr	LA49E
@@ -7687,24 +7278,6 @@ IF OPTIMISE<6
 		jsr	LA4B1
 		jsr	L943D				; EX the library
 		jmp	L89D8
-ELSE
-; *LCAT, *LEX
-; ===========
-.starLCAT
-.starLEX
-	IF USE65C12
-		phx					; Save index into command table
-	ELSE	
-		txa
-		pha
-	ENDIF
-		jsr	LA49E
-		jsr	LA4B1
-		pla
-		eor	#cmdLC-tbl_commands+4
-		jsr	CatOrEx				; CAT or EX the library
-		jmp	L89D8				; Reload current directory
-ENDIF
 
 .starBACK		ldy	#&03
 .LA4D7		lda	WKSP_ADFS_31C,Y
@@ -7826,14 +7399,10 @@ ENDIF
 		beq	LA579
 .LA580		jsr	LA394
 		jsr	LA534
-IF OPTIMISE<2
 		lda	#<WKSP_ADFS_240			; &B8/9=>&C240, control block in workspace
 		sta	&B8
 		lda	#>WKSP_ADFS_240
 		sta	&B9
-ELSE
-		jsr	PointToCtrl			; &B8/9=>&C240, control block in workspace
-ENDIF
 		jsr	L8CED
 IF TARGETOS>0 OR NOT(HD_SCSI)
 		php
@@ -7968,13 +7537,9 @@ ELSE
 ENDIF
 
 		ldy	#&09				; What uses access bit 9?
-IF OPTIMISE<2
 		lda	(&B6),Y				; Set attribute bit
 		ora	#&80
 		sta	(&B6),Y
-ELSE
-		jsr	SetAttr				; Set attribute bit
-ENDIF
 		jsr	L8F91
 		ldy	#&0A
 		ldx	#&07
@@ -8017,14 +7582,10 @@ ENDIF
 		dex
 		bpl	LA66D
 		jsr	L89D8
-IF OPTIMISE<2
 		lda	#<WKSP_ADFS_240		; &B8/9=>&C240
 		sta	&B8
 		lda	#>WKSP_ADFS_240
 		sta	&B9
-ELSE
-		jsr	PointToCtrl			; &B8/9=>&C240
-ENDIF
 		jsr	L8DFE
 		jsr	L8E7A
 		ldy	#&03
@@ -8219,7 +7780,6 @@ ENDIF
 		sta	&0101,X
 		lda	#>(LA7D4-1)
 		sta	&0102,X				; Change return address to LA7D4
-IF OPTIMISE<6
 IF USE65C12
 		plx
 		ply
@@ -8233,13 +7793,6 @@ ELSE
 ENDIF
 		plp
 		rts
-ELSE
-	IF USE65C12
-		bra	LA7E7
-	ELSE
-		jmp	LA7E7
-	ENDIF
-ENDIF
 ;;
 .LA7C9		ldx	#&78
 		txa
@@ -8289,7 +7842,6 @@ ENDIF
 		rts
 ;;
 .LA7EC
-IF OPTIMISE<6
 		lda	WKSP_ADFS_291			; Copy &C291-4 to &B4-7
 		sta	&B4
 		lda	WKSP_ADFS_292
@@ -8298,14 +7850,6 @@ IF OPTIMISE<6
 		sta	&B7
 		lda	WKSP_ADFS_293
 		sta	&B6
-ELSE
-		ldx	#3
-.LA7EE		lda	WKSP_ADFS_291,X			; Copy &C291-4 to &B4-7
-		sta	&B4,X
-		dex
-		bpl	LA7EE
-ENDIF
-IF OPTIMISE<6
 IF TARGETOS=0 AND HD_SCSI
 		ldy	#&0A
 .LA802		lda	L883C,Y			; Copy 'load $' control block
@@ -8321,10 +7865,6 @@ ELSE
 		bne	LA802
 ENDIF
 		ldy	#&03
-
-ELSE
-		jsr	RootControl			; Copy 'load $' control block
-ENDIF
 .LA80D		lda	WKSP_ADFS_26C,Y
 		sta	WKSP_ADFS_314,Y
 		cpx	#&00
@@ -8335,20 +7875,8 @@ ENDIF
 		bpl	LA80D
 		jmp	L82AA
 
-IF OPTIMISE>=6
-.RootControl
-		ldx	#&0B
-.RootCtrlLp
-		lda	L883C-1,X			; Copy 'load $' control block
-		sta	WKSP_ADFS_214,X
-		dex
-		bne	RootCtrlLp
-		ldy	#&03
-		rts
-ENDIF
 
 .LA821
-IF OPTIMISE<6
 IF TARGETOS=0 AND HD_SCSI
 		ldy	#&0A
 .LA823		lda	L883C,Y				; Copy 'load $' control block
@@ -8365,9 +7893,6 @@ ELSE
 ENDIF
 
 		ldy	#&03
-ELSE
-		jsr	RootControl			; Copy 'load $' control block
-ENDIF
 .LA82E		lda	WKSP_ADFS_270,Y
 		sta	WKSP_ADFS_314,Y
 		cpx	#&00
@@ -8395,7 +7920,6 @@ ENDIF
 		jmp	L8BD3
 ;;
 .LA863
-IF OPTIMISE<6
 		lda	&B6				; Copy &B6/7 to &C293/4
 		sta	WKSP_ADFS_293
 		lda	&B7
@@ -8405,14 +7929,6 @@ IF OPTIMISE<6
 		lda	&B5
 		sta	WKSP_ADFS_292
 		ldy	#&03
-ELSE
-		ldy	#&FF
-.LA865		iny
-		lda	&B4,Y				; Copy &B4-7 to &C291-4
-		sta	WKSP_ADFS_291,Y
-		cpy	#3
-		bne	LA865
-ENDIF
 .LA879		lda	WKSP_ADFS_314,Y
 		sta	WKSP_ADFS_26C,Y
 		dey
@@ -8551,7 +8067,7 @@ IF TARGETOS > 1
 		bne	LA9A8				; Jump with OSARGS Y<>0, info on channel
 		tay
 		bne	LA984				; Jump with OSARGS Y=0, A<>0, info on filing system
-		lda	#&08				; OSARGS 0,0 - return filing system number
+		lda	#ADFS_FS_NO			; OSARGS 0,0 - return filing system number
 .LA983		rts
 ;;
 ;; OSARGS Y=0, A<>0 - Info on filing system
@@ -8690,7 +8206,6 @@ ENDIF
 		lda	WKSP_ADFS_3AC_CH_FLAGS,Y
 		bpl	LAA16				; if not open for write/update
 .LA9E2		ldx	ZP_ADFS_C3_SAVE_X
-IF OPTIMISE<4
 		lda	&00,X
 		sta	WKSP_ADFS_29A
 		lda	&01,X
@@ -8702,9 +8217,6 @@ IF OPTIMISE<4
 		jsr	LAE68
 		ldx	ZP_ADFS_C3_SAVE_X
 		ldy	ZP_ADFS_CF_CHANNEL_OFFS
-ELSE
-		jsr	ArgsData			; Copy data to channel info
-ENDIF
 .LA9FF		lda	&00,X
 		sta	WKSP_ADFS_37A_CH_PTR_L,Y
 		lda	&01,X
@@ -8713,11 +8225,7 @@ ENDIF
 		sta	WKSP_ADFS_366_CH_PTR_MH,Y
 		lda	&03,X
 		sta	WKSP_ADFS_35C_CH_PTR_H,Y
-IF USE65C12 AND OPTIMISE >= 1
-		bra	LA9D0
-ELSE
 		jmp	LA9D0
-ENDIF
 ;;
 .LAA16		ldx	ZP_ADFS_C3_SAVE_X
 		ldy	ZP_ADFS_CF_CHANNEL_OFFS
@@ -8731,7 +8239,6 @@ ENDIF
 		lda	WKSP_ADFS_334_CH_EXT_H,Y
 		sbc	&03,X
 		bcc	LAA48
-IF OPTIMISE<4
 		lda	&00,X
 		sta	WKSP_ADFS_37A_CH_PTR_L,Y
 		lda	&01,X
@@ -8741,9 +8248,6 @@ IF OPTIMISE<4
 		lda	&03,X
 		sta	WKSP_ADFS_35C_CH_PTR_H,Y
 		jmp	LA9D0
-ELSE
-		bcs	LA9FF
-ENDIF
 
 ;;
 .LAA48		jsr	ReloadFSMandDIR_ThenBRK
@@ -8776,7 +8280,6 @@ ENDIF
 		jmp	brkNotOpenUpdate		; not open for update - error
 ;;
 .LAA82
-IF OPTIMISE<4
 		lda	&00,X
 		sta	WKSP_ADFS_29A
 		lda	&01,X
@@ -8788,9 +8291,6 @@ IF OPTIMISE<4
 		jsr	LAE68
 		ldx	ZP_ADFS_C3_SAVE_X
 		ldy	ZP_ADFS_CF_CHANNEL_OFFS
-ELSE
-		jsr	ArgsData			; Copy data to channel info
-ENDIF
 		lda	&00,X
 		sta	WKSP_ADFS_352_CH_EXT_L,Y
 		lda	&01,X
@@ -8803,21 +8303,6 @@ ENDIF
 		bcs	LAA72
 		jmp	LA9E2
 
-IF OPTIMISE>=4
-.ArgsData
-		lda	&00,X
-		sta	WKSP_ADFS_29A
-		lda	&01,X
-		sta	WKSP_ADFS_29B
-		lda	&02,X
-		sta	WKSP_ADFS_29C
-		lda	&03,X
-		sta	WKSP_ADFS_29D
-		jsr	LAE68
-		ldx	ZP_ADFS_C3_SAVE_X
-		ldy	ZP_ADFS_CF_CHANNEL_OFFS
-		rts
-ENDIF
 
 ;; OSARGS 4+,Y - treat as OSARGS &FF,Y - Ensure File
 ;; -------------------------------------------------
@@ -8872,7 +8357,12 @@ ENDIF
 		sta	WKSP_ADFS_204,X
 		and	#&1E
 		ror	A
+; TODOXDFS: I think this is wrong
+IF HD_XDFS
+		ora	#&30
+ELSE ; XDFS
 		ora	#CHANNEL_RANGE_LO
+ENDIF ; XDFS
 		sta	WKSP_ADFS_2D4			; Save channel number for error message
 		lda	WKSP_ADFS_201,X
 		sta	WKSP_ADFS_2D0_ERR_SECTOR
@@ -9174,23 +8664,16 @@ ENDIF
 		and	#&C0
 		ora	#CH_FLAGS_08_EOF_READ		; Set 'pending EOF' flag, next call will error
 		sta	WKSP_ADFS_3AC_CH_FLAGS,X
-IF OPTIMISE<6
 		ldy	ZP_ADFS_C2_SAVE_Y		; Restore Y
 		ldx	ZP_ADFS_C3_SAVE_X		; Restore X
 		sec					; Return 'EOF met'
 		lda	#&FE				; EOF value
 		rts					; Return
-ELSE
-		lda	#&FE				; EOF value
-		sec					; Return 'EOF met'
-		bcs	LADCE				; Restore X,Y and return
-ENDIF
 
 ;;
 ;; Read byte from channel
 ;; ----------------------
 .LAD9C		ldx	ZP_ADFS_CF_CHANNEL_OFFS				; Get channel offset
-IF OPTIMISE<4
 		clc
 		lda	WKSP_ADFS_3CA,X
 		adc	WKSP_ADFS_370_CH_PTR_ML,X
@@ -9205,22 +8688,13 @@ IF OPTIMISE<4
 		jsr	LABE7				; Manipulate various things
 		ldx	ZP_ADFS_CF_CHANNEL_OFFS
 		ldy	WKSP_ADFS_37A_CH_PTR_L,X			; Y=low byte of PTR, offset into buffer
-ELSE
-		lda	#&40
-		jsr	ChannelUpdate
-ENDIF
 		lda	#&00
 		sta	WKSP_ADFS_2CF
 		jsr	LB180
 		lda	(&BE),Y				; Get byte from buffer
-IF OPTIMISE>=6
-		clc					; Clear EOF flag
-ENDIF
 .LADCE		ldy	ZP_ADFS_C2_SAVE_Y				; Restore Y
 		ldx	ZP_ADFS_C3_SAVE_X				; Restore X
-IF OPTIMISE<6
 		clc					; Return 'EOF not met'
-ENDIF
 		rts					; Return
 
 .LADD4		ldy	#&02
@@ -9263,12 +8737,8 @@ ENDIF
 		sta	&B9
 		ldx	ZP_ADFS_CF_CHANNEL_OFFS
 .LAE38
-IF USE65C12 AND OPTIMISE >= 1
-		lda	(&B8)
-ELSE
 		ldy	#&00
 		lda	(&B8),Y
-ENDIF
 		bne	LAE44				; Not &00, exit
 		sta	WKSP_ADFS_3AC_CH_FLAGS,X
 		jmp	LA76E				; Jump to 'Bad sum' error
@@ -9295,12 +8765,8 @@ ENDIF
 		bcs	LAE38
 
 .LAE68
-IF USE65C12 AND OPTIMISE >= 1
-		stz	WKSP_ADFS_2B5
-ELSE
 		lda	#&00
 		sta	WKSP_ADFS_2B5
-ENDIF
 .LAE6D		lda	WKSP_ADFS_22F
 		sta	WKSP_ADFS_2BF
 		ldx	#&02
@@ -9617,11 +9083,7 @@ ENDIF
 		inc	WKSP_ADFS_202,X
 		bne	LB087
 		inc	WKSP_ADFS_203,X
-IF USE65C12 AND OPTIMISE >= 1
-		bra	LB087
-ELSE
 		jmp	LB087
-ENDIF
 ;;
 .LB0BD		ldx	ZP_ADFS_CF_CHANNEL_OFFS
 		lda	WKSP_ADFS_29A
@@ -9683,7 +9145,6 @@ ENDIF
 		jsr	LAE68
 		ldx	ZP_ADFS_CF_CHANNEL_OFFS
 .LB14D
-IF OPTIMISE<4
 		clc
 		lda	WKSP_ADFS_3CA,X
 		adc	WKSP_ADFS_370_CH_PTR_ML,X
@@ -9698,10 +9159,6 @@ IF OPTIMISE<4
 		jsr	LABE7
 		ldx	ZP_ADFS_CF_CHANNEL_OFFS
 		ldy	WKSP_ADFS_37A_CH_PTR_L,X
-ELSE
-		lda	#&C0
-		jsr	ChannelUpdate
-ENDIF
 		pla
 		sta	(&BE),Y				; Store byte in buffer
 		pha
@@ -9710,27 +9167,6 @@ ENDIF
 		ldy	ZP_ADFS_C2_SAVE_Y
 		ldx	ZP_ADFS_C3_SAVE_X
 .LB17F		rts
-
-IF OPTIMISE>=4
-.ChannelUpdate
-		pha
-		clc
-		lda	WKSP_ADFS_3CA,X
-		adc	WKSP_ADFS_370_CH_PTR_ML,X
-		sta	WKSP_ADFS_296
-		lda	WKSP_ADFS_3C0,X
-		adc	WKSP_ADFS_366_CH_PTR_MH,X
-		sta	WKSP_ADFS_297
-		lda	WKSP_ADFS_3B6,X
-		adc	WKSP_ADFS_35C_CH_PTR_H,X
-		sta	WKSP_ADFS_298			; &C296/7/8=&C3CA/B/C,X+&C370/1/2,X
-		pla
-		jsr	LABE7				; Manipulate various things
-		ldx	ZP_ADFS_CF_CHANNEL_OFFS
-		ldy	WKSP_ADFS_37A_CH_PTR_L,X			; Y=low byte of PTR, offset into buffer
-		rts
-ENDIF
-
 .LB180		ldx	ZP_ADFS_CF_CHANNEL_OFFS
 		inc	WKSP_ADFS_37A_CH_PTR_L,X
 		bne	LB17F
@@ -9856,7 +9292,6 @@ ENDIF
 		jmp	LB336
 ;
 .LB275
-IF OPTIMISE<4
 		ldx	#&09
 .LB277		lda	WKSP_ADFS_3AC_CH_FLAGS,X
 		bpl	LB2AA				; skip if not open for update/write
@@ -9880,16 +9315,8 @@ IF OPTIMISE<4
 		jmp	L8D5E
 .LB2AA		dex
 		bpl	LB277
-ELSE
-		lda	#&80				; Only check b7 of channel flags
-		jsr	CheckOpen			; Check if file not open
-ENDIF
-IF USE65C12 AND OPTIMISE >= 1
-		lda	(&B6)				; Check 'R' bit
-ELSE
 		ldy	#&00
 		lda	(&B6),Y				; Check 'R' bit
-ENDIF
 		bmi	LB2B6				; 'R' set, file can be opened
 		jmp	L8BFB				; 'R' not set, jump to error
 .LB2B6		ldy	#&12
@@ -9946,7 +9373,7 @@ ENDIF
 		sta	WKSP_ADFS_3AC_CH_FLAGS,X
 		txa
 		clc
-		adc	#&30
+		adc	#CHANNEL_RANGE_LO
 		pha
 		jsr	LB19C
 		pla
@@ -10206,13 +9633,9 @@ ENDIF
 		jsr	LB560
 		eor	WKSP_ADFS_2C2
 		beq	LB545
-IF OPTIMISE<5
 		ldx	#<L8831				; Point to control block to load FSM
 		ldy	#>L8831
 		jsr	L82AE				; Load FSM
-ELSE
-		jsr	LoadFSM
-ENDIF
 IF USE65C12
 		bra	LB4E2
 ELSE
@@ -10246,12 +9669,8 @@ ENDIF
 		eor	WKSP_ADFS_2C2
 		beq	LB5C2
 		lda	WKSP_ADFS_2CD
-IF USE65C12 AND OPTIMISE >= 1
-		phx
-ELSE
 		tax
 		pha
-ENDIF
 		lda	WKSP_ADFS_317_CURDRV
 		sta	WKSP_ADFS_2CD
 		ldy	WKSP_ADFS_22F
@@ -10271,13 +9690,9 @@ ENDIF
 .LB5B5		pla
 		cmp	WKSP_ADFS_317_CURDRV
 		beq	LB5C2
-IF OPTIMISE<5
 		ldx	#<L8831				; Point to control block to load FSM
 		ldy	#>L8831
 		jsr	L82AE
-ELSE
-		jsr	LoadFSM
-ENDIF
 .LB5C2
 IF USE65C12
 		ply
@@ -10318,12 +9733,8 @@ ENDIF
 ;;
 .LB5F0		tay
 		beq	LB5EF				; OSGBPB 0 - null
-IF USE65C12 AND OPTIMISE >= 1
-		lda	(&C6)
-ELSE
 		ldy	#&00
 		lda	(&C6),Y				; Get handle
-ENDIF
 		tay
 		jsr	CheckSetChannelY
 		php
@@ -10616,35 +10027,9 @@ ENDIF
 		jsr	LB9CA
 		jmp	LB758
 
-IF OPTIMISE>=6
-.CheckAddr
-		bit	ZP_ADFS_FLAGS			; Get ADFS status byte
-		bpl	ChkNoTube			; Exit with PL if no Tube
-IF TARGETOS > 1
-		lda	WKSP_ADFS_2BA			; A=address &xxAAxxxx
-		ldx	WKSP_ADFS_2BB			; X=address &AAxxxxxx
-		jsr	CheckAndPageInShadowScreen				; Check for shadow screen
-ENDIF
-		lda	WKSP_ADFS_2BA			; A=address &xxAAxxxx
-		cmp	#&FE				; If it &xxFExxxx - shadow screen or I/O?
-		bcc	ChkTube				; <&xxFExxxx - Tube transfer
-		lda	WKSP_ADFS_2BB			; A=address &AAxxxxxx
-	IF USE65C12
-		inc	A				; Is it &FFxxxxxx?
-	ELSE
-		adc	#0
-	ENDIF
-
-		beq	ChkNoTube			; Exit with PL if I/O transfer, no Tube
-.ChkTube
-		lda	#&FF				; Exit with MI if Tube transfer
-.ChkNoTube
-		rts
-ENDIF
 
 ;;
 .LB86B
-IF OPTIMISE<6
 		bit	ZP_ADFS_FLAGS			; Get ADFS status byte
 		bpl	LB898				; Skip past if no Tube
 IF TARGETOS > 1
@@ -10662,10 +10047,6 @@ ELSE
 		cmp	#&FF
 ENDIF
 		beq	LB898
-ELSE
-		jsr	CheckAddr			; Check transfer address
-		bpl	LB898				; Not a Tube transfer
-ENDIF
 .LB885		php
 		sei
 		jsr	L8032
@@ -10837,12 +10218,8 @@ ENDIF
 .LB99A		sty	&B5
 		sta	&B4
 .LB99E
-IF USE65C12 AND OPTIMISE >= 1
-		lda	(&B4)				; Check first character of directory entry
-ELSE
 		ldy	#&00
 		lda	(&B4),Y				; Check first character of directory entry
-ENDIF
 		sta	WKSP_ADFS_2B5
 		beq	LB9BB				; &00 - end of directory
 		jsr	LB8BC
@@ -10874,7 +10251,6 @@ IF TARGETOS <= 1
 		sei
 ENDIF
 
-IF OPTIMISE<6
 		bit	ZP_ADFS_FLAGS			; Check ADFS status byte
 		bpl	LBA03				; Jump if no Tube present
 IF TARGETOS > 1
@@ -10892,10 +10268,6 @@ ELSE
 		cmp	#&FF
 ENDIF
 		beq	LBA03
-ELSE
-		jsr	CheckAddr			; Check transfer address
-		bpl	LBA03				; Not a Tube transfer
-ENDIF
 .LB9ED
 IF USE65C12
 		lda	#ADFS_FLAGS_TUBE_INUSE
@@ -10984,7 +10356,8 @@ ENDIF ; NOT HOG
 
 
 IF TARGETOS > 1
-	IF P%<&BFFF
+	; TODOXDFS - the A9 byte (I think this is a JGH revision number thing?) is not at end of rom, mistake?
+	IF P%<&BFFF AND NOT(HD_XDFS)
 		ORG	&BFFF
 	ENDIF
 	IF HD_MMC
@@ -10995,6 +10368,7 @@ IF TARGETOS > 1
 	ENDIF
 	IF HD_SCSI
 		EQUB	&A9				; 'A'corn revision 9
+		;TODOXDFS: this is actually at BFFC on BeebMasters' ROM?
 	ENDIF
 ELIF TARGETOS = 1 OR NOT(HD_SCSI)
 		EQUS	"and Hugo."

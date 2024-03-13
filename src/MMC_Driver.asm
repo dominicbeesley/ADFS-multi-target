@@ -8,8 +8,6 @@
 
 
 ;;; MMC settings
-_VIA_BASE  =VIABASE             ; Base Address of 6522 VIA
-_TURBOMMC  =0                   ; 1 = build for TurboMMC, and enable PB2-4 as outputs
 MAX_DRIVES          = 2         ; Don't make this bigger than 2 or the drive table below will overflow
 
 attempts%           = &C2E9     ; 1 byte
@@ -31,13 +29,9 @@ EscapeFlag          = &FF
 ;; Hard drive hardware is present. Check what drive is being accessed.
 ;;
 .HD_Command
-IF OPTIMISE<6
               ldy    #&06
               lda    (&B0),Y                            ; Get drive
               ora    WKSP_ADFS_317_CURDRV        ; OR with current drive
-ELSE
-              jsr    GetDrive
-ENDIF
 IF FLOPPY
               bmi    CommandExecFloppyOp         ; Jump back with 4,5,6,7 as floppies
 ENDIF

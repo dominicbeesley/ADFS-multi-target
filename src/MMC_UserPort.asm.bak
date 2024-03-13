@@ -445,7 +445,7 @@ ENDIF
     ;      110 data rejected due to write error
     AND #&1F
     CMP #5
-    BNE error
+    BNE error_write
 
     LDX #(1 + msbits)
 .ewu2

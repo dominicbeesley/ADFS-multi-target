@@ -3,11 +3,16 @@ BUILDDIR=build
 
 AS=beebasm
 ASFLAGS=
-DA65=da65 --cpu 65c02
+DA65=da65
 ROMS=$(addprefix $(BUILDDIR)/, \
 	masIDE.rom \
-	masMMC_mdfs.net.rom \
 	masMMC_hog_SD.rom \
+	masMMC_hog_SDT.rom \
+	masMMC_hog_SD2.rom \
+	masMMC_hog_SD2T.rom \
+	masMMC_hog_SD3.rom \
+	masMMC_hog_SD3T.rom \
+	masBM_XDFS.rom \
 	masSCSI.rom \
 	bbcSCSI.rom \
 	bbcIDE.rom \
@@ -55,26 +60,31 @@ $(BUILDDIR)/adfsroms.ssd: $(ROMS)
 	
 	dfs add -l 0xFFFF8000 -e 0xFFFF8000 -f "ADFS150" $@ $(BUILDDIR)/masSCSI.rom
 	dfs add -l 0xFFFF8000 -e 0xFFFF8000 -f "ADFS153" $@ $(BUILDDIR)/masIDE.rom
-#	dfs add -l 0xFFFF8000 -e 0xFFFF8000 -f "ADFS157" $@ $(BUILDDIR)/masMMC_mdfs.net.rom
 
 	dfs add -l 0xFFFF8000 -e 0xFFFF8000 -f "ADFS13F" $@ $(BUILDDIR)/bbcIDEF.rom
 
 	dfs read -w "*.*" -i -d ~/hostfs/roms65 $@
 
 
-HOGLETORGS=$(addsuffix .da.s, $(addprefix compares/org/Hoglet15x/, $(notdir $(wildcard orgroms/Hoglet15x/*))))
+HOGLETORGS=$(addsuffix .da.s, $(addprefix compares/org/Hoglet15x/, $(notdir $(filter-out %.md, $(wildcard orgroms/Hoglet15x/*)))))
 
 compares: all comparedirs \
 	compares/org/masIDE.da.s \
-	compares/org/masMMC_mdfs.net.da.s \
 	compares/org/masSCSI.da.s \
 	compares/org/bbcIDE.da.s \
 	compares/org/bbcSCSI.da.s \
 	compares/org/elkIDE.da.s \
 	compares/org/elkSCSI.da.s \
 	compares/new/masIDE.da.s \
-	compares/new/masMMC_mdfs.net.da.s \
 	compares/new/Hoglet15x/SD.da.s \
+	compares/new/Hoglet15x/SDT.da.s \
+	compares/new/Hoglet15x/SD2.da.s \
+	compares/new/Hoglet15x/SD2T.da.s \
+	compares/new/Hoglet15x/SD3.da.s \
+	compares/new/Hoglet15x/SD3T.da.s \
+	compares/new/Hoglet15x/ORIG.da.s \
+	compares/new/Hoglet15x/IDE.da.s \
+	compares/new/Hoglet15x/XDFS.da.s \
 	compares/new/masSCSI.da.s \
 	compares/new/bbcIDE.da.s \
 	compares/new/bbcSCSI.da.s \
@@ -93,33 +103,63 @@ $(BUILDDIR)/:
 	-mkdir -p $(BUILDDIR)
 
 compares/org/Hoglet15x/%.da.s: orgroms/Hoglet15x/%
-	$(DA65) --comments 4 --start-addr 0x8000 $< >$@
+	$(DA65)  --cpu 65c02 --comments 4 --start-addr 0x8000 $< >$@
+	sed -i 1,4d $@
 compares/org/masIDE.da.s: orgroms/ADFS153
-	$(DA65) --comments 4 --start-addr 0x8000 $< >$@
-compares/org/masMMC_mdfs.net.da.s: orgroms/ADFS157_mdfs.net
-	$(DA65) --comments 4 --start-addr 0x8000 $< >$@
+	$(DA65)  --cpu 65c02 --comments 4 --start-addr 0x8000 $< >$@
+	sed -i 1,4d $@
 compares/org/masSCSI.da.s: orgroms/ADFS150
-	$(DA65) --comments 4 --start-addr 0x8000 $< >$@
+	$(DA65)  --cpu 65c02 --comments 4 --start-addr 0x8000 $< >$@
+	sed -i 1,4d $@
 compares/org/bbcSCSI.da.s: orgroms/ADFS130
 	$(DA65) --comments 4 --start-addr 0x8000 $< >$@
+	sed -i 1,4d $@
 compares/org/bbcIDE.da.s: orgroms/ADFS133
 	$(DA65) --comments 4 --start-addr 0x8000 $< >$@
+	sed -i 1,4d $@
 compares/org/elkSCSI.da.s: orgroms/ADFS100
 	$(DA65) --comments 4 --start-addr 0x8000 $< >$@
+	sed -i 1,4d $@
 compares/org/elkIDE.da.s: orgroms/ADFS103
 	$(DA65) --comments 4 --start-addr 0x8000 $< >$@
+	sed -i 1,4d $@
 
-compares/new/%.da.s: $(BUILDDIR)/%.rom
-	$(DA65) --comments 4 --start-addr 0x8000 $< >$@
+compares/new/mas%.da.s: $(BUILDDIR)/mas%.rom
+	$(DA65)  --cpu 65c02 --comments 4 --start-addr 0x8000 $< >$@
+	sed -i 1,4d $@
+compares/new/bbc%.da.s: $(BUILDDIR)/bbc%.rom
+	$(DA65)  --comments 4 --start-addr 0x8000 $< >$@
+	sed -i 1,4d $@
+compares/new/elk%.da.s: $(BUILDDIR)/elk%.rom
+	$(DA65)  --comments 4 --start-addr 0x8000 $< >$@
+	sed -i 1,4d $@
 
 compares/new/Hoglet15x/%.da.s:$(BUILDDIR)/masMMC_hog_%.rom
-	$(DA65) --comments 4 --start-addr 0x8000 $< >$@
+	$(DA65) --cpu 65c02 --comments 4 --start-addr 0x8000 $< >$@
+	sed -i 1,4d $@
+
+compares/new/Hoglet15x/%.da.s:$(BUILDDIR)/masBM_%.rom
+	$(DA65) --cpu 65c02 --comments 4 --start-addr 0x8000 $< >$@
+	sed -i 1,4d $@
+
+
+#duplicates of our ROMS to compare against Hoglet's
+compares/new/Hoglet15x/ORIG.da.s:compares/new/masSCSI.da.s
+	cp $< $@
+compares/new/Hoglet15x/IDE.da.s:compares/new/masIDE.da.s
+	cp $< $@
+
 
 
 $(BUILDDIR)/masIDE.rom: adfs.asm $(IDE_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
 $(BUILDDIR)/masSCSI.rom: adfs.asm $(SCSI_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
-$(BUILDDIR)/masMMC_mdfs.net.rom: adfs.asm $(MMC_DRIVERS) $(TUBE_DRIVERS) $(STARMAP)
-$(BUILDDIR)/masMMC_hog_SD.rom: adfs.asm $(MMC_DRIVERS) $(TUBE_DRIVERS) $(STARMAP)
+$(BUILDDIR)/masMMC_hog_SD.rom: adfs.asm $(MMC_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) 
+$(BUILDDIR)/masMMC_hog_SDT.rom: adfs.asm $(MMC_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) 
+$(BUILDDIR)/masMMC_hog_SD2.rom: adfs.asm $(MMC_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) 
+$(BUILDDIR)/masMMC_hog_SD2T.rom: adfs.asm $(MMC_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) 
+$(BUILDDIR)/masMMC_hog_SD3.rom: adfs.asm $(MMC_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) 
+$(BUILDDIR)/masMMC_hog_SD3T.rom: adfs.asm $(MMC_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) 
+$(BUILDDIR)/masBM_XDFS.rom: adfs.asm $(SCSI_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
 $(BUILDDIR)/bbcIDE.rom: adfs.asm $(IDE_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
 $(BUILDDIR)/bbcIDEF.rom: adfs.asm $(IDE_DRIVERS_F) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
 $(BUILDDIR)/bbcSCSI.rom: adfs.asm $(SCSI_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
@@ -130,7 +170,7 @@ $(BUILDDIR)/elkSCSI.rom: adfs.asm $(SCSI_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(F
 
 
 $(BUILDDIR)/%.rom $(BUILDDIR)/%.lst: %.asm 
-		$(AS) -i $< -o $@ -v -d > $(basename $@).lst
+		$(AS) $(ASFLAGS) $(ASFLAGS2) -i $< -o $@ -v -d > $(basename $@).lst
 		scripts/beebasmlst2sym.pl -r $(ROMNO) <$(basename $@).lst >$(basename $@).noi
 clean::
 	-rm $(BUILDDIR)/*.rom

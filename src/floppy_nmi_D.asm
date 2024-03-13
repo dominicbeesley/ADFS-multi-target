@@ -149,13 +149,9 @@ ENDIF
 		jsr	LBD46
 		jsr	LBD50
 		lda	#&54
-IF OPTIMISE<6
 		ora	NMIVARS_FDC_CMD_STEP
 IF TARGETOS<>0 OR NOT(HD_SCSI)
 		sta	FDC_CMD				; FDC Status/Command
-ENDIF
-ELSE
-		jsr	FloppyORA_STEP_SET_FDC_CMD
 ENDIF
 		inc	&A3
 IF TARGETOS=0 AND HD_SCSI
@@ -176,15 +172,11 @@ IF TARGETOS=0 AND HD_SCSI
 ELSE
 		lda	#&00
 ENDIF
-IF OPTIMISE<6
 		ora	NMIVARS_FDC_CMD_STEP
 IF TARGETOS=0 AND HD_SCSI
 		jsr	elkLBAB6
 ELSE
 		sta	FDC_CMD				; FDC Status/Command
-ENDIF
-ELSE
-		jsr	FloppyORA_STEP_SET_FDC_CMD
 ENDIF
 
 IF TARGETOS=0 AND HD_SCSI
@@ -294,36 +286,24 @@ ENDIF ; ELK SCSI
 ;;   &A7
 ;;
 .LBF0A
-IF OPTIMISE<6
 		ldy	#&06
 		lda	(&B0),Y				; Get drive
 		ora	WKSP_ADFS_317_CURDRV			; OR with current drive
-ELSE
-		jsr	GetDrive
-ENDIF
 		sta	&A6				; Store drive in &A6
 		and	#&1F				; Lose drive bits
 		beq	LBF1A				; If sector<&10000, continue
-IF OPTIMISE<2
 		jmp	LBF6F				; If sector>&FFFF, jump to 'Sector out of range'
-ELSE
-		bne	LBF6F				; If sector>&FFFF, jump to 'Sector out of range'
-ENDIF
 
 ;;
 .LBF1A		bit	&A6				; Check drive
 		bvc	LBF24				; Drive 0,1,4,5 -> jump ahead
 ;;			    Can patch here to support drive 2,3,6,7
 		lda	#&65				; Otherwise, floppy error &25 (Bad drive)
-IF OPTIMISE<2
 		sta	&A0				; Set error
 IF EXTERNAL
 		bne	LBF75				; Make external call for 2,3,6,7
 ELSE
 		bne	bne_FloppyErrorA0or2E3				; Jump to return error
-ENDIF
-ELSE
-		bne	LBF71				; Jump to return error
 ENDIF
 
 ;;
@@ -395,7 +375,6 @@ ENDIF
 .bne_FloppyErrorA0or2E3		
 		bne	FloppyErrorA0or2E3		; Jump to return error in &A0
 
-IF NOT(TRIM_REDUNDANT) OR OPTIMISE < 2
 IF NOT(EXTERNAL)
 ; This code never entered, as the above BCC LBF75 is never followed.
 ; It seems as though it is attempting to check if sector+length would span
@@ -423,7 +402,6 @@ ELSE
 		jmp	FloppyErrorA0or2E3
 		EQUB	0,0,0,0,0,0,0
 		EQUB	0,0,0,0,0,0,0
-ENDIF
 ENDIF
 
 ; Sector < &A00, convert to track+sector

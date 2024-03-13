@@ -2,13 +2,9 @@
 ;; Hard drive hardware is present. Check what drive is being accessed.
 ;;
 .HD_Command
-IF OPTIMISE<6
               ldy    #&06
               lda    (&B0),Y                            ; Get drive
               ora    WKSP_ADFS_317_CURDRV        ; OR with current drive
-ELSE
-              jsr    GetDrive
-ENDIF
 IF FLOPPY
               bmi    CommandExecFloppyOp         ; Jump back with 4,5,6,7 as floppies
 ENDIF
@@ -64,12 +60,8 @@ ENDIF ;TARGETOS = 0
 		bit	ZP_ADFS_FLAGS
 		bvc	CommandStart			; Accessing I/O memory
 		php
-IF USE65C12 AND OPTIMISE > 1
-		phx					; DB: correction - was plx!
-ELSE
 		txa
 		pha
-ENDIF
 		ldx	#<WKSP_ADFS_227_TUBE_XFER	; Point to address block
 		ldy	#>WKSP_ADFS_227_TUBE_XFER
 IF TARGETOS = 0 
@@ -80,12 +72,8 @@ IF TARGETOS = 0
 ELSE
 		jsr	TubeAction			; Set Tube action
 ENDIF
-IF USE65C12 AND OPTIMISE >= 1
-		plx
-ELSE
 		pla
 		tax
-ENDIF
 		plp
 .CommandStart						; C=R/W, &B0/1=>block
 		jsr	SetSector			; Set sector, count, command
