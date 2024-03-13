@@ -73,6 +73,10 @@ This is a pre-alpha experiment and should NOT be used on any drives containing p
 
 So far this has only been tested on a DataCentre IDE adaptor with a Compact Flash card. 
 
+## BBC/Auto-hazel
+
+This is an experimental build for the Blitter board using the "Auto-Hazel" feature. Currently
+only the SCSI driver is built
 
 # Tools required
 
