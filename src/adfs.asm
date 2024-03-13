@@ -5998,12 +5998,7 @@ ELSE
 		pha					; Save command pointer
 ENDIF
 
-; TODOXDFS: Not sure why?
-IF HD_XDFS
 		lda 	#&FF
-ELSE ; XDFS
-		lda	#KEYCODE_SELFS_MOUNT			; Flag not '*fadfs'
-ENDIF ; XDFS
 		pha
 		lda	(&F2),Y				; Get first character
 		ora	#&20				; Force to lower case
