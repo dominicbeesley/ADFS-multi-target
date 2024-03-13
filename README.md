@@ -7,43 +7,52 @@
  The existing versions of ADFS listed below should be produced byte-perfectly and the Makefile has a target for producing comparison disassemblies to compare against original roms (included in the orgroms folder):
 
 
-| Machine	| ROM # | HD    | Builds| Cmp   | Notes
-|---------------|-------|-------|-------|-------|---------
-| Electron      | 100   | SCSI  | Y     | Y     |
-|               | 103   | IDE   | Y     | Y     |
-|               | 107   | MMC   | N     |       | 
-| BBC B/+       | 130   | SCSI  | Y     | Y     |
-|               | 133   | IDE   | Y     | Y     |
-|               | 137   | MMC   | N     |       | 
-| Master        | 150   | SCSI  | Y     | Y     |
-|               | 153   | IDE   | Y     | Y     |
-|               | 157   | MMC   | Y     | Y+    | WARNING: this version appears to currently be broken!
-| Master 3.50   | 203   | SCSI  | N     |       | Rom not tested
+## ROMS from MDFS.net
 
+The following ROMS were taken from MDFS.net on the dates noted. The 157 (MMC) ROM on MDFS.net seems to have 
+further optimisations that are not covered as there appear to be bugs present. The current 157 is taken from
+Hoglet's repo.
 
-* The roms above were downloaded from mdfs.net on 17 Feb 2021
-+ The Master MMC ROM has some differences (see below)
+The original binaries for these ROMs are in /src/orgroms
 
-# ADFS 157 Master/MMC
+| Machine       | ROM #         | HD    | Builds| Cmp   | Notes
+|---------------|---------------|-------|-------|-------|---------
+| Electron      | 100[^1]       | SCSI  | Y     | Y     |
+|               | 103[^1]       | IDE   | Y     | Y     |
+| BBC B/+       | 130[^1]       | SCSI  | Y     | Y     |
+|               | 133[^2]       | IDE   | Y     | Y     |
+| Master        | 150[^1]       | SCSI  | Y     | Y     |
+|               | 153[^1]       | IDE   | Y     | Y     |
+| Master 3.50   | 203[^1]       | SCSI  | N     |       | Rom not tested
 
-This seems to be somewhat complicated there are several forks - not all of which appear to work - including the 
-ROM from mdfs.net that I chose to initially base this on.
+[^1] The roms above were downloaded from mdfs.net on 17 Feb 2021
+[^2] The roms above were downloaded from mdfs.net on 8  Mar 2024
 
+## ROMS from Hoglet's 157 repo
 
-## mdfs.net ADFS157
+These roms were taken from Hoglet's "[ADFS](https://github.com/hoglet67/ADFS)" repo on [82c7b3b](https://github.com/hoglet67/ADFS/commit/82c7b3bebc43ed34d7e7975214bbf2ab0b6adb73). 
 
-This has optimisations that allow for the re-inclusion of the Floppy Disc code that was initially omitted to
-allow the extra code needed for the MMC drives
+These ROM represent the original Master 150 ADFS ROM and a set of ROMs containing modifications for different
+IDE, MMC, Internal VFS port devices 
 
-## Hoglet15x
+|File   | Port                                          |Turbo  |Floppy |Address|Builds | Cmp
+|-------|-----------------------------------------------|-------|-------|-------|-------|--------
+|SD     | User port                                     |  N    |  N    | FE60  |   Y   |  Y
+|SDT    | User port                                     |  Y    |  N    | FE60  |   Y   |  Y
+|SD2    | Internal[^1] user port                        |  N    |  N    | FE80  |   Y   |  Y
+|SD2T   | Internal[^1] user port                        |  Y    |  N    | FE80  |   Y   |  Y
+|SD3    | Econet user port                              |  N    |  N    | FEA0  |   Y   |  Y
+|SD3T   | Econet user port                              |  Y    |  N    | FEA0  |   Y   |  Y
+|ORIG   | Original ADFS 150 SCSI + Floppy               |  -    |  Y    | FC40  |   Y   |  Y
+|MM     | Memory mapped SPI port for BeebFPGA           |  -    |  ?    | FEDC  |   N   |  
+|IDE    | IDE Patched ADFS e.g. for DataCentre / JGH?   |  -    |  Y    | FC40  |   Y   |  N[^3]
+|IDE2   | IDE Test version[^2]                          |  -    |  Y    | FC40  |   N   |  
+|IDFS   | Internal[^1] VFS SCSI                         |  0    |  N    | FE8x  |   N   |  
+|XDFS   | Second external at VFS address                |  -    |  N    | FC44  |   Y   |  Y
 
-This code has now been folded back in and builds but still has no Floppy Disc code.
-
-## Harmonisation
-
-The single source now builds both the mdfs.net and original Hoglet versions. These will need to be harmonised.
-Any help with this or volunteers for (possibly destructive) testing would be greatly appreciated.
-
+[^1]: Master internal port for VFS boards
+[^2]: Code shifted along by one byte, to try to validate referenced are still correct
+[^3]: The code in Hoglet's repo appears to be behind MDFS.net - testing and rationalisation required
 
 # New builds
 
