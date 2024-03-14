@@ -1,5 +1,5 @@
-.HD_CommandBGETBPUTsector
-{		
+.proc HD_CommandBGETBPUTsector
+
 		;TODO: check assumptions:
 		; - I can trample B0,B1
 		; - I can trample B2,B3
@@ -7,7 +7,7 @@
 
 		; on entry
 		;	A contains 08 for read, 0A for write
-		;	X contains channel pointer into channel data at 
+		;	X contains channel pointer into channel data at
 
 		pha
 		jsr	WaitEnsuring
@@ -37,26 +37,26 @@
 		stx	WKSP_ADFS_21E_DSKOPSAV_SECCNT
 
 		ldx	#3
-.l		lda	&B0,X
+l:		lda	$B0,X
 		pha
 		dex
 		bpl	l
 
 		; calculate address of RND file buffer from offset in X
 		ldx	#<WKSP_ADFS_215_DSKOPSAV_RET
-		stx	&B0
+		stx	$B0
 		ldy	#>WKSP_ADFS_215_DSKOPSAV_RET
-		sty	&B1
+		sty	$B1
 		jsr	HD_Command
 
 		ldx	#0
-.l2		pla
-		sta	&B0,X
+l2:		pla
+		sta	$B0,X
 		inx
 		cpx	#4
 		bne	l2
 
 
 		rts
-}
+.endproc
 ;WKSP_ADFS_216_DSKOPSAV_MEMADDR

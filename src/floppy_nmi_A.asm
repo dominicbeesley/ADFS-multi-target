@@ -1,91 +1,91 @@
-.LBD1E		bit	&A1
+LBD1E:		bit	$A1
 		bmi	LBD2F
-		lda	&A3
-.LBD24		cmp	#&14
-		lda	#&A0
+		lda	$A3
+LBD24:		cmp	#$14
+		lda	#$A0
 		bcc	LBD31
 		ora	NMIVARS_CMD_PRECOMP
 		bne	LBD31				; always!?
-.LBD2F		lda	#&80
-.LBD31		
+LBD2F:		lda	#$80
+LBD31:
 
-IF TARGETOS<>0 OR NOT(HD_SCSI)
+.if TARGETOS<>0 || (!.def(HD_SCSI))
 		jsr	ORA4_if_2E4_b0
 		sta	FDC_CMD				; FDC Status/Command
-ENDIF
+.endif
 		jmp	FloppyWaitNMIFinish
 ;;
-IF USE65C12
+.ifdef USE65C12
 		lda	#FDCSIDE
 		trb	NMIVARS_SIDE			; Set side 0
-ELSE
+.else
 		lda	NMIVARS_SIDE			; Set side 0
-		and	#FDCSIDE EOR &FF
+		and	#FDCSIDE ^ $FF
 		sta	NMIVARS_SIDE
-ENDIF
+.endif
 		rts
 ;;
-.FloppySetSide1
-IF USE65C12
+FloppySetSide1:
+.ifdef USE65C12
 		lda	#FDCSIDE
 		tsb	NMIVARS_SIDE			; Set side 1
-ELSE
+.else
 		lda	NMIVARS_SIDE			; Set side 1
 		ora	#FDCSIDE
 		sta	NMIVARS_SIDE
-ENDIF
+.endif
 		rts
 ;;
-.LBD46
-IF USE65C12
-		lda	#&01
-		trb	&A2
-ELSE
-		ror	&A2
+LBD46:
+.ifdef USE65C12
+		lda	#$01
+		trb	$A2
+.else
+		ror	$A2
 		clc
-		rol	&A2
-ENDIF
+		rol	$A2
+.endif
 		rts
 
-.LBD4B
-IF USE65C12
-		lda	#&08
-		trb	&A2
-ELSE
-		lda	&A2
-		and	#&08 EOR &FF
-		sta	&A2
-ENDIF
+LBD4B:
+.ifdef USE65C12
+		lda	#$08
+		trb	$A2
+.else
+		lda	$A2
+		and	#$08 ^ $FF
+		sta	$A2
+.endif
 		rts
 ;;
-.LBD50
-IF USE65C12
-		lda	#&02
-		trb	&A2
-ELSE
-		lda	&A2
-		and	#&02 EOR &FF
-		sta	&A2
-ENDIF
+LBD50:
+.ifdef USE65C12
+		lda	#$02
+		trb	$A2
+.else
+		lda	$A2
+		and	#$02 ^ $FF
+		sta	$A2
+.endif
 		rts
 
 ;;
-.FloppyRestTrk0		
-IF TARGETOS=0 AND HD_SCSI
-		lda	#&04
-ELSE
-		lda	#&00
-ENDIF
-		sta	&A3
+FloppyRestTrk0:
+.if TARGETOS=0 && .def(HD_SCSI)
+		lda	#$04
+.else
+		lda	#$00
+.endif
+		sta	$A3
 		ora	NMIVARS_FDC_CMD_STEP
-IF TARGETOS<>0 OR NOT(HD_SCSI)
+.if TARGETOS<>0 || (!.def(HD_SCSI))
 		sta	FDC_CMD				; FDC Status/Command
-ENDIF	; ELK SCSI
+.endif	; ELK SCSI
 
-IF TARGETOS=0 AND HD_SCSI
+.if TARGETOS=0 && .def(HD_SCSI)
 		jmp	FloppyWaitNMIFinish2elk
-ELSE
+.else
 		jmp	FloppyWaitNMIFinish
-ENDIF
+.endif
 
 

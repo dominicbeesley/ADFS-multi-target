@@ -1,7 +1,7 @@
 ;;
 ;; Set up a hard drive command for for BGET/BPUT
 ;; ---------------------------------------------
-.HD_CommandBGETBPUTsector		
+HD_CommandBGETBPUTsector:
 		pha
 		jsr	WaitEnsuring			; Wait for ensuring to complete
 		jsr	SCSI_StartCommand2		; Set SCSI to command mode
@@ -14,7 +14,7 @@
 		jsr	SCSI_SendCMDByte
 		lda	WKSP_ADFS_201,X
 		jsr	SCSI_SendCMDByte
-		lda	#&01				; Send '1 sector'
+		lda	#$01				; Send '1 sector'
 		jsr	SCSI_SendCMDByte
-		lda	#&00
+		lda	#$00
 		jmp	SCSI_SendCMDByte

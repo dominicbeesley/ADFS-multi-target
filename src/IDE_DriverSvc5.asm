@@ -1,25 +1,25 @@
 ;;
 ;; Service 5 - Interupt occured
 ;; ============================
-.Svc5_IRQ		rts				; Remove IRQ routine
-.UpdateDrive
-		lda	&85				; Merge with current drive
+Svc5_IRQ:	rts					; Remove IRQ routine
+UpdateDrive:
+		lda	$85				; Merge with current drive
 		ora	WKSP_ADFS_317_CURDRV
-		sta	&85
-		sta	WKSP_ADFS_333_LASTACCDRV			; Store for any error
-		lda	#&7F
+		sta	$85
+		sta	WKSP_ADFS_333_LASTACCDRV	; Store for any error
+		lda	#$7F
 		rts
-IF TARGETOS > 0
-.GetChar
-		lda	(&F2),Y
-		cmp	#&20
+.if TARGETOS > 0
+GetChar:
+		lda	($F2),Y
+		cmp	#$20
 		rts
-		EQUD	0,0,0
-		EQUD	0,0,0
-IF TARGETOS = 1
-		EQUB	0,0
-ENDIF ; TARGETOS = 1
-ELSE ; TARGETOS = 0
+		.dword	0,0,0
+		.dword	0,0,0
+.if TARGETOS = 1
+		.byte	0,0
+.endif ; TARGETOS = 1
+.else ; TARGETOS = 0
 		nop
 		lda	#$05
 		rts
@@ -36,17 +36,17 @@ ELSE ; TARGETOS = 0
         	ora     IDE_DATA                        ; AB9C 0D 40 FC                 .@.
         	sta     $1131                           ; AB9F 8D 31 11                 .1.
         	jmp     L9DB4			        ; ABA2 4C 63 9D
-ENDIF ; TARGETOS = 0
+.endif ; TARGETOS = 0
 
 ; Check for data loss
 ; ===================
 ; IDE and MMC don't have IRQ handlers, this never happens	; TODO: get rid then?!?
-.LABB4		lda	WKSP_ADFS_331			; Get SCSI result from IRQ handler
+LABB4:		lda	WKSP_ADFS_331			; Get SCSI result from IRQ handler
 		beq	LABE6				; Ok, jump forward to exit
-		lda	#&00
+		lda	#$00
 		sta	WKSP_ADFS_331			; Clear the flag
 		ldx	WKSP_ADFS_2D4			; Get channel being used
 		jsr	GenerateErrorSuffX				; Generate 'Data lost' error with X=channel
-		EQUB	&CA				; ERR=202
-		EQUS	"Data lost, channel"
-		EQUB	&00
+		.byte	$CA				; ERR=202
+		.byte	"Data lost, channel"
+		.byte	$00

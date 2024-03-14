@@ -1,2 +1,2 @@
 ; TODO: remove?
-.Svc5_IRQ	rts
+Svc5_IRQ:	rts

@@ -1,25 +1,16 @@
 ; Build file for BBC ADFS with IDE drivers
 ; ----------------------------------------
 
-TARGETOS=1		; 1=BBC B (also B+)
-AUTOHAZEL=FALSE		; Autohazel for blitter
-FLOPPY=TRUE		; Floppy drivers
-HD_SCSI=FALSE
-HD_IDE=TRUE		; IDE drivers
-HD_IDE_FAST=TRUE
-HD_MMC=FALSE
-HD_MMC_HOG=FALSE
-HD_SCSI2=FALSE
-HD_XDFS=FALSE
+TARGETOS		:=	1		; 1=BBC B (also B+)
+FLOPPY		:=	1		; Floppy drivers
+HD_IDE		:=	1		; IDE drivers
+HD_IDE_FAST	:=	1
 ;
-FULL_INFO=TRUE		; Truncated *INFO
-FULL_ACCESS=TRUE	; Truncated OSFILE 1-4
-UNSUPPORTED_OSFILE=TRUE ; Unknown OSFILE returns A corrupted
-PRESERVE_CONTEXT=TRUE	; Ctrl-Break preserves context
-LARGE_DISK=FALSE	; Future development
-TRIM_REDUNDANT=FALSE	; Don't remove redundant code
-EXTERNAL=TRUE		; External support
+FULL_INFO	:=	1		; Truncated *INFO
+FULL_ACCESS	:=	1		; Truncated OSFILE 1-4
+UNSUPPORTED_OSFILE:=	1		; Unknown OSFILE returns A corrupted
+PRESERVE_CONTEXT	:=	1		; Ctrl-Break preserves context
+EXTERNAL		:=	1		; External support
 ;
-USE65C12=FALSE
 
-include "adfs.asm"
+.include "adfs.asm"

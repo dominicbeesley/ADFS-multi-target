@@ -1,49 +1,49 @@
 
-ZP_ADFS_SCSI2_PHASE		=	&CC			;; store the current scsi 2 phase 
+ZP_ADFS_SCSI2_PHASE		=	$CC			;; store the current scsi 2 phase
 
-WKSP_ADFS_3FC_SCSI2_FNPTR	= WKSP_BASE + &03FC	;; TODO: check this doesn't crash anything!
-WKSP_ADFS_3FE_SCSI2_STATUS	= WKSP_BASE + &03FE	;; status byte
-WKSP_ADFS_3FF_SCSI2_COUNT	= WKSP_BASE + &03FF	;; counter used in partial sector transfers
+WKSP_ADFS_3FC_SCSI2_FNPTR	= WKSP_BASE + $03FC	;; TODO: check this doesn't crash anything!
+WKSP_ADFS_3FE_SCSI2_STATUS	= WKSP_BASE + $03FE	;; status byte
+WKSP_ADFS_3FF_SCSI2_COUNT	= WKSP_BASE + $03FF	;; counter used in partial sector transfers
 
-.tbl_SCSI2_phase_h
-		equb	>(SCSI2_phase_data_inout_main-1)
-		equb	>(SCSI2_phase_data_inout_main-1)
-		equb	>(SCSI2_phase_cmd_out-1)
-		equb	>(SCSI2_phase_stat_in-1)
-		equb	>(SCSI2_phase_sink-1)
-		equb	>(SCSI2_phase_sink-1)
-		equb	>(SCSI2_phase_nop-1)
-		equb	>(SCSI2_phase_msg_in-1)
-.tbl_SCSI2_phase_l
-		equb	<(SCSI2_phase_data_inout_main-1)
-		equb	<(SCSI2_phase_data_inout_main-1)
-		equb	<(SCSI2_phase_cmd_out-1)
-		equb	<(SCSI2_phase_stat_in-1)
-		equb	<(SCSI2_phase_sink-1)
-		equb	<(SCSI2_phase_sink-1)
-		equb	<(SCSI2_phase_nop-1)
-		equb	<(SCSI2_phase_msg_in-1)
+tbl_SCSI2_phase_h:
+		.byte	>(SCSI2_phase_data_inout_main-1)
+		.byte	>(SCSI2_phase_data_inout_main-1)
+		.byte	>(SCSI2_phase_cmd_out-1)
+		.byte	>(SCSI2_phase_stat_in-1)
+		.byte	>(SCSI2_phase_sink-1)
+		.byte	>(SCSI2_phase_sink-1)
+		.byte	>(SCSI2_phase_nop-1)
+		.byte	>(SCSI2_phase_msg_in-1)
+tbl_SCSI2_phase_l:
+		.byte	<(SCSI2_phase_data_inout_main-1)
+		.byte	<(SCSI2_phase_data_inout_main-1)
+		.byte	<(SCSI2_phase_cmd_out-1)
+		.byte	<(SCSI2_phase_stat_in-1)
+		.byte	<(SCSI2_phase_sink-1)
+		.byte	<(SCSI2_phase_sink-1)
+		.byte	<(SCSI2_phase_nop-1)
+		.byte	<(SCSI2_phase_msg_in-1)
 
 
-.SCSI2_phase_nop
-{
-.lp
+.proc SCSI2_phase_nop
+
+lp:
 		lda	#8				; SCSI nop message
 		jsr	SCSI2_send_byteA
 		bcc	SCSI2_phase_loop
 		bcs	lp
-}
+.endproc
 
-.SCSI2_phase_msg_in
-{
+.proc SCSI2_phase_msg_in
+
 		jsr	SCSI2_read_byteA		; assume this will work as we've got req already
 		bne	l1
 		jmp	CommandDone			; got a message 0 -done
-.l1		jsr	SCSI2_read_byteA
+l1:		jsr	SCSI2_read_byteA
 		bcc	SCSI2_phase_loop
 		bcs	l1
 
-}
+.endproc
 
 ;;.SCSI2_phase_data_inout
 ;;		jmp	(WKSP_ADFS_3FC_SCSI2_FNPTR)
@@ -51,19 +51,19 @@ WKSP_ADFS_3FF_SCSI2_COUNT	= WKSP_BASE + &03FF	;; counter used in partial sector 
 ;;
 ;; Hard drive hardware is present. Check what drive is being accessed.
 ;;
-.HD_Command
-              	ldy    #&06
-              	lda    (&B0),Y                            ; Get drive
+HD_Command:
+              	ldy    #$06
+              	lda    ($B0),Y                            ; Get drive
               	ora    WKSP_ADFS_317_CURDRV        	; OR with current drive
-IF FLOPPY
+.if FLOPPY
               	bmi    CommandExecFloppyOp         	; Jump back with 4,5,6,7 as floppies
-ENDIF
+.endif
 
-		
+
 		lda	#0
 		sta	WKSP_ADFS_3FF_SCSI2_COUNT
 
-.SCSI2_startCommandHD_partial2				; enter here for partial transfer, length in WKSP_ADFS_3FF_SCSI2_COUNT
+SCSI2_startCommandHD_partial2:				; enter here for partial transfer, length in WKSP_ADFS_3FF_SCSI2_COUNT
 
 ;;
 ;; Access a hard drive via the SCSI API
@@ -71,7 +71,7 @@ ENDIF
               	jsr    SCSI2_StartCommand          	; Write &01 to SCSI, returns Y=0
                                                  	;Put SCSI in command mode
 
-              	include "TubeCheckAddrAndClaim.asm"
+              	.include "TubeCheckAddrAndClaim.asm"
 
 ; Do a data transfer to/from a hard drive device
 ; ----------------------------------------------
@@ -81,44 +81,42 @@ ENDIF
 ;;		sta	WKSP_ADFS_3FC_SCSI2_FNPTR+1
 
 
-.SCSI2_phase_loop
-{		jsr	SCSI2_WaitforReq		; Wait for next req and read bus state to decide what SCSI wants to do
+.proc SCSI2_phase_loop
+		jsr	SCSI2_WaitforReq		; Wait for next req and read bus state to decide what SCSI wants to do
 		bpl	s
 		jmp	CommandDoneUnEx			; BUSY dropped...panic
-.s		sta	SCSI2_TARGET_CMD_3		; set up current phase
+s:		sta	SCSI2_TARGET_CMD_3		; set up current phase
 		tax
 		lda	tbl_SCSI2_phase_h,X
 		pha
 		lda	tbl_SCSI2_phase_l,X
 		pha
 		rts					; jump to phase handler
-}
+.endproc
 
-.SCSI2_phase_cmd_out
+.proc SCSI2_phase_cmd_out
 		;Do a SCSI data transfer
 		;-----------------------
 		ldy	#5				; Get command
-.L814A		lda	(&B0),Y				; Get a command block byte
+L814A:		lda	($B0),Y				; Get a command block byte
 		cpy	#6
 		bne	L814C
 		and	#$1F				; blank out LUN
-.L814C		jsr	SCSI2_send_byteA		; Send to SCSI data port
+L814C:		jsr	SCSI2_send_byteA		; Send to SCSI data port
 		bcc	SCSI2_phase_loop		; If SCSI says enough command (phase changed)
 		iny					; Keep sending command block
 		bne	L814A				; until SCSI says 'stop!'
+.endproc
 
-
-.SCSI2_phase_data_inout_main
-{
-	
+.proc SCSI2_phase_data_inout_main
 		lda	ZP_ADFS_SCSI2_PHASE
 		ror	a
 		bcs	skiprd1
 		lda	#S2_INIT_CMD_ASSERT_DATA
 		sta	SCSI2_INIT_CMD_1
-.skiprd1
+skiprd1:
 
-		lda	#S2_MODE_DMA		
+		lda	#S2_MODE_DMA
 		sta	SCSI2_MODE_2
 		bcs	skiprd2
 
@@ -126,16 +124,14 @@ ENDIF
 		bne	s2
 
 
-.skiprd2	sta	SCSI2_DMA_INIT_RECV_7
+skiprd2:		sta	SCSI2_DMA_INIT_RECV_7
 
-.s2
-
-		ldy	#&00				; Initialise Y to 0
+s2:		ldy	#$00				; Initialise Y to 0
 		bit	ZP_ADFS_FLAGS			; Accessing Tube?
 		bvc	nottube				; No, jump ahead to do the transfer
 		ldx	#<WKSP_ADFS_227_TUBE_XFER
 		ldy	#>WKSP_ADFS_227_TUBE_XFER	; XY=>Tube address
-		lda	#&00				; A=0
+		lda	#$00				; A=0
 		php					; Save CC/CS state
 		rol	A				; A=0/1 for Read/Write
 		jsr	TubeStartXfer406		; Claim the Tube
@@ -144,118 +140,118 @@ ENDIF
 ;; Do a data transfer to/from SCSI device
 ;; --------------------------------------
 		bvs 	nocount				; always
-.iolp
+iolp:
 
 		bit	WKSP_ADFS_3FF_SCSI2_COUNT
 		beq	nocount
 		dec	WKSP_ADFS_3FF_SCSI2_COUNT	; if no more to transfer
 		beq	datainout_sink
 		bne	nocount
-.nottube
+nottube:
 		bcc	nocount				; write
 		; fast read?
 		bit	WKSP_ADFS_3FF_SCSI2_COUNT
 		bne	nocount
 		; yes
-.frlp		bit	SCSI2_BUS_STATUS2_5
+frlp:		bit	SCSI2_BUS_STATUS2_5
 		bvc	chkph
 		lda	SCSI2_DMA_DATA			; Read byte from SCSI data port
-		sta	(&B2),Y				; Store byte in memory
+		sta	($B2),Y				; Store byte in memory
 		iny					; Point to next byte
 		bne	frlp				; Loop for 256 bytes
-		inc	&B3				; Increment address high byte
+		inc	$B3				; Increment address high byte
 		bcs	frlp				; Loop for next 256 bytes (always)
 
 
-.chkph		lda	#S2_BUS2_PHASE_MATCH
+chkph:		lda	#S2_BUS2_PHASE_MATCH
 		bit	SCSI2_BUS_STATUS2_5
 		beq	datainout_done
-		bne	frlp		
+		bne	frlp
 
 
-.nocount	lda	#S2_BUS2_PHASE_MATCH
+nocount:	lda	#S2_BUS2_PHASE_MATCH
 		bit	SCSI2_BUS_STATUS2_5
 		bvs	datareq
 		beq	datainout_done
 		bne	nocount
 
-.datareq	bit	ZP_ADFS_FLAGS			; Check Tube flags
+datareq:	bit	ZP_ADFS_FLAGS			; Check Tube flags
 		bvs	dotube				; Jump for Tube transfer
 		bcc	dowrite
 
-.doread		lda	SCSI2_DMA_DATA			; Read byte from SCSI data port
-		sta	(&B2),Y				; Store byte in memory
-.next		iny					; Point to next byte
+doread:		lda	SCSI2_DMA_DATA			; Read byte from SCSI data port
+		sta	($B2),Y				; Store byte in memory
+next:		iny					; Point to next byte
 		bne	iolp				; Loop for 256 bytes
-		inc	&B3				; Increment address high byte
+		inc	$B3				; Increment address high byte
 		bcs	iolp				; Loop for next 256 bytes
 
-.dowrite
+dowrite:
 ;;			    I/O write
-		lda	(&B2),Y				; Get byte from memory
+		lda	($B2),Y				; Get byte from memory
 		sta	SCSI2_DMA_DATA			; Write to SCSI data port
 		bcc	next
 ;;
 ;;
-.dotube		bcs	dotuberead			; Jump for Tube read
+dotube:		bcs	dotuberead			; Jump for Tube read
 		lda	TUBEIO				; Get byte from Tube
 		sta	SCSI2_DMA_DATA			; Write byte to SCSI data port
 		bcc	iolp				; Loop for next byte
 
-.dotuberead
+dotuberead:
 		lda	SCSI2_DMA_DATA			; Get byte from SCSI data port
 		sta	TUBEIO				; Write to Tube
 		bcs	iolp
 
-.datainout_done
+datainout_done:
 		jsr	rst_cmd
 		jmp	SCSI2_phase_loop
-.datainout_sink
+datainout_sink:
 		jsr	rst_cmd
 		jmp	SCSI2_phase_sink
 
-.rst_cmd
+rst_cmd:
 		lda	#0
 		sta	SCSI2_INIT_CMD_1
 		sta	SCSI2_MODE_2
 		rts
 
 
-}
+.endproc
 ;;
 
 
 
-.CommandDoneUnEx
+CommandDoneUnEx:
 		jsr	TubeRelease			; Release Tube and restore screen
-		jmp	L82A5				; Return result=&7F
-.CommandDone	
+		jmp	SCSI2_RequestSense_L82A5		; Return result=&7F
+CommandDone:
 		jsr	TubeRelease			; Release Tube and restore screen
 		lda	WKSP_ADFS_3FE_SCSI2_STATUS
 ;;
 		tax					; Save result in X
-		and	#&02				; Check b1
+		and	#$02				; Check b1
 		beq	L81D2				; If b1=0, return with &00
 		jmp	SCSI2_RequestSense		; Get status from SCSI and return it
 ;;
 ;;.L81D2	lda	#&00				; A=0 - OK		;;TODO: check this is right!?
-.L81D2		txa
-.L81D4		ldx	&B0				; Restore XY pointer
-		ldy	&B1
-		and	#&7F				; Lose bit 7, set EQ from result
+L81D2:		txa
+L81D4:		ldx	$B0				; Restore XY pointer
+		ldy	$B1
+		and	#$7F				; Lose bit 7, set EQ from result
 		rts					; Return with result in A
 
-.SCSI2_phase_sink
-{
-.lp
+.proc SCSI2_phase_sink
+
+lp:
 		jsr	SCSI2_read_byteA
 		bcs	lp
 		jmp	SCSI2_phase_loop
-}
+.endproc
 
 
-.SCSI2_CommandPartialSector
-		
+SCSI2_CommandPartialSector:
+
 		lda	WKSP_ADFS_21E_DSKOPSAV_SECCNT	; this actually holds the number of bytes here (TODO: could be got from WKSP_ADFS_220_DSKOPSAV_XLEN!?)
 		sta	WKSP_ADFS_3FF_SCSI2_COUNT
 		lda	#1
@@ -263,17 +259,17 @@ ENDIF
 
 		jmp	SCSI2_startCommandHD_partial2
 
-.SCSI2_phase_stat_in
-{
+.proc SCSI2_phase_stat_in
+
 		jsr	SCSI2_read_byteA
 		sta	WKSP_ADFS_3FE_SCSI2_STATUS
 		jmp	SCSI2_phase_loop
-}
+.endproc
 
 
 ;;;; IS! SCSI Read or Write
 ;;;; ----------------------
-;;.HD_DataTransfer256		
+;;.HD_DataTransfer256
 ;;		ldy	#&00
 ;;		bit	ZP_ADFS_FLAGS			; Check ADFS status flag
 ;;		bvs	L821F				; Jump if Tube being used
@@ -311,7 +307,7 @@ ENDIF
 ;;		ldy	#>WKSP_ADFS_227_TUBE_XFER
 ;;		rts
 
-		include	"TubeStartXfer.asm"
+		.include	"TubeStartXfer.asm"
 
 ;;.L821F		ldx	#<WKSP_ADFS_227_TUBE_XFER
 ;;		ldy	#>WKSP_ADFS_227_TUBE_XFER
@@ -358,10 +354,10 @@ ENDIF
 ;;
 ;; Read result from SCSI and return it as a result
 ;; -----------------------------------------------
-.SCSI2_RequestSense
-		lda	&B0
+.proc SCSI2_RequestSense
+		lda	$B0
 		pha
-		lda	&B1
+		lda	$B1
 		pha					; TODO: check if this is necessary, is it alwats C215?
 
 		lda	#0
@@ -388,21 +384,21 @@ ENDIF
 		pha					; sector					+7 = 0
 
 		lda	WKSP_ADFS_317_CURDRV
-		and	#&E0
+		and	#$E0
 
 		pha					; sector msb/drive				+6 = drive
 		lda	#3
 		pha					; command					+5
-		lda	#&FF				; data addr					
+		lda	#$FF				; data addr
 		pha					; data msb					+4
 		pha					; data						+3
-		lda	#1	
+		lda	#1
 		pha					; data						+2
-		sta	&B1
+		sta	$B1
 		txa
 		pha					; data lsb					+1 = stack addr of data
 		tsx					; address of control block
-		stx	&B0
+		stx	$B0
 
 		jsr	SCSI2_startCommandHD_partial2
 
@@ -418,36 +414,36 @@ ENDIF
 		pla					; skip segment no
 		pla					; sense key
 		sta	WKSP_ADFS_2D3_ERR_CODE
-		and	#&0F
+		and	#$0F
 		pla					; skip msb of sector
 		ldx	#2
-.lp		pla
+lp:		pla
 		sta	WKSP_ADFS_2D0_ERR_SECTOR,X
 		dex
 		bpl	lp
 
 		pla
-		sta	&B1
+		sta	$B1
 		pla
-		sta	&B0
+		sta	$B0
 
 
 		lda	WKSP_ADFS_2D3_ERR_CODE
 		tax
-		and	#&02				; Test bit 1 of first byte
+		and	#$02				; Test bit 1 of first byte
 		beq	sk1				; If set, jump to return &7F
-.L82A5		lda	#$FF				; result = $FF
+L82A5:		lda	#$FF				; result = $FF
 		bne	sk2
-.sk1:		txa					; return SCSI code
-.sk2:		jmp	L81D4
-
+sk1:		txa					; return SCSI code
+sk2:		jmp	L81D4
+.endproc
 
 
 ; Set SCSI to command mode
 ; ------------------------
-.SCSI2_StartCommand					; L807E
-		ldy	#&00				; Useful place to set Y=0
-.SCSI2_StartCommand2		
+SCSI2_StartCommand:					; L807E
+		ldy	#$00				; Useful place to set Y=0
+SCSI2_StartCommand2:
 
 		lda	#0
 		; start arbitration phase
@@ -459,7 +455,7 @@ ENDIF
 		lda	#S2_MODE_ARBITRATE
 		sta	SCSI2_MODE_2			; start arbitration
 
-.scsi2_sc_lp1
+scsi2_sc_lp1:
 		lda	SCSI2_INIT_CMD_1
 		and	#S2_INIT_CMD_ARB_PROG
 		bne	arbdone
@@ -468,7 +464,7 @@ ENDIF
 		and	#S2_MODE_ARBITRATE
 		beq	arbdone
 		bne	scsi2_sc_lp1
-.arbdone
+arbdone:
 		jsr	L8098rts			; delay
 
 		lda	SCSI2_INIT_CMD_1
@@ -481,23 +477,23 @@ ENDIF
 
 
 		; assert bsy, sel data and atn (to get msg out)
-		lda	#S2_INIT_CMD_ASSERT_nBSY OR S2_INIT_CMD_ASSERT_DATA OR S2_INIT_CMD_ASSERT_nSEL OR S2_INIT_CMD_ASSERT_nATN
+		lda	#S2_INIT_CMD_ASSERT_nBSY | S2_INIT_CMD_ASSERT_DATA | S2_INIT_CMD_ASSERT_nSEL | S2_INIT_CMD_ASSERT_nATN
 		sta	SCSI2_INIT_CMD_1
 
-		; stop arbitrating		
+		; stop arbitrating
 		lda	#0
 		sta	SCSI2_MODE_2
 
 		jsr	L8098rts			; delay
 
 		; drop bsy, hold sel data and atn (to get msg out)
-		lda	#S2_INIT_CMD_ASSERT_DATA OR S2_INIT_CMD_ASSERT_nSEL OR S2_INIT_CMD_ASSERT_nATN
+		lda	#S2_INIT_CMD_ASSERT_DATA | S2_INIT_CMD_ASSERT_nSEL | S2_INIT_CMD_ASSERT_nATN
 		sta	SCSI2_INIT_CMD_1
 
 
 		; wait for BUSY from target
 		lda	#S2_BUS_nBSY
-.scsi2bsylp	bit	SCSI2_BUS_STATUS_4
+scsi2bsylp:	bit	SCSI2_BUS_STATUS_4
 		beq	scsi2bsylp
 
 
@@ -521,13 +517,12 @@ ENDIF
 		; return CS for phase MATCH
 		; returns MI for busy loss
 
-.SCSI2_WaitforReq		
-{
-.lp		lda	SCSI2_BUS_STATUS_4		; Get SCSI status
+.proc SCSI2_WaitforReq
+lp:		lda	SCSI2_BUS_STATUS_4		; Get SCSI status
 		and	#S2_BUS_nREQ			; Check REQUEST
 		beq	lp				; Loop until REQUEST set
 		lda	SCSI2_BUS_STATUS_4		; Get SCSI status
-		and	#S2_BUS_PHASE_MASK		; return phase 
+		and	#S2_BUS_PHASE_MASK		; return phase
 		lsr	a
 		lsr	a
 		sta	ZP_ADFS_SCSI2_PHASE
@@ -535,25 +530,24 @@ ENDIF
 		ror	a
 		ror	a
 		ror	a
-		ror	a				
+		ror	a
 		lda	ZP_ADFS_SCSI2_PHASE
 		rts
-}
+.endproc
 
 		; wait for req to go low
-.SCSI2_waitreqno
-{		lda	#S2_BUS_nREQ
-.lp		bit	SCSI2_BUS_STATUS_4
+.proc SCSI2_waitreqno
+		lda	#S2_BUS_nREQ
+lp:		bit	SCSI2_BUS_STATUS_4
 		bne	lp
 		rts
-}
+.endproc
 
 
-.SCSI2_send_byteA	
-{
-		pha	
+.proc SCSI2_send_byteA
+		pha
 		jsr	SCSI2_WaitforReq		; Wait until SCSI ready
-		bcc	scs2_sba_rts			; Wrong phase i.e. SCSI wants to do data in not out!
+		bcc	plarts			; Wrong phase i.e. SCSI wants to do data in not out!
 							; WRONG?: SCSI not responding, drop return and return result=UNKNOWN
 		bmi	abort				; unexpected loss of BSY abort
 		pla
@@ -562,42 +556,45 @@ ENDIF
 		lda	#S2_INIT_CMD_ASSERT_DATA	; during a MSGOUT (identify) ATN goes low here
 		sta	SCSI2_INIT_CMD_1
 		ora	#S2_INIT_CMD_ASSERT_nACK
-.finit
+finit:
 		sta	SCSI2_INIT_CMD_1
 
 		jsr	SCSI2_waitreqno
 
-		lda	#&00				; Return Ok
+		lda	#$00				; Return Ok
 		sta	SCSI2_INIT_CMD_1
 		rts
-.scs2_sba_rts	pla
-.scs2_sba_rts2	rts
-.abort		pla
-.abort2		pla					; Drop return address
+plarts:		pla
+anrts:		rts
+abort:		pla
+abort2:		pla					; Drop return address
 		pla
 		jmp	CommandDoneUnEx			; Jump to get result and return
-.^SCSI2_read_byteA
-		jsr	SCSI2_WaitforReq		; Wait until SCSI ready
-		bcc	scs2_sba_rts2			; Wrong phase i.e. SCSI wants to do data in not out!
+.endproc
+
+.proc SCSI2_read_byteA
+		jsr	SCSI2_WaitforReq			; Wait until SCSI ready
+		bcc	SCSI2_send_byteA::anrts		; Wrong phase i.e. SCSI wants to do data in not out!
 							; WRONG?: SCSI not responding, drop return and return result=UNKNOWN
-		bmi	abort2				; unexpected loss of BSY abort
+		bmi	SCSI2_send_byteA::abort2		; unexpected loss of BSY abort
 		lda	SCSI2_DATA_0
 		pha
 		lda	#S2_INIT_CMD_ASSERT_nACK
-		jsr	finit
+		jsr	SCSI2_send_byteA::finit
 		pla
 		rts
 
-}
+.endproc
 
-.SCSI2_SendCMDByte
+SCSI2_SendCMDByte:
 		jsr	L8324				; Wait until not busy, then write command to command register
 		bne	GenerateError			; If not Ok, generate disk error
 		rts
-.L8324		jsr	SCSI2_send_byteA		; This code cannot be inlined or JMPed as
+L8324:		jsr	SCSI2_send_byteA		; This code cannot be inlined or JMPed as
 		rts					; SCSI_send_byteA changes stack
 
 
-
+; TODO: why must scopes be forward declared?
+SCSI2_RequestSense_L82A5 = SCSI2_RequestSense::L82A5
 
 

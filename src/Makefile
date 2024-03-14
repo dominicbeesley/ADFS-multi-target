@@ -1,8 +1,10 @@
 BUILDDIR=build
 
 
-AS=beebasm
+AS=ca65
 ASFLAGS=
+LD=ld65
+LDFLAGS=
 DA65=da65
 ROMS=$(addprefix $(BUILDDIR)/, \
 	masIDE.rom \
@@ -33,7 +35,7 @@ SCSI_DRIVERS=	SCSI_Driver.asm SCSI_DriverBGET.asm SCSI_DriverBPUT.asm SCSI_Drive
 SCSI2_DRIVERS=	SCSI2_Driver.asm SCSI2_DriverBGET.asm SCSI2_DriverBPUT.asm SCSI2_DriverBGETBPUT.asm SCSI2_DriverSvc5.asm
 MMC_DRIVERS=	MMC_Driver.asm MMC_DriverBGET.asm MMC_DriverBPUT.asm MMC.asm MMC_UserPort.asm MMC_DriverBGETBPUT.asm MMC_DriverSvc5.asm
 STARMAP=	starmap.asm
-FLOPPY_DRIVERS= floppy_nmi_A.asm floppy_nmi_B.asm floppy_nmi_C.asm floppy_nmi_D.asm
+FLOPPY_DRIVERS= floppy.asm floppy_nmi_A.asm floppy_nmi_B.asm floppy_nmi_C.asm floppy_nmi_D.asm
 
 TUBE_DRIVERS=	TubeCheckAddrAndClaim.asm TubeStartXfer.asm
 .PHONY: all compares comparedirs
@@ -45,6 +47,9 @@ $(1)
 endef
 
 all:: $(TARGETS)
+
+
+
 
 $(BUILDDIR)/adfsroms.ssd: $(ROMS)
 	#dfs tool from https://github.com/dominicbeesley/dfs-0.4	
@@ -153,28 +158,33 @@ compares/new/Hoglet15x/IDE.da.s:compares/new/masIDE.da.s
 
 
 
-$(BUILDDIR)/masIDE.rom: adfs.asm $(IDE_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
-$(BUILDDIR)/masSCSI.rom: adfs.asm $(SCSI_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
-$(BUILDDIR)/masMMC_hog_SD.rom: adfs.asm $(MMC_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) 
-$(BUILDDIR)/masMMC_hog_SDT.rom: adfs.asm $(MMC_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) 
-$(BUILDDIR)/masMMC_hog_SD2.rom: adfs.asm $(MMC_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) 
-$(BUILDDIR)/masMMC_hog_SD2T.rom: adfs.asm $(MMC_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) 
-$(BUILDDIR)/masMMC_hog_SD3.rom: adfs.asm $(MMC_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) 
-$(BUILDDIR)/masMMC_hog_SD3T.rom: adfs.asm $(MMC_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) 
-$(BUILDDIR)/masBM_XDFS.rom: adfs.asm $(SCSI_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
-$(BUILDDIR)/bbcIDE.rom: adfs.asm $(IDE_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
-$(BUILDDIR)/bbcIDEF.rom: adfs.asm $(IDE_DRIVERS_F) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
-$(BUILDDIR)/bbcSCSI.rom: adfs.asm $(SCSI_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
-$(BUILDDIR)/bbcSCSI_AH.rom: adfs.asm $(SCSI_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
-$(BUILDDIR)/bbcSCS2.rom: adfs.asm $(SCSI2_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
-$(BUILDDIR)/elkIDE.rom: adfs.asm $(IDE_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
-$(BUILDDIR)/elkSCSI.rom: adfs.asm $(SCSI_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
+$(BUILDDIR)/masIDE.o: adfs.asm $(IDE_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
+$(BUILDDIR)/masSCSI.o: adfs.asm $(SCSI_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
+$(BUILDDIR)/masMMC_hog_SD.o: adfs.asm $(MMC_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) 
+$(BUILDDIR)/masMMC_hog_SDT.o: adfs.asm $(MMC_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) 
+$(BUILDDIR)/masMMC_hog_SD2.o: adfs.asm $(MMC_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) 
+$(BUILDDIR)/masMMC_hog_SD2T.o: adfs.asm $(MMC_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) 
+$(BUILDDIR)/masMMC_hog_SD3.o: adfs.asm $(MMC_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) 
+$(BUILDDIR)/masMMC_hog_SD3T.o: adfs.asm $(MMC_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) 
+$(BUILDDIR)/masBM_XDFS.o: adfs.asm $(SCSI_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
+$(BUILDDIR)/bbcIDE.o: adfs.asm $(IDE_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
+$(BUILDDIR)/bbcIDEF.o: adfs.asm $(IDE_DRIVERS_F) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
+$(BUILDDIR)/bbcSCSI.o: adfs.asm $(SCSI_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
+$(BUILDDIR)/bbcSCSI_AH.o: adfs.asm $(SCSI_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
+$(BUILDDIR)/bbcSCS2.o: adfs.asm $(SCSI2_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
+$(BUILDDIR)/elkIDE.o: adfs.asm $(IDE_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
+$(BUILDDIR)/elkSCSI.o: adfs.asm $(SCSI_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
 
 
 
-$(BUILDDIR)/%.rom $(BUILDDIR)/%.lst: %.asm 
-		$(AS) $(ASFLAGS) $(ASFLAGS2) -i $< -o $@ -v -d > $(basename $@).lst
+$(BUILDDIR)/%.o $(BUILDDIR)/%.lst: %.asm 
+		$(AS) $(ASFLAGS) $(ASFLAGS2) -i $< -o $@ -v -l $(basename $@).lst
 		scripts/beebasmlst2sym.pl -r $(ROMNO) <$(basename $@).lst >$(basename $@).noi
+
+
+$(BUILDDIR)/%.rom:$(BUILDDIR)/%.o rom.lnk.cfg
+		$(LD) $(LDFLAGS) -C rom.lnk.cfg -o $@ $(filter %.o, $^)
+
 clean::
 	-rm $(BUILDDIR)/*.rom
 	-rm $(BUILDDIR)/*.lst

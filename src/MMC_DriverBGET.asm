@@ -1,37 +1,37 @@
 ;;
 ;; BGET from hard drive
 ;; --------------------
-.HD_BGET_ReadSector		
-		lda	#&08				; &08 - READ
+HD_BGET_ReadSector:
+		lda	#$08				; &08 - READ
 		jsr	HD_CommandBGETBPUTsector	; Send command block to hard drive
-IF HD_MMC_HOG
+.ifdef HD_MMC_HOG
 		jsr	SCSI_WaitforReq
 		nop
 		nop
 		ldy	#0
-ELSE
+.else
 		bne	LACD5				; Error
-ENDIF
-		lda	&B2
+.endif
+		lda	$B2
 		pha
-		lda	&B3
+		lda	$B3
 		pha
-		lda	&BE
-		sta	&B2
-		lda	&BF
-		sta	&B3
+		lda	$BE
+		sta	$B2
+		lda	$BF
+		sta	$B3
 		jsr	MMC_StartRead
-IF NOT(HD_MMC_HOG)
+.ifndef HD_MMC_HOG
 		bne	LACD5				; Error
-ENDIF
+.endif
 		jsr	MMC_Read256
 		jsr	MMC_16Clocks			; ignore CRC
 		pla
-		sta	&B3
+		sta	$B3
 		pla
-		sta	&B2
-IF HD_MMC_HOG
+		sta	$B2
+.ifdef HD_MMC_HOG
 		jsr	CommandExit2
-ELSE
-.LACD5		jsr	CommandDone			; Release, get result
-ENDIF
+.else
+LACD5:		jsr	CommandDone			; Release, get result
+.endif

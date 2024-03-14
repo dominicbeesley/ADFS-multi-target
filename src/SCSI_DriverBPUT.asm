@@ -2,11 +2,11 @@
 ;;
 ;; BPUT to hard drive
 ;; --------------------
-.HD_BPUT_WriteSector		
-		ldx	&C1				; Get offset to current channel info
-		lda	#&0A				; &0A - Write
+HD_BPUT_WriteSector:
+		ldx	$C1				; Get offset to current channel info
+		lda	#$0A				; &0A - Write
 		jsr	HD_CommandBGETBPUTsector	; Send command block to SCSI/IDE/SD
-		ldy	#&00
+		ldy	#$00
 		jsr	SCSI_WaitforReq			; Wait for SCSI not busy
 		bpl	LAB76				; Jump ahead with writing
 		jsr	CommandDone			; Release Tube, get SCSI status
@@ -17,17 +17,17 @@
 ;;
 ;; Write a BPUT buffer to hard drive
 ;; ---------------------------------
-.LAB76		lda	(&BC),Y				; Get byte from buffer
+LAB76:		lda	($BC),Y				; Get byte from buffer
 		sta	SCSI_DATA			; Send to hard drive
 		iny
 		bne	LAB76				; Loop for 256 bytes
-IF USE65C12
+.ifdef USE65C12
 		lda	#ADFS_FLAGS_ENSURING
 		tsb	ZP_ADFS_FLAGS			; set 'files being updated' bit
-ELSE
+.else
 		lda	#ADFS_FLAGS_ENSURING
 		ora	ZP_ADFS_FLAGS			; set 'files being updated' bit
 		sta	ZP_ADFS_FLAGS
-ENDIF
+.endif
 		dey
 		sty	SCSI_IRQEN			; Set &FC43 to &FF
