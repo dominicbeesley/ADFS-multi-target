@@ -479,7 +479,7 @@ FDC_DATA		= FDCBASE+3
 	IDE_CYL_NO_HI	= HDDBASE + 5
 	IDE_DRVHEAD	= HDDBASE + 6
 	IDE_STATUS	= HDDBASE + 7
-.elseif .def(HD_SCSI)
+.elseif .def(HD_SCSI) || .def(HD_XDFS)
 	SCSI_DATA 	= HDDBASE + 0
 	SCSI_STATUS	= HDDBASE + 1
 	SCSI_SELECT	= HDDBASE + 2
@@ -744,7 +744,7 @@ lp:		lda	IDE_STATUS			; Get IDE status
 		rts
 .endproc
 .endif
-.ifdef HD_SCSI
+.if .def(HD_SCSI) || .def(HD_XDFS)
 .proc SCSI_GetStatus
 		php
 lp:		lda	SCSI_STATUS			; Get SCSI status
@@ -882,7 +882,7 @@ starMOUNTck:
 		.byte	$F9
 .endif
 
-.ifdef HD_SCSI
+.if .def(HD_SCSI) || .def(HD_XDFS)
 ; Set SCSI to command mode
 ; ------------------------
 SCSI_StartCommand:					; SCSIStartCommand_QRYREMOVE
@@ -1042,7 +1042,7 @@ L8110:		rts
 							;Do an MMC data transfer
 							;-----------------------
 		.include	"MMC_Driver.asm"
-.if !(.def(HD_MMC_HOG))
+.ifndef HD_MMC_HOG
 ; Include MMC low-level driver and User Port driver
 ; -------------------------------------------------
               .include       "MMC.asm"
@@ -1058,7 +1058,7 @@ L8110:		rts
 		.include "IDE_Driver.asm"
 	.endif
 .endif
-.ifdef HD_SCSI
+.if .def(HD_SCSI) || .def(HD_XDFS)
 		.include "SCSI_Driver.asm"
 .endif
 .ifdef HD_SCSI2
@@ -1130,7 +1130,7 @@ ErrorEscapeACKReloadFSM:
 		jsr	ReloadFSMandDIR_ThenBRK		; Reload FSM and DIR, generate an error
 .else
 ErrorEscapeACKInvalidReloadFSM:
-.if TARGETOS<>0 || (!.def(HD_SCSI))
+.if (TARGETOS <> 0) || (!(.def(HD_SCSI) || .def(HD_XDFS)))
 		lda	#$7E
 		jsr	OSBYTE				; Acknowledge Escape state
 .endif
@@ -1183,7 +1183,7 @@ TSDelay:
 	.endif
 .endif
 .endif
-.ifdef HD_SCSI
+.if .def(HD_SCSI) || .def(HD_XDFS)
 SCSI_SendCMDByte:
 		jsr	L8324				; Wait until not busy, then write command to command register
 		bne	GenerateError				; If not Ok, generate disk error
@@ -1211,7 +1211,7 @@ _lelk830C:
 		.byte	0,0,0
 .endif ; TARGETOS > 0
 .endif ; .def(HD_IDE)
-.if .def(HD_SCSI) || .def(HD_SCSI2)
+.if .def(HD_SCSI) || .def(HD_XDFS) || .def(HD_SCSI2)
 WaitEnsuring:						; L8328
 		lda	#ADFS_FLAGS_ENSURING		; Prepare to look at bit 0
 		php					; Save IRQ disable
@@ -1254,7 +1254,7 @@ _lelk8326:
 
 .endif ; .def(HD_IDE)
 
-.ifdef HD_SCSI
+.if .def(HD_SCSI) || .def(HD_XDFS)
 .proc SCSI_WaitforReq
 		pha					; Save A
 lp:		jsr	SCSI_GetStatus			; Get SCSI status
@@ -1325,7 +1325,7 @@ ReloadFSMandDIR_ThenBRK:
 .endif
 .endif
 
-.if !.def(HD_MMC_HOG)
+.ifndef HD_MMC_HOG
 ; Generate an error with no suffix
 ; --------------------------------
 GenerateErrorNoSuff:					; L8372
@@ -1865,7 +1865,7 @@ L867F:		jsr	L834E				; Generate error
 L868D:		jsr	L834E				; Generate error
 		.byte	$98				; ERR=152
 
-.if .def(PRESERVE_CONTEXT) && (.def(HD_SCSI) || .def(HD_SCSI2))
+.if .def(PRESERVE_CONTEXT) && (.def(HD_SCSI) || .def(HD_SCSI2) || .def(HD_XDFS))
 		.byte	"Needs COMPACT"
 		.byte	$00
 ReadBreak:
@@ -2593,7 +2593,7 @@ FloppyPartialSector:
 		; code would be smaller and most likely faster
 .endif
 
-.if !(.def(HD_SCSI2))
+.ifndef HD_SCSI2
 ;;
 ;; Get bytes from a partial sector from a hard drive
 ;; -------------------------------------------------
@@ -2608,7 +2608,7 @@ HD_CommandPartialSector:
 .if (.def(HD_IDE)) && (!(.def(TRIM_REDUNDANT)))
 		jsr	X807E				; Leftover dummy call
 .endif
-.ifdef HD_SCSI
+.if .def(HD_SCSI) || .def(HD_XDFS)
 		jsr	SCSI_StartCommand		; Set SCSI to command mode
 .endif
 		lda	WKSP_ADFS_216_DSKOPSAV_MEMADDR
@@ -2636,13 +2636,13 @@ L8B71:		lda	WKSP_ADFS_21E_DSKOPSAV_SECCNT	; Get byte count (in Sector Count)
 		sta	WKSP_ADFS_21A_DSKOPSAV_CMD	; Command &08 - Read
 .ifdef HD_MMC
 		jsr	MMC_BEGIN			; Initialize the card, if not already initialized
-.if !(.def(HD_MMC_HOG))
+.ifndef HD_MMC_HOG
 		bne	PartError			; Couldn't initialise
 .endif
 		clc					; C=0 for reads
 		jsr	MMC_SetupRW			; Set up SD card command block
 		jsr	setCommandAddress
-.if !(.def(HD_MMC_HOG))
+.ifndef HD_MMC_HOG
 		bne	PartError			; Bad drive or sector
 .endif
 .endif
@@ -2657,7 +2657,7 @@ L8B71:		lda	WKSP_ADFS_21E_DSKOPSAV_SECCNT	; Get byte count (in Sector Count)
 		nop
 		nop
 .endif
-.ifdef HD_SCSI
+.if .def(HD_SCSI) || .def(HD_XDFS)
 		ldy	#$00
 L8B81:		lda	WKSP_ADFS_21A_DSKOPSAV_CMD,Y
 		jsr	SCSI_send_byteA			; Send control block to SCSI
@@ -2687,7 +2687,7 @@ L8B9B:
 .ifdef HD_MMC
 		phx
 		jsr	MMC_StartRead
-.if !(.def(HD_MMC_HOG))
+.ifndef HD_MMC_HOG
 		bne	PartError			; Error occured
 .endif
 		plx
@@ -2700,7 +2700,7 @@ L8B9B:
 		jsr	MMC_Clocks			; ignore rest of sector
 		jsr	MMC_Clocks			; twice, as sectors are stretched to 512 bytes
 		jsr	MMC_16Clocks			; ignore CRC
-.if !(.def(HD_MMC_HOG))
+.ifndef HD_MMC_HOG
 		lda	#0				; If we've got to here no error occured
 PartError:
 .endif
@@ -2711,12 +2711,12 @@ PartError:
 		jsr	IDE_WaitforReq			; Wait for drive ready
 		bmi	L8BBB				; Jump ahead if switched to write
 .endif
-.ifdef HD_SCSI
+.if .def(HD_SCSI) || .def(HD_XDFS)
 		jsr	SCSI_WaitforReq			; Wait for drive ready
 		bmi	L8BBB				; Jump ahead if switch to command (i.e. status byte ready...)
 .endif
 L8BA2:
-.ifdef HD_SCSI
+.if .def(HD_SCSI) || .def(HD_XDFS)
 		lda	SCSI_DATA			; Get byte from hard drive
 .endif
 .ifdef HD_IDE
@@ -2732,7 +2732,7 @@ L8BA2:
 .else
 		jsr	TubeDelay2			; Pause a bit
 .endif
-.if (TARGETOS = 0) && (!(.def(HD_SCSI)))
+.if (TARGETOS = 0) && (!(.def(HD_SCSI) || .def(HD_XDFS)))
 		sbc	$EDED				; TODO: Reinstate tube code for AP5?
 .else
 		sta	TUBEIO				; Send to Tube
@@ -2940,7 +2940,7 @@ L8C91:		lda	($B6),Y
 ;; &B8/9=>control block, &B4/5=>filename
 ;;
 L8CB3:
-.if !.def(TRIM_REDUNDANT) || .def(HD_MMC_HOG)
+.if (!.def(TRIM_REDUNDANT)) || .def(HD_MMC_HOG)
 		ldy	#$00				; Copy filename address again
 		lda	($B8),Y
 		sta	$B4
@@ -2993,7 +2993,7 @@ L8D04:		cmp	#$21
 		cmp	#$22
 		beq	L8D0F				; quote, end of filename
 		iny					; Step to next character
-	.if .def(HD_SCSI) && TARGETOS=0
+	.if (.def(HD_SCSI) || .def(HD_XDFS)) && (TARGETOS=0)
 		cpy	#$0A				; TODO: work out why!
 	.endif
 
@@ -3097,7 +3097,7 @@ L8DAF:		cmp	#'.'				; '.'
 ;;
 L8DB6:		jsr	L8743
 		beq	L8DAF
-	.if TARGETOS = 0 && .def(HD_SCSI)
+	.if (TARGETOS = 0) && (.def(HD_SCSI) || .def(HD_XDFS))
 		cmp	#$7F
 		beq	L8DE6
 		cmp	#'^'
@@ -3140,7 +3140,7 @@ L8DE9:		jsr	ReloadFSMandDIR_ThenBRK
 		.byte	$FD				; ERR=253
 		.byte	"Wild cards"
 		.byte	$00
-.if TARGETOS<>0 || (!.def(HD_SCSI))
+.if TARGETOS<>0 || (!(.def(HD_SCSI) || .def(HD_XDFS)))
 L8DF8:		.byte	$7F, "^@:$&"			; Directory characters
 .endif
 L8DFE:		jsr	L8CF4
@@ -3372,7 +3372,7 @@ L8F99:		lda	L883C,X				; Copy control block to load '$'
 		jsr	LB5C5				; X=(A DIV 16)
 		lda	WKSP_ADFS_100_FSM_S1 + $FC
 		sta	WKSP_ADFS_322,X
-.if TARGETOS=0 && .def(HD_SCSI)
+.if (TARGETOS = 0) && (.def(HD_SCSI) || .def(HD_XDFS))
 		lda	$0295				; TODO: should this be all elks?
 .else
 		lda	$FE44				; System VIA Latch Lo
@@ -3407,7 +3407,7 @@ L8FF2:		rts
 ;; Check Free Space Map consistancy
 ;; ================================
 L8FF3:
-.if (TARGETOS = 0) && (!.def(HD_SCSI))			; TODO: ASK JGH - this looks like debugging stuff left in?
+.if (TARGETOS = 0) && (!(.def(HD_SCSI) || .def(HD_XDFS))); TODO: ASK JGH - this looks like debugging stuff left in?
 		rts
 		.byte	$09, $90
 .else
@@ -3594,7 +3594,7 @@ WrIsE:
 WrNext:
 		dey
 		bpl	WrLp
-.if !.def(TRIM_REDUNDANT) || .def(HD_MMC_HOG)
+.if (!.def(TRIM_REDUNDANT)) || .def(HD_MMC_HOG)
 		nop
 		nop
 		nop
@@ -5122,7 +5122,7 @@ DriveNotPresent:
 .endif ; TAEGETOS = 1
 .endif ; TARGETOS <> 0
 .endif ; .def(HD_IDE)
-.ifdef HD_SCSI
+.if .def(HD_SCSI) || .def(HD_XDFS)
 HD_InitDetectBoot:
 HD_InitDetect:
 		lda	#$5A
@@ -5275,7 +5275,7 @@ L9AC0:		.byte	<(Serv21-1)			; Serv21 - Serv21 - High abs
 		.byte	<(Serv22-1)			; Serv22 - Serv22 - High w/s
 		.byte	<(Serv0-1)			; Serv23 - Serv0 - Null
 		.byte	<(Serv24-1)			; Serv24 - Serv24 - Hazel count
-.if !(.def(AUTOHAZEL))
+.ifndef AUTOHAZEL
 		.byte	<(Serv25-1)			; Serv25 - Serv25 - FS Info
 		.byte	<(Serv26-1)			; Serv26 - Serv26 - *SHUT
 		.byte	<(Serv0-1)			; Serv27 - Serv0 - Null
@@ -5287,7 +5287,7 @@ L9AC7:		.byte	>(Serv21-1)
 		.byte	>(Serv22-1)
 		.byte	>(Serv0-1)
 		.byte	>(Serv24-1)
-.if !(.def(AUTOHAZEL))
+.ifndef AUTOHAZEL
 		.byte	>(Serv25-1)
 		.byte	>(Serv26-1)
 		.byte	>(Serv0-1)
@@ -5347,7 +5347,7 @@ _lbbc9AB9:
 ;; workspace somewhere in &40xx-&BFxx, then the ROM is disabled.
 ;;
 L9AD8:		cmp	#$12				; Select filing system?
-.if (TARGETOS = 0 && .def(HD_SCSI)) || .def(AUTOHAZEL)
+.if ((TARGETOS = 0) && (.def(HD_SCSI) || .def(HD_XDFS))) || .def(AUTOHAZEL)
 		bne	_elkL9AC4
 		jmp	L9B4C
 _elkL9AC4:
@@ -5500,7 +5500,7 @@ L9B38:		jsr	StoreWkspChecksumBA_Y		; Set workspace checksum
 _lbbc9B10:
 
 L9B3B:
-.if TARGETOS = 0 && .def(HD_SCSI)
+.if (TARGETOS = 0) && (.def(HD_SCSI) || .def(HD_XDFS))
 		jsr	CalcWkspChecksum
 .else
 		jsr	CheckWkspChecksum		; Check workspace checksum
@@ -5508,7 +5508,7 @@ L9B3B:
 ;;
 
 .if TARGETOS <= 1
-.if TARGETOS = 0 && .def(HD_SCSI)
+.if (TARGETOS = 0) && (.def(HD_SCSI) || .def(HD_XDFS))
 		cmp     ($BA),y                         ; 9B19 D1 BA                    ..
         	beq     _elkL9B23                       ; 9B1B F0 06                    ..
         	tya                                     ; 9B1D 98                       .
@@ -5602,7 +5602,7 @@ Serv3:
 		bne	_lbbc9B57			; 9B49 D0 0C                    ..
 		jsr	HD_InitDetectBoot		; 9B4B 20 63 9A                  c.
 		beq	L9B74				; 9B4E F0 1E                    ..
-.if (.def(HD_IDE) || .def(HD_MMC)) && TARGETOS > 0			; TODO should this not be readbreak for Elk too?
+.if (.def(HD_IDE) || .def(HD_MMC)) && (TARGETOS > 0)			; TODO should this not be readbreak for Elk too?
 		jsr	ReadBreak
 .else
 		lda	$028D				; 9B50 AD 8D 02                 ...
@@ -5614,7 +5614,7 @@ _lbbc9B57:
 .endif ; TARGETOS
 
 
-.if !(.def(HD_XDFS)) && (!(.def(TRIM_REDUNDANT)) || .def(HD_MMC_HOG))
+.if (!.def(HD_XDFS)) && (!.def(TRIM_REDUNDANT)) || .def(HD_MMC_HOG)
 		cpx	#$79				; '->' pressed?
 		beq	L9B74				; Yes
 .endif
@@ -6511,7 +6511,7 @@ cmdLE:
 	.byte	"LEX",      >(starLEX-1)	, <(starLEX-1)		, $00
 	.byte	"LIB",      >(starLIB-1)	, <(starLIB-1)		, $30
 	.byte	"MAP",      >(starMAP-1)	, <(starMAP-1)		, $00
-.if .def(PRESERVE_CONTEXT) && (!.def(HD_SCSI))
+.if .def(PRESERVE_CONTEXT) && (!(.def(HD_SCSI) || .def(HD_XDFS)))
 	.byte	"MOUNT",    >(starMOUNTck-1)	, <(starMOUNTck-1)	, $40
 .else
 	.byte	"MOUNT",    >(starMOUNT-1)	, <(starMOUNT-1)	, $40
@@ -6702,7 +6702,7 @@ LA079:		lda	WKSP_ADFS_000_FSM_S0 + $FB,Y
 		.byte	"Used", $8D
 LA091:		rts
 
-.if TARGETOS > 0 || (!.def(HD_SCSI))
+.if TARGETOS > 0 || (!(.def(HD_SCSI) || .def(HD_XDFS)))
 	.include "starmap.asm"
 .endif ; NOT ELK SCSI
 
@@ -6723,7 +6723,7 @@ LA0DC:
 		.byte	"Compaction recommended", $8D
 LA102:		rts
 
-.if TARGETOS = 0 && .def(HD_SCSI)
+.if (TARGETOS = 0) && (.def(HD_SCSI) || .def(HD_XDFS))
 	.include "starmap.asm"
 .endif ; NOT ELK SCSI
 
@@ -6778,7 +6778,7 @@ _lelkLA0D8:	php                                     ; A0D8 08                   
 
 		lda	WKSP_ADFS_317_CURDRV			; Get current drive
 		pha					; Save current drive
-.if TARGETOS=0 && .def(HD_SCSI)
+.if (TARGETOS = 0) && (.def(HD_SCSI) || .def(HD_XDFS))
 		jsr	starCLOSE
 
 .else
@@ -6803,7 +6803,7 @@ LA113:		ldx	#<LA12A
 		rts
 .endif
 ;;
-.if !(.def(HD_MMC)) || .def(HD_MMC_HOG)
+.if (!(.def(HD_MMC))) || .def(HD_MMC_HOG)
 LA12A:		.byte	$00				; Result=&00, Ok
 		.word	WKSP_ADFS_900_RND_BUFFER	; Address=&FFFFC900, dummy address
 		.word	$FFFF
@@ -6876,7 +6876,7 @@ starMOUNT:
 		jsr	LA135				; Scan drive number parameter
 LA1A1:		lda	WKSP_ADFS_26F			; Get drive
 		sta	WKSP_ADFS_317_CURDRV		; Set current drive
-.if !(.def(HD_MMC)) || .def(HD_MMC_HOG) ; TODO: prefer JGH - check
+.if (!.def(HD_MMC)) || .def(HD_MMC_HOG) ; TODO: prefer JGH - check
 		ldx	#<SCSICMD_UNPARK		; Point to 'unpark' control block
 		ldy	#>SCSICMD_UNPARK
 		jsr	CommandExecXY			; Do SCSI command &1B - UnPark
@@ -6902,7 +6902,7 @@ LA1C9:		lda	WKSP_ADFS_31B			; Get library drive
 		jsr	LA189				; Set library name to "Unset"
 LA1DE:		rts
 ;;
-.if !(.def(HD_MMC)) || .def(HD_MMC_HOG) ; REMOVE for HOG
+.if (!.def(HD_MMC)) || .def(HD_MMC_HOG) ; REMOVE for HOG
 SCSICMD_UNPARK:
 		.byte	$00				; Result=&00, Ok
 		.word	WKSP_ADFS_900_RND_BUFFER	; Address=&FFFFC900, dummy address
@@ -7413,7 +7413,7 @@ LA555:		ldy	#$03
 .endif
 		ldy	#$00				; Caller may need this
 		lda	($B4),Y				; Get first character
-.if TARGETOS = 0 && .def(HD_SCSI)
+.if (TARGETOS = 0) && (.def(HD_SCSI) || .def(HD_XDFS))
 		and	#$7F
 		cmp	#'$'				; Is it '$' or '&'
 		beq	LA53E				; If ROOT or URD, jump to 'Bad rename'
@@ -7440,11 +7440,11 @@ LA580:		jsr	LA394
 		lda	#>WKSP_ADFS_240
 		sta	$B9
 		jsr	L8CED
-.if TARGETOS > 0 || (!.def(HD_SCSI))
+.if (TARGETOS > 0) || (!(.def(HD_SCSI) || .def(HD_XDFS)))
 		php
 .endif
 		jsr	L8E01				; Check
-.if TARGETOS>0 || (!.def(HD_SCSI))
+.if (TARGETOS > 0) || (!(.def(HD_SCSI) || .def(HD_XDFS)))
 		plp
 		bne	LA5A5
 		lda	$B6
@@ -7484,7 +7484,7 @@ LA5B5:		jsr	L89D8
 .endif
 		jsr	L8FE8
 		jsr	L8D1B
-.if TARGETOS=0 && .def(HD_SCSI)
+.if (TARGETOS = 0) && (.def(HD_SCSI) || .def(HD_XDFS))
         	ldy     #$18                            ; A58D A0 18                    ..
         	ldx     #$02                            ; A58F A2 02                    ..
 elkLA591:  	lda     ($B6),y                         ; A591 B1 B6                    ..
@@ -7511,7 +7511,7 @@ LA5DE:		ldy	#$00
 LA5E0:		lda	($B4),Y
 		cmp	#$2E
 		beq	LA5EF
-.if TARGETOS=0 && .def(HD_SCSI)
+.if (TARGETOS = 0) && (.def(HD_SCSI) || .def(HD_XDFS))
 		cmp	#$22
 		beq	LA5FA
 .else
@@ -7533,7 +7533,7 @@ LA5EF:		tya
 		inc	$B5
 		bne	LA5DE
 LA5FA:
-.if TARGETOS=0 && .def(HD_SCSI)
+.if (TARGETOS = 0) && (.def(HD_SCSI) || .def(HD_XDFS))
 		ldy	#0
 		ldx	#09
 .else
@@ -7551,7 +7551,7 @@ LA5FC:		lda	($B6),Y
 LA60F:		lda	#$0D
 LA611:		ora	WKSP_ADFS_22B
 		sta	($B6),Y
-.if TARGETOS = 0 && .def(HD_SCSI)
+.if (TARGETOS = 0) && (.def(HD_SCSI) || .def(HD_XDFS))
 		iny
 		dex
 .else
@@ -7562,7 +7562,7 @@ LA611:		ora	WKSP_ADFS_22B
 		jsr	LA6BB
 		jmp	L89D8
 
-.if TARGETOS > 0 || (!.def(HD_SCSI))
+.if (TARGETOS > 0) || (!(.def(HD_SCSI) || .def(HD_XDFS)))
 ;;
 LA622:		jmp	L95AB				; Error 'Already exists'
 ;;
@@ -7701,7 +7701,7 @@ CheckDirLoaded:						; LA6FD
 ;;
 LA714:		jsr	CheckDirLoaded			; Check if directory loaded
 		ldx	#$00				; Point to first character to check
-.if TARGETOS=0 && .def(HD_SCSI)
+.if (TARGETOS = 0) && (.def(HD_SCSI) || .def(HD_XDFS))
 		ldy	#$04
 .endif
 		lda	WKSP_ADFS_800_DIR_BUFFER + $FA	; Get initial character
@@ -7711,7 +7711,7 @@ LA71C:		cmp	WKSP_ADFS_400_DIR_BUFFER,X	; Check "Hugo" string at start of dir
 		bne	LA72F				; Jump to give broken dir error
 		inx					; Move to next char
 		lda	L84DC,X				; Get byte from "Hugo" string
-.if TARGETOS=0 && .def(HD_SCSI)
+.if (TARGETOS = 0) && (.def(HD_SCSI) || .def(HD_XDFS))
 		dey
 		bpl	LA71C
 .else
@@ -7886,7 +7886,7 @@ LA7EC:
 		sta	$B7
 		lda	WKSP_ADFS_293
 		sta	$B6
-.if TARGETOS=0 && .def(HD_SCSI)
+.if (TARGETOS = 0) && (.def(HD_SCSI) || .def(HD_XDFS))
 		ldy	#$0A
 LA802:		lda	L883C,Y			; Copy 'load $' control block
 		sta	WKSP_ADFS_214+1,Y
@@ -7913,7 +7913,7 @@ LA81A:		inx
 
 
 LA821:
-.if TARGETOS=0 && .def(HD_SCSI)
+.if (TARGETOS = 0) && (.def(HD_SCSI) || .def(HD_XDFS))
 		ldy	#$0A
 LA823:		lda	L883C,Y				; Copy 'load $' control block
 		sta	WKSP_ADFS_214+1,Y
@@ -8133,7 +8133,7 @@ FSC6_NEWFS:
 		lda	#OSBYTE_77_CLOSE		; A949 A9 77                    .w
 		jsr	OSBYTE				; A94B 20 F4 FF                  ..
 		jsr	L89D8				; A94E 20 D3 89                  ..
-.if TARGETOS=0 && .def(HD_SCSI)
+.if (TARGETOS = 0) && (.def(HD_SCSI) || .def(HD_XDFS))
 		jsr	GetWkspAddr_BA
 		ldy	#$FF				; A951 A0 FF                    ..
 		lda	#0
@@ -8367,7 +8367,7 @@ LAAD0:		dex
 		.include	"MMC_DriverBGETBPUT.asm"
 .elseif .def(HD_IDE)
 		.include "IDE_DriverBGETBPUT.asm"
-.elseif .def(HD_SCSI)
+.elseif .def(HD_SCSI) || .def(HD_XDFS)
 		.include "SCSI_DriverBGETBPUT.asm"
 .elseif .def(HD_SCSI2)
 		.include "SCSI2_DriverBGETBPUT.asm"
@@ -8423,7 +8423,7 @@ LAB50:		ldx	$C1
 .endif
 
 LAB5BJmpGenerateError:
-.if !(.def(HD_MMC_HOG))
+.ifndef HD_MMC_HOG
 		jmp	GenerateError				; Generate disk error
 .endif
 
@@ -8431,7 +8431,7 @@ LAB5BJmpGenerateError:
 		.include "IDE_DriverBPUT.asm"
 .elseif .def(HD_MMC)
 		.include "MMC_DriverBPUT.asm"
-.elseif .def(HD_SCSI)
+.elseif .def(HD_SCSI) || .def(HD_XDFS)
 		.include "SCSI_DriverBPUT.asm"
 .elseif .def(HD_SCSI2)
 		.include "SCSI2_DriverBPUT.asm"
@@ -8448,7 +8448,7 @@ LAB88:		rts
 		.include "IDE_DriverSvc5.asm"
 .elseif .def(HD_MMC)
 		.include "MMC_DriverSvc5.asm"
-.elseif .def(HD_SCSI)
+.elseif .def(HD_SCSI) || .def(HD_XDFS)
 		.include "SCSI_DriverSvc5.asm"
 .elseif .def(HD_SCSI2)
 		.include "SCSI2_DriverSvc5.asm"
@@ -8581,7 +8581,7 @@ LACBA:		dec	ZP_ADFS_RETRY_CTDN		; Decrement retries
 		.include "IDE_DriverBGET.asm"
 .elseif .def(HD_MMC)
 		.include "MMC_DriverBGET.asm"
-.elseif .def(HD_SCSI)
+.elseif .def(HD_SCSI) || .def(HD_XDFS)
 		.include "SCSI_DriverBGET.asm"
 .elseif .def(HD_SCSI2)
 		.include "SCSI2_DriverBGET.asm"
@@ -10400,7 +10400,7 @@ LBA57:		lda	#$FF
 	.ifdef HD_IDE
 		.byte	$23				; IDEPatch revision 1.23
 	.endif
-	.ifdef HD_SCSI
+	.if .def(HD_SCSI) || .def(HD_XDFS)
 		.byte	$A9				; 'A'corn revision 9
 		;TODOXDFS: this is actually at BFFC on BeebMasters' ROM?
 	.endif

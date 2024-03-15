@@ -14,7 +14,6 @@ ROMS=$(addprefix $(BUILDDIR)/, \
 	masMMC_hog_SD2T.rom \
 	masMMC_hog_SD3.rom \
 	masMMC_hog_SD3T.rom \
-	masBM_XDFS.rom \
 	masSCSI.rom \
 	bbcSCSI.rom \
 	bbcSCSI_AH.rom \
@@ -24,6 +23,9 @@ ROMS=$(addprefix $(BUILDDIR)/, \
 	bbcSCS2.rom \
 	bbcIDEF.rom \
 	)
+
+##	masBM_XDFS.rom \
+
 
 TARGETS = $(BUILDDIR)/ $(ROMS) $(BUILDDIR)/adfsroms.ssd
 # this is used when generating symbols
@@ -98,6 +100,7 @@ compares: all comparedirs \
 	compares/new/elkIDE.da.s \
 	compares/new/elkSCSI.da.s \
 	$(HOGLETORGS)
+	echo $^
 
 comparedirs:
 	-mkdir -p compares

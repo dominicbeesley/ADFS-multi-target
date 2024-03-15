@@ -413,6 +413,7 @@ loop:
           bra  setAddressFromStack
 .endif
 
+.endproc
 
 ;; Set MMC Command Address from (&B0),control block
 ;; ************************************************

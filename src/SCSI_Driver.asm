@@ -163,7 +163,6 @@ L820D:		ldx	#<WKSP_ADFS_227_TUBE_XFER
 		.include	"TubeStartXfer.asm"
 
 
-.if HD_SCSI
 L821F:		ldx	#<WKSP_ADFS_227_TUBE_XFER
 		ldy	#>WKSP_ADFS_227_TUBE_XFER
 L8223:		jsr	SCSI_WaitforReq
@@ -242,4 +241,3 @@ L8275:		jsr	SCSI_WaitforReq			; Wait for SCSI
 		jmp	L81D4				; Return returned SCSI result
 L82A5:		lda	#$FF				; Result=&FF
 		jmp	L81D4				; Jump to return result
-.endif ; HD_SCSI
