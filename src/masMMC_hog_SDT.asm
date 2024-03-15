@@ -4,7 +4,7 @@
 TARGETOS		:=	3		; 3=Master
 HD_MMC_HOG	:=	1
 _TURBOMMC	:=	1
-_VIA_BASE	:=	$FE60
+MMC_VIA_BASE	:=	$FE60
 
 FULL_ACCESS	:=	1	; Full OSFILE 1-4
 PRESERVE_CONTEXT	:=	1	; Ctrl-Break doesn't lose context
