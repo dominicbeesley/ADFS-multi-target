@@ -2,8 +2,7 @@
 ; -----------------------------------------------------
 
 TARGETOS		:=	3		; 3=Master
-HD_MMC		:=	1		; MMC drivers
-HD_MMC_HOG	:=	1
+HD_MMC_HOG	:=	1		; MMC drivers
 _TURBOMMC	:=	1
 _VIA_BASE	:=	$FE80
 

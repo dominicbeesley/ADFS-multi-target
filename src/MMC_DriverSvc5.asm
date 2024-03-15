@@ -5,7 +5,7 @@
 ;;
 ;; Service 5 - Interrupt occurred
 ;; ============================
-Svc5_IRQ:		rts				; Remove IRQ routine
+Svc5_IRQ:	rts					; Remove IRQ routine
 
 UpdateDrive:
 		lda	$85				; Merge with current drive

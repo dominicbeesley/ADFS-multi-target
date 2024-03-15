@@ -26,9 +26,11 @@
 ; TARGETOS		Target machine MOS
 ; FLOPPY		Include floppy drivers
 ; HD_SCSI		Build with SCSI drivers (only one possible)
-; .def(HD_SCSI2)		Build with SCSI2 drivers (only one possible)
+; HD_SCSI2		Build with SCSI2 drivers (only one possible)
 ; HD_IDE		Build with IDE drivers (only one possible)
-; .def(HD_MMC)		Build with MMC drivers (only one possible)
+; HD_MMC_JGH		Build with MMC drivers (only one possible) MDFS.net version
+; HD_MMC_HOG		Build with MMC drivers (only one possible) Hoglet's version
+; HD_MMC_XDFS		Build with Internal VFS SCSI card address
 ; FULL_INFO		Full *INFO
 ; FULL_ACCESS		Full OSFILE 1-4
 ; UNSUPPORTED_OSFILE	Unknown OSFILE returns A preserved
@@ -62,7 +64,7 @@ OSWORD_BASE=$70
 
 ; Sanity check
 ; ------------
-.if (.def(HD_SCSI) + .def(HD_SCSI2) + .def(HD_IDE) + .def(HD_MMC) + .def(HD_XDFS)) <> 1
+.if (.def(HD_SCSI) + .def(HD_SCSI2) + .def(HD_IDE) + .def(HD_MMC_JGH) + .def(HD_MMC_HOG) + .def(HD_XDFS)) <> 1
 		.error	"Cannot build for multiple device drivers or no HD_xx"
 .endif
 
@@ -493,7 +495,7 @@ FDC_DATA		= FDCBASE+3
 	SCSI_STATUS_BIT_MSG	 	= $01			; 1 when SCSI bus MSG asserted
 
 
-.elseif .def(HD_MMC)
+.elseif .def(HD_MMC_JGH) || .def(HD_MMC_HOG)
 
 .elseif .def(HD_SCSI2)
 	; The host adapter is always ID=7!
@@ -584,7 +586,7 @@ FDC_DATA		= FDCBASE+3
 	S2_MSG_IDENTIFY_LUNTAR		=	$20
 .endif
 
-VERSION=VERBASE + .def(PRESERVE_CONTEXT) * 1 + .def(HD_IDE) * 2 + .def(HD_MMC) * 6  + .def(HD_SCSI2) * 4
+VERSION=VERBASE + .def(PRESERVE_CONTEXT) * 1 + .def(HD_IDE) * 2 + (.def(HD_MMC_JGH) | .def(HD_MMC_HOG)) * 6  + .def(HD_SCSI2) * 4
 ; Version number x.yz
 ;		  1.0z = Electron
 ;		  1.3z = BBC B/B+
@@ -619,7 +621,7 @@ L8017:		.byte	$00				; Copyright string
 		.byte	"(C)2018 Dossy",0
 .elseif .def(HD_MMC_HOG)
 		.byte	"(C)1984",0
-.elseif .def(HD_MMC)
+.elseif .def(HD_MMC_JGH) || .def(HD_MMC_HOG)
 		.byte	"(C)2016",0
 .elseif .def(HD_IDE)
 .ifdef HD_IDE_FAST
@@ -729,7 +731,7 @@ L806D:		ply					; Restore Y
 ;;
 ;; Read hard drive status. Waits for status value to settle before returning
 ;; -------------------------------------------------------------------------
-.ifdef HD_MMC
+.if .def(HD_MMC_JGH) || .def(HD_MMC_HOG)
 ;; Drive status is not used in the SD Code
 .endif
 .ifdef HD_IDE
@@ -803,7 +805,6 @@ WaitForData:
 .endif ; TARGETOS = 0
 .endif ; .def(HD_IDE)
 
-.ifdef HD_MMC
 .ifdef HD_MMC_HOG
 SCSIStartCommand_QRYREMOVE: 		rts
 ReadBreak:
@@ -813,26 +814,12 @@ ReadBreak:
 starMOUNTck:
        		jsr	starMOUNT        ;; Do *MOUNT, then reselect ADFS
        		jmp	L9B4A
-.else ; .def(HD_MMC_HOG)
-.if TARGETOS > 0
+.elseif .def(HD_MMC_JGH)
 ReadBreak:
 		lda	$028D
 		and	#$01
 		rts
 WaitForData:
-;		rts
-;		nop
-;		nop
-;		nop
-;		nop
-;		nop
-;		nop
-;		nop
-;		nop
-;		nop
-;		nop
-;		nop
-;; DB: TODO: not sure where this came back in...pretty sure it is wrong
 		pha
 L8076:
 		pla
@@ -842,34 +829,9 @@ L8076:
 		beq	L8076
 		pla
 		rts
+.endif ; .def(HD_MMC_JGH)
 
-
-
-.else ; TARGETOS = 0
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-WaitForData:
-	rts
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-.endif ; TARGETOS=0
-.endif ; .def(HD_MMC_HOG)
-.endif ; .def(HD_MMC)
-
-.if (.def(HD_IDE)) || (.def(HD_MMC) && (!(.def(HD_MMC_HOG))))
+.if (.def(HD_IDE)) || (.def(HD_MMC_JGH))
 starMOUNTck:
 		jsr	starMOUNT				; Do *MOUNT, then reselect ADFS
 .if TARGETOS = 0
@@ -964,7 +926,7 @@ CommandExecXY:						; L80A2
 ;;
 CommandExecRetryLp:
 		jsr	CommandExecSkStartExec		; Do the specified command
-.if (.def(HD_IDE) || (.def(HD_MMC) && (!(.def(HD_MMC_HOG))))) && (TARGETOS > 0)			; TODO : rationalise
+.if (.def(HD_IDE) || (.def(HD_MMC_JGH) )) && (TARGETOS > 0)			; TODO : rationalise
 		beq	L809Erts			; Exit if ok
 .else
 		beq	L8098rts			; Exit if ok
@@ -1038,18 +1000,16 @@ CommandExecFloppyOp:
 		sta	WKSP_ADFS_2D3_ERR_CODE		; Store
 L8110:		rts
 .endif ; FLOPPY
-.ifdef HD_MMC
+.if .def(HD_MMC_JGH) || .def(HD_MMC_HOG)
 							;Do an MMC data transfer
 							;-----------------------
 		.include	"MMC_Driver.asm"
-.ifndef HD_MMC_HOG
+.endif
+.ifdef HD_MMC_JGH
 ; Include MMC low-level driver and User Port driver
 ; -------------------------------------------------
               .include       "MMC.asm"
               .include       "MMC_UserPort.asm"
-.endif ; NOT HOG
-
-
 .endif
 .ifdef HD_IDE
 	.ifdef HD_IDE_FAST
@@ -1195,7 +1155,7 @@ L8324:		jsr	SCSI_send_byteA			; This code cannot be inlined or JMPed as
 
 ;; Wait until any ensuring completed
 ;; =================================
-.if .def(HD_MMC) || .def(HD_IDE)
+.if .def(HD_MMC_JGH) || .def(HD_MMC_HOG) || .def(HD_IDE)
 WaitEnsuring:						; L8328
 		lda	ZP_ADFS_FLAGS			; Get ADFS status byte
 		and	#(ADFS_FLAGS_ENSURING)^$FF	; Drop 'ensuring' bit
@@ -1224,7 +1184,9 @@ WaitEnsuring:						; L8328
 
 ;; Wait until hard drive ready to respond
 ;; --------------------------------------
-.ifdef HD_MMC
+.ifdef HD_MMC_JGH
+.endif
+.ifdef HD_MMC_HOG
 .endif
 .ifdef HD_IDE
 .proc IDE_WaitforReq
@@ -2634,7 +2596,7 @@ L8B71:		lda	WKSP_ADFS_21E_DSKOPSAV_SECCNT	; Get byte count (in Sector Count)
 		sta	WKSP_ADFS_21E_DSKOPSAV_SECCNT	; Set Sector Count to 1
 		lda	#$08
 		sta	WKSP_ADFS_21A_DSKOPSAV_CMD	; Command &08 - Read
-.ifdef HD_MMC
+.if .def(HD_MMC_JGH) || .def(HD_MMC_HOG)
 		jsr	MMC_BEGIN			; Initialize the card, if not already initialized
 .ifndef HD_MMC_HOG
 		bne	PartError			; Couldn't initialise
@@ -2684,7 +2646,7 @@ L8B81:		lda	WKSP_ADFS_21A_DSKOPSAV_CMD,Y
 		tax
 .endif
 L8B9B:
-.ifdef HD_MMC
+.if .def(HD_MMC_JGH) || .def(HD_MMC_HOG)
 		phx
 		jsr	MMC_StartRead
 .ifndef HD_MMC_HOG
@@ -5074,19 +5036,17 @@ L9A68:		.byte	$00
 ; On exit:  EQ  - hard drive present
 ;	    NE  - no hard drive present
 ;	    A,X,Y allowed to be corrupted
-.ifdef HD_MMC
+.ifdef HD_MMC_HOG
 HD_InitDetectBoot:
 HD_InitDetect:
-.ifdef HD_MMC_HOG
 		lda	#0
 		rts
-.else
+.elseif .def(HD_MMC_JGH)
+HD_InitDetectBoot:
+HD_InitDetect:
 		stz	mmcstate			; mark the mmc system as un-initialized
 		jmp	initializeDriveTable
-.endif
-							;Returns EQ=Ok, NE=not present or no ADFS partitions
-.endif
-.ifdef HD_IDE
+.elseif .def(HD_IDE)
 .if TARGETOS = 0
 HD_InitDetectBoot:
 HD_InitDetect:
@@ -5121,8 +5081,7 @@ DriveNotPresent:
 		.byte	0,0
 .endif ; TAEGETOS = 1
 .endif ; TARGETOS <> 0
-.endif ; .def(HD_IDE)
-.if .def(HD_SCSI) || .def(HD_XDFS)
+.elseif .def(HD_SCSI) || .def(HD_XDFS)
 HD_InitDetectBoot:
 HD_InitDetect:
 		lda	#$5A
@@ -5138,9 +5097,7 @@ L9A75:		sta	SCSI_DATA
 .endif
 		cmp	SCSI_DATA
 L9A7E:		rts
-.endif
-
-.ifdef HD_SCSI2
+.elseif .def(HD_SCSI2)
 HD_InitDetect:
 		sec
 		bcs	HD_InitDetect2
@@ -5602,7 +5559,7 @@ Serv3:
 		bne	_lbbc9B57			; 9B49 D0 0C                    ..
 		jsr	HD_InitDetectBoot		; 9B4B 20 63 9A                  c.
 		beq	L9B74				; 9B4E F0 1E                    ..
-.if (.def(HD_IDE) || .def(HD_MMC)) && (TARGETOS > 0)			; TODO should this not be readbreak for Elk too?
+.if (.def(HD_IDE) || .def(HD_MMC_JGH) || .def(HD_MMC_HOG)) && (TARGETOS > 0)	; TODO should this not be readbreak for Elk too?
 		jsr	ReadBreak
 .else
 		lda	$028D				; 9B50 AD 8D 02                 ...
@@ -6745,10 +6702,10 @@ starDELETE:
 ;; *BYE
 ;; ====
 starBYE:
-.if .def(HD_MMC) && (!.def(HD_MMC_HOG))	; think HOG should do this?
+.if .def(HD_MMC_JGH)	; think HOG should do this?
 		ldx	WKSP_ADFS_317_CURDRV			; Get current drive
 		inx
-		beq	LA102				; No drive selected
+		beq	LA102					; No drive selected
 		jmp	starCLOSE				; Do CLOSE#0
 .else
 .if TARGETOS = 0 && .def(HD_IDE)
@@ -6802,8 +6759,8 @@ LA113:		ldx	#<LA12A
 		sta	WKSP_ADFS_317_CURDRV			; Restore current drive
 		rts
 .endif
-;;
-.if (!(.def(HD_MMC))) || .def(HD_MMC_HOG)
+;;TODO:HOG:remove this safely?
+.if (!(.def(HD_MMC_JGH))) || .def(HD_MMC_HOG)
 LA12A:		.byte	$00				; Result=&00, Ok
 		.word	WKSP_ADFS_900_RND_BUFFER	; Address=&FFFFC900, dummy address
 		.word	$FFFF
@@ -6876,7 +6833,7 @@ starMOUNT:
 		jsr	LA135				; Scan drive number parameter
 LA1A1:		lda	WKSP_ADFS_26F			; Get drive
 		sta	WKSP_ADFS_317_CURDRV		; Set current drive
-.if (!.def(HD_MMC)) || .def(HD_MMC_HOG) ; TODO: prefer JGH - check
+.if (!.def(HD_MMC_JGH)) || .def(HD_MMC_HOG) ; TODO: prefer JGH - check
 		ldx	#<SCSICMD_UNPARK		; Point to 'unpark' control block
 		ldy	#>SCSICMD_UNPARK
 		jsr	CommandExecXY			; Do SCSI command &1B - UnPark
@@ -6902,7 +6859,7 @@ LA1C9:		lda	WKSP_ADFS_31B			; Get library drive
 		jsr	LA189				; Set library name to "Unset"
 LA1DE:		rts
 ;;
-.if (!.def(HD_MMC)) || .def(HD_MMC_HOG) ; REMOVE for HOG
+.if (!.def(HD_MMC_JGH)) || .def(HD_MMC_HOG) ; REMOVE for HOG
 SCSICMD_UNPARK:
 		.byte	$00				; Result=&00, Ok
 		.word	WKSP_ADFS_900_RND_BUFFER	; Address=&FFFFC900, dummy address
@@ -8363,8 +8320,8 @@ LAAD0:		dex
 		jmp	LA98C				; Exit
 .endif
 
-.ifdef HD_MMC
-		.include	"MMC_DriverBGETBPUT.asm"
+.if .def(HD_MMC_JGH) || .def(HD_MMC_HOG)
+		.include "MMC_DriverBGETBPUT.asm"
 .elseif .def(HD_IDE)
 		.include "IDE_DriverBGETBPUT.asm"
 .elseif .def(HD_SCSI) || .def(HD_XDFS)
@@ -8375,7 +8332,8 @@ LAAD0:		dex
 
 LAB03:		jsr	LACE6				; Check checksum
 LAB06:
-.if .def(HD_MMC_HOG) || ((!.def(HD_MMC)) && (!.def(HD_SCSI2)))	; TODO IDE?
+;; TODO:HOG:remove? no IRQ?
+.if .def(HD_MMC_HOG) || ((!.def(HD_MMC_JGH)) && (!.def(HD_SCSI2)))	; TODO IDE?
 		jsr	LABB4				; Check for IRQ flagging data lost
 .endif
 		lda	WKSP_ADFS_204,X
@@ -8429,7 +8387,7 @@ LAB5BJmpGenerateError:
 
 .ifdef HD_IDE
 		.include "IDE_DriverBPUT.asm"
-.elseif .def(HD_MMC)
+.elseif .def(HD_MMC_JGH) || .def(HD_MMC_HOG)
 		.include "MMC_DriverBPUT.asm"
 .elseif .def(HD_SCSI) || .def(HD_XDFS)
 		.include "SCSI_DriverBPUT.asm"
@@ -8439,14 +8397,14 @@ LAB5BJmpGenerateError:
 
 RestoreChanInXrts:
 		ldx	$C1				; Restore X, offset to channel info
-.if .def(HD_MMC) && (!.def(HD_MMC_HOG))
+.if .def(HD_MMC_JGH) 
 Svc5_IRQ:
 .endif
 LAB88:		rts
 
 .ifdef HD_IDE
 		.include "IDE_DriverSvc5.asm"
-.elseif .def(HD_MMC)
+.elseif .def(HD_MMC_JGH) | .def(HD_MMC_HOG)
 		.include "MMC_DriverSvc5.asm"
 .elseif .def(HD_SCSI) || .def(HD_XDFS)
 		.include "SCSI_DriverSvc5.asm"
@@ -8579,7 +8537,7 @@ LACBA:		dec	ZP_ADFS_RETRY_CTDN		; Decrement retries
 
 .ifdef HD_IDE
 		.include "IDE_DriverBGET.asm"
-.elseif .def(HD_MMC)
+.elseif .def(HD_MMC_JGH) || .def(HD_MMC_HOG)
 		.include "MMC_DriverBGET.asm"
 .elseif .def(HD_SCSI) || .def(HD_XDFS)
 		.include "SCSI_DriverBGET.asm"
@@ -10394,7 +10352,7 @@ LBA57:		lda	#$FF
 	.if (* < $BFFF) && (!.def(HD_XDFS))
 		.ORG	$BFFF
 	.endif
-	.ifdef HD_MMC
+	.if .def(HD_MMC_JGH) || .def(HD_MMC_HOG)
 		.byte	$00				; MMC revision 0
 	.endif
 	.ifdef HD_IDE

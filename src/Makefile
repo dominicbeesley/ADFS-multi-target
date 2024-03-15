@@ -100,7 +100,6 @@ compares: all comparedirs \
 	compares/new/elkIDE.da.s \
 	compares/new/elkSCSI.da.s \
 	$(HOGLETORGS)
-	echo $^
 
 comparedirs:
 	-mkdir -p compares
