@@ -1,8 +1,8 @@
 BUILDDIR=build
-
+SCRIPTS=../scripts
 
 AS=ca65
-ASFLAGS=
+ASFLAGS=-g
 LD=ld65
 LDFLAGS=
 DA65=da65
@@ -23,6 +23,7 @@ ROMS=$(addprefix $(BUILDDIR)/, \
 	bbcSCS2.rom \
 	bbcIDEF.rom \
 	)
+DBGSYMS=$(SCRIPTS)/ld65debugsymbols.pl
 
 ##	masBM_XDFS.rom \
 
@@ -48,7 +49,7 @@ $(1)
 
 endef
 
-all:: $(TARGETS)
+all:: $(TARGETS) $(addsuffix .noi, $(basename $(filter %.rom, $(TARGETS))))
 
 
 
@@ -181,16 +182,21 @@ $(BUILDDIR)/elkSCSI.o: adfs.asm $(SCSI_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLO
 
 $(BUILDDIR)/%.o $(BUILDDIR)/%.lst: %.asm 
 		$(AS) $(ASFLAGS) $(ASFLAGS2) -i $< -o $@ -v -l $(basename $@).lst
-		scripts/beebasmlst2sym.pl -r $(ROMNO) <$(basename $@).lst >$(basename $@).noi
 
 
-$(BUILDDIR)/%.rom:$(BUILDDIR)/%.o rom.lnk.cfg
-		$(LD) $(LDFLAGS) -C rom.lnk.cfg -o $@ $(filter %.o, $^)
+$(BUILDDIR)/%.rom $(BUILDDIR)/%.dbg:$(BUILDDIR)/%.o rom.lnk.cfg
+		$(LD) $(LDFLAGS) --dbgfile $(basename $@).dbg -C rom.lnk.cfg -o $@ $(filter %.o, $^)
+		$(SCRIPTS)/ca65lstupdate.pl $(basename $@).dbg $(BUILDDIR)
+
+$(BUILDDIR)/%.noi: $(BUILDDIR)/%.dbg
+		$(DBGSYMS) --romno "1" $< $@
 
 clean::
 	-rm $(BUILDDIR)/*.rom
 	-rm $(BUILDDIR)/*.lst
+	-rm $(BUILDDIR)/*.dbg
 	-rm $(BUILDDIR)/*.noi
+	-rm $(BUILDDIR)/*.o
 	-rm compares/org/*.da.s
 	-rm compares/org/Hoglet15x/*.da.s
 	-rm compares/new/*.da.s
