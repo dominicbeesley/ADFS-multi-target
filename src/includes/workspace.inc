@@ -298,29 +298,32 @@ ZP_ADFS_C2_SAVE_Y		= $C2
 ZP_ADFS_C3_SAVE_X		= $C3
 
 ZP_ADFS_HD_STATUS		= $CC
-ZP_ADFS_CF_CHANNEL_OFFS		= $CF
+ZP_ADFS_CF_CHANNEL_OFFS	= $CF
 
+.if TARGETOS = 0
+	ZP_ELK_CE_NMIPTR	= $CE	; data pointer in NMI routines, temporarily used in NMI routines
+
+	NMI_ELK_RTN_PTR		= $0D10 ; data access routine pointer
+	NMI_ELK_MODE_SAVE 	= $0D12	; save the mode before blanking
+	NMI_ELK_SAVE_CE		= $0D13
+	NMI_ELK_SAVE_CF		= $0D14
+	NMI_ELK_SAVE_CPUFLAGS	= $0D16 ; save the cpu flags before starting NMI
+.endif
 
 ; FS ZP variables
 ;; ZP_ADFS_FLAGS (&CD) ADFS status flag
 ;; --------------------
 ZP_ADFS_FLAGS			= $CD
-;; b7 Tube present
-ADFS_FLAGS_TUBE_PRESENT		= $80
-;; b6 Tube being used
-ADFS_FLAGS_TUBE_INUSE		= $40
-;; b5 Hard Drive present
-ADFS_FLAGS_HD_PRESENT		= $20
-;; b4 FSM in memory inconsistent/being loaded
-ADFS_FLAGS_FSM_INCONSISTENT	= $10
-;; b3 (not documented, unsure)
-ADFS_FLAGS_WTF			= $08
-;; b2 *OPT1 setting
-ADFS_FLAGS_OPT1			= $04
-;; b1 Bad Free Space Map
-ADFS_FLAGS_FSM_BAD		= $02
-;; b0 Files being ensured
-ADFS_FLAGS_ENSURING		= $01
+
+ADFS_FLAGS_TUBE_PRESENT		= $80	; b7 Tube present
+ADFS_FLAGS_TUBE_INUSE		= $40 	; b6 Tube being used
+ADFS_FLAGS_HD_PRESENT		= $20	; b5 Hard Drive present
+ADFS_FLAGS_FSM_INCONSISTENT	= $10	; b4 FSM in memory inconsistent/being loaded
+ADFS_FLAGS_WTF			= $08	; b3 (not documented, unsure)
+ADFS_FLAGS_OPT1			= $04	; b2 *OPT1 setting
+ADFS_FLAGS_FSM_BAD		= $02	; b1 Bad Free Space Map
+ADFS_FLAGS_ENSURING		= $01	; b0 Files being ensured
+
 
 ZP_ADFS_RETRY_CTDN		= $CE
 

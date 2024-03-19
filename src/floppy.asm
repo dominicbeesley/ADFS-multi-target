@@ -77,7 +77,7 @@ LBA63:		sta	WKSP_ADFS_2E0
 		stx	WKSP_ADFS_2E7_STKSAVE
 		pha
 .if TARGETOS=0 && .def(HD_SCSI)
-		jsr	elkLBB20
+		jsr	FloppyElkBeforeNMI
 .endif
 		jsr	FloppyGetStepRate
 		jsr	LBBBE
@@ -91,26 +91,26 @@ LBA63:		sta	WKSP_ADFS_2E0
 		bmi	LBA83
 		lda	$BC
 .if TARGETOS=0 && .def(HD_SCSI)
-		sta	$CE
+		sta	ZP_ELK_CE_NMIPTR
 .else
 		sta	a:$0D00 + NMICODE_WR_OFFS + 1
 .endif
 		lda	$BD
 .if TARGETOS=0 && .def(HD_SCSI)
-		sta	$CF
+		sta	ZP_ELK_CE_NMIPTR+1
 .else
 		sta	a:$0D00 + NMICODE_WR_OFFS + 2	; set write source address
 .endif
 		bne	LBA8D
 LBA83:		lda	$BE
 .if TARGETOS=0 && .def(HD_SCSI)
-		sta	$CE
+		sta	ZP_ELK_CE_NMIPTR
 .else
 		sta	a:$0D00 + NMICODE_RD_OFFS + 1
 .endif
 		lda	$BF
 .if TARGETOS=0 && .def(HD_SCSI)
-		sta	$CF
+		sta	ZP_ELK_CE_NMIPTR+1
 .else
 		sta	a:$0D00 + NMICODE_RD_OFFS + 2	; set read dest address
 .endif
@@ -236,7 +236,7 @@ DoFloppySCSICommand:					; LBB46
 		tsx
 		stx	WKSP_ADFS_2E7_STKSAVE			; Save stack pointer
 .if TARGETOS=0 && .def(HD_SCSI)
-		jsr	elkLBB20
+		jsr	FloppyElkBeforeNMI
 .endif
 		lda	#$10
 		sta	WKSP_ADFS_2E0
@@ -249,7 +249,7 @@ ExecFloppyPartialSectorBuf:		sta	WKSP_ADFS_2E2			; Store where to load partial s
 		tsx
 		stx	WKSP_ADFS_2E7_STKSAVE
 .if TARGETOS=0 && .def(HD_SCSI)
-		jsr	elkLBB20
+		jsr	FloppyElkBeforeNMI
 .endif
 		lda	#>WKSP_ADFS_215_DSKOPSAV_RET			; Point to copy of command block in workspace
 		sta	$B1
@@ -342,11 +342,7 @@ LBBBE:		jsr	LBC01				; Claim NMIs
 		sta	$A1
 		lda	ZP_ADFS_FLAGS
 		sta	NMIVARS_FLAGS_SAVE
-.if TARGETOS=0 && .def(HD_SCSI)
-		jsr	CopyCodeToNMISpace2Elk		; Copy NMI code to NMI space
-.else
 		jsr	CopyCodeToNMISpace		; Copy NMI code to NMI space
-.endif
 		rts					; Don't optimise out to JMP
 
 ; Set disk stepping speed from configuration

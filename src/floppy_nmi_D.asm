@@ -172,7 +172,7 @@ elkLBE4A:	lda	$A2
 .endif
 		inc	$A3
 .if TARGETOS=0 && .def(HD_SCSI)
-		jsr	elkLBAB6
+		jsr	FloppyWaitNMIFinish2elk
 		jmp	elkLBE4A
 .else
 		bne	LBE41
@@ -191,7 +191,7 @@ LBE5C:		lda	$A2
 .endif
 		ora	NMIVARS_FDC_CMD_STEP
 .if TARGETOS=0 && .def(HD_SCSI)
-		jsr	elkLBAB6
+		jsr	FloppyWaitNMIFinish2elk
 .else
 		sta	FDC_CMD				; FDC Status/Command
 .endif
@@ -465,7 +465,7 @@ LBFB6:		rts
 ; ---------------------------------------------------------------
 FloppyErrorA0or2E3:
 .if TARGETOS=0 && .def(HD_SCSI)
-		jsr	elkLBB53
+		jsr	FloppyElkAfterNMI
 .endif
 		ldx	WKSP_ADFS_2E7_STKSAVE
 		txs					; Reset stack

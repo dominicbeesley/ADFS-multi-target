@@ -20,6 +20,7 @@ FDCDS1 				= $02
   TUBEIO =$FCE5		; Tube data port
   TUBEIOSTAT =$FCE4
   FILEBLK=$02E2		; OSFILE control block
+  ULA_CTL=$FE07		; ULA mode/control register
 .elseif TARGETOS=1 || TARGETOS=2
   VERBASE=$130		; BBC B, BBC B+
   HDDBASE=$FC40		; Hard drive controller
