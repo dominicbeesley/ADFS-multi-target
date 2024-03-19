@@ -381,19 +381,19 @@ FloppyGetStepRate:
 		jsr	OSBYTE				; Read ADFS CMOS byte
 		txa
 .if TARGETOS=0 && .def(HD_SCSI)
-		eor 	#$FF
+		eor 	#$FF				; invert options
 		ror 	a
 		ror 	a
 		ror 	a
-		ror 	a
-		pha
+		ror 	a				; ror 4, bit 2=precomp, 0-1=step rate
+		pha			
 		and	#$03
-		tax
+		tax					; X= step rate
 		pla
 		ror	a
 		and	#$02
-		sta	NMIVARS_CMD_PRECOMP
-		stx	WKSP_ADFS_2E8_FDC_CMD_STEP
+		sta	NMIVARS_CMD_PRECOMP		; set pre comp
+		stx	WKSP_ADFS_2E8_FDC_CMD_STEP		; store step rate
 .else
 		pha
 		and	#$20
@@ -403,20 +403,20 @@ FloppyGetStepRate:
 .if TARGETOS<>0 || (!.def(HD_SCSI))
 		beq	LBBF6
 		lda	#$03
-		sta	WKSP_ADFS_2E8_FDC_CMD_STEP			; If FDrive=2,3,6,7 set &C2E8=3
+		sta	WKSP_ADFS_2E8_FDC_CMD_STEP		; If FDrive=2,3,6,7 set &C2E8=3
 LBBF6:		pla
 		and	#CONFIG_BIT_FD_SPEED
 		beq	LBC00
 		lda	#$02				; If FDrive=1,3,5,7 set NMIVARS_CMD_PRECOMP=2
 		sta	NMIVARS_CMD_PRECOMP
-.endif ; ELK SCSI
+.endif ; !ELK SCSI
 LBC00:		rts
 
 ; Claim NMI space
 ; ---------------
 LBC01:
-		lda	#$8F
-		ldx	#$0C
+		lda	#OSBYTE_8F_ISSUE_SERV
+		ldx	#SERVICE_0C_CLAIM_NMI
 		ldy	#$FF
 		jsr	OSBYTE				; Claim NMI space
 		sty	WKSP_ADFS_2E1			; Store previous owner's ID
@@ -425,8 +425,8 @@ LBC01:
 ;; Release NMI space
 ;; -----------------
 LBC0E:		ldy	WKSP_ADFS_2E1			; Get previous owner's ID
-		lda	#$8F
-		ldx	#$0B
+		lda	#OSBYTE_8F_ISSUE_SERV
+		ldx	#SERVICE_0B_RELEASE_NMI
 		jmp	OSBYTE				; Release NMI
 
 
