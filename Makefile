@@ -56,8 +56,7 @@ $(BUILDDIR)/adfsroms.ssd:
 
 HOGLETORGS=$(addsuffix .da.s, $(addprefix compares/org/Hoglet15x/, $(notdir $(filter-out %.md, $(wildcard orgroms/Hoglet15x/*)))))
 
-compares: all comparedirs \
-	compares/org/masIDE.da.s \
+COMPARES=	compares/org/masIDE.da.s \
 	compares/org/masSCSI.da.s \
 	compares/org/bbcIDE.da.s \
 	compares/org/bbcSCSI.da.s \
@@ -79,6 +78,9 @@ compares: all comparedirs \
 	compares/new/elkIDE.da.s \
 	compares/new/elkSCSI.da.s \
 	$(HOGLETORGS)
+
+
+compares: all comparedirs $(COMPARES)
 
 comparedirs:
 	-mkdir -p compares
@@ -133,3 +135,11 @@ compares/new/Hoglet15x/ORIG.da.s:compares/new/masSCSI.da.s
 	cp $< $@
 compares/new/Hoglet15x/IDE.da.s:compares/new/masIDE.da.s
 	cp $< $@
+
+
+clean: $(addprefix clean-, $(ROMNAMES))
+	-rm $(COMPARES)
+	-rm $(BUILDDIR)/adfsroms.ssd
+
+clean-%:
+	make -C src clean ROMNAME=${*}	
