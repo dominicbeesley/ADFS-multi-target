@@ -1,3 +1,5 @@
+		.include "config.inc"
+
 ; Note: this file also contains the service call 5 / IRQ code for this device
 
 ;;

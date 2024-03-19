@@ -1,3 +1,4 @@
+          .include "config.inc"
 
 ;TODO: DB - sort out hard coded addresses and harmonise with adfs.asm style
 

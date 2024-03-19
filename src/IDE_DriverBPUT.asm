@@ -1,3 +1,13 @@
+		.include "config.inc"
+		.include "os.inc"
+		.include "workspace.inc"
+		.include "hardware.inc"
+
+		.export HD_BPUT_WriteSector
+		.export ResultCodes
+
+		.segment "hd_driver_bput"
+
 ; Note: this file also contains the service call 5 / IRQ code for this device
 
 ;;

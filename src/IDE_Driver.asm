@@ -1,3 +1,15 @@
+		.include "config.inc"
+		.include "workspace.inc"
+		.include "os.inc"
+		.include "hardware.inc"
+
+		.export HD_Command
+		.export CommandDone
+		.export SetGeometry
+		.export SetRandom
+		.export SetSector	
+
+		.segment "hd_driver_1"
 ;;
 ;; Hard drive hardware is present. Check what drive is being accessed.
 ;;
@@ -11,7 +23,9 @@ HD_Command:
               ldy    #$00
               nop
 
-              .include "TubeCheckAddrAndClaim.asm"
+;;; TubeCheckAddrAndClaim must be linked in here
+
+		.segment "hd_driver_2"
 
 ; Do a data transfer to/from a hard drive device
 ; ----------------------------------------------
@@ -132,9 +146,10 @@ TubeRead:
 .endif ; TARGETOS > 0
 
 L81AD:							; Aligned to L81AD
-.if L81AD<>$81AD
-		.warning "L81AD/CommandDone must be anchored at &81AD " + .string(L81AD)
-.endif
+;;;TODO:OBJ: POST CHECK
+;;;.if L81AD<>$81AD
+;;;		.warning "L81AD/CommandDone must be anchored at &81AD " + .string(L81AD)
+;;;.endif
 CommandDone:
 		jsr	IDE_GetResult			; Get IDE result
 CommandExit:
@@ -201,7 +216,9 @@ SetGeometry:
 		bne	IDE_SetCmd				; 4 heads per cylinder
 
 
-		.include	"TubeStartXfer.asm"
+;;;  TubeStartXfer must be linked in here
+
+		.segment "hd_driver_3"
 
 .if TARGETOS > 0
 TubeAction:

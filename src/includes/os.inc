@@ -1,0 +1,33 @@
+	.include "config.inc"
+
+.ifndef __OS_INC__
+__OS_INC__:
+
+NMI=$0D00
+
+;; MOS ZP regs
+ZP_MOS_CURROM		= $F4
+ZP_MOS_ESCFLAG 		= $FF
+
+;; OS CALLS
+OSBYTE			= $FFF4
+OSCLI			= $FFF7
+OSNEWL			= $FFE7
+OSWRCH			= $FFEE
+OSASCI			= $FFE3
+OSARGS			= $FFDA
+
+OSBYTE_77_CLOSE		= $77
+OSBYTE_8F_ISSUE_SERV	= $8F
+OSBYTE_A1_READ_CMOS	= $A1
+OSBYTE_FF_RW_STARTOPT	= $FF
+CMOS_ADFS		= $0B
+
+.if TARGETOS > 1
+CONFIG_BIT_FD_SPEED	= $01
+.else
+CONFIG_BIT_FD_SPEED	= $10
+.endif
+
+
+.endif

@@ -1,3 +1,14 @@
+		.include "config.inc"
+		.include "os.inc"
+		.include "workspace.inc"
+		.include "hardware.inc"
+
+		.export Svc5_IRQ
+		.export LABB4
+		.export UpdateDrive
+
+		.segment "hd_driver_svc5"
+
 ;;
 ;; Service 5 - Interupt occured
 ;; ============================

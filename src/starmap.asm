@@ -1,3 +1,14 @@
+		.include "config.inc"
+		.include "os.inc"
+		.include "workspace.inc"
+		.include "hardware.inc"
+
+		.export starMAP
+
+		.segment "starMAP"
+
+
+
 ; separated into own file as ELK/SCSI includes this in a different place
 
 starMAP:	jsr	L92A8

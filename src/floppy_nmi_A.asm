@@ -1,3 +1,20 @@
+		.include "config.inc"
+		.include "os.inc"
+		.include "workspace.inc"
+		.include "hardware.inc"
+		.include "nmivars.inc"
+
+		.export FloppyRestTrk0
+		.export FloppySetSide1
+		.export LBD1E
+		.export LBD24
+		.export LBD46
+		.export LBD4B
+		.export LBD50
+
+		.segment "floppy_nmi_A"
+
+
 LBD1E:		bit	$A1
 		bmi	LBD2F
 		lda	$A3

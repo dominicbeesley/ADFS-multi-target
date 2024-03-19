@@ -2,27 +2,26 @@ BUILDDIR=build
 SCRIPTS=../scripts
 
 AS=ca65
-ASFLAGS=-g
+ASFLAGS=-g --relax-checks --auto-import
 LD=ld65
 LDFLAGS=
 DA65=da65
-ROMS=$(addprefix $(BUILDDIR)/, \
-	masIDE.rom \
-	masMMC_hog_SD.rom \
-	masMMC_hog_SDT.rom \
-	masMMC_hog_SD2.rom \
-	masMMC_hog_SD2T.rom \
-	masMMC_hog_SD3.rom \
-	masMMC_hog_SD3T.rom \
-	masSCSI.rom \
-	bbcSCSI.rom \
-	bbcSCSI_AH.rom \
-	bbcIDE.rom \
-	elkIDE.rom \
-	elkSCSI.rom \
-	bbcSCS2.rom \
-	bbcIDEF.rom \
-	)
+ROMNAMES= 	masIDE \
+		masMMC_hog_SD \
+		masMMC_hog_SDT \
+		masMMC_hog_SD2 \
+		masMMC_hog_SD2T \
+		masMMC_hog_SD3 \
+		masMMC_hog_SD3T \
+		masSCSI \
+		bbcSCSI \
+		bbcSCSI_AH \
+		bbcIDE \
+		elkIDE \
+		elkSCSI \
+		bbcSCS2 \
+		bbcIDEF
+ROMS=$(addsuffix .rom, $(addprefix $(BUILDDIR)/, $(ROMNAMES)))
 DBGSYMS=$(SCRIPTS)/ld65debugsymbols.pl
 
 ##	masBM_XDFS.rom \
@@ -32,15 +31,15 @@ TARGETS = $(BUILDDIR)/ $(ROMS) $(BUILDDIR)/adfsroms.ssd
 # this is used when generating symbols
 ROMNO=D
 
-IDE_DRIVERS=	IDE_Driver.asm IDE_DriverBGET.asm IDE_DriverBPUT.asm IDE_DriverBGETBPUT.asm IDE_DriverSvc5.asm
-IDE_DRIVERS_F=	IDE_Driver_Fast.asm IDE_DriverBGET.asm IDE_DriverBPUT.asm IDE_DriverBGETBPUT.asm IDE_DriverSvc5.asm
-SCSI_DRIVERS=	SCSI_Driver.asm SCSI_DriverBGET.asm SCSI_DriverBPUT.asm SCSI_DriverBGETBPUT.asm SCSI_DriverSvc5.asm
-SCSI2_DRIVERS=	SCSI2_Driver.asm SCSI2_DriverBGET.asm SCSI2_DriverBPUT.asm SCSI2_DriverBGETBPUT.asm SCSI2_DriverSvc5.asm
-MMC_DRIVERS=	MMC_Driver.asm MMC_DriverBGET.asm MMC_DriverBPUT.asm MMC.asm MMC_UserPort.asm MMC_DriverBGETBPUT.asm MMC_DriverSvc5.asm
-STARMAP=	starmap.asm
-FLOPPY_DRIVERS= floppy.asm floppy_nmi_A.asm floppy_nmi_B.asm floppy_nmi_C.asm floppy_nmi_D.asm
+IDE_DRIVERS=	IDE_Driver IDE_DriverBGET IDE_DriverBPUT IDE_DriverBGETBPUT IDE_DriverSvc5
+IDE_DRIVERS_F=	IDE_Driver_Fast IDE_DriverBGET IDE_DriverBPUT IDE_DriverBGETBPUT IDE_DriverSvc5
+SCSI_DRIVERS=	SCSI_Driver SCSI_DriverBGET SCSI_DriverBPUT SCSI_DriverBGETBPUT SCSI_DriverSvc5
+SCSI2_DRIVERS=	SCSI2_Driver SCSI2_DriverBGET SCSI2_DriverBPUT SCSI2_DriverBGETBPUT SCSI2_DriverSvc5
+MMC_DRIVERS=	MMC_Driver MMC_DriverBGET MMC_DriverBPUT MMC MMC_UserPort MMC_DriverBGETBPUT MMC_DriverSvc5
+STARMAP=		starmap
+FLOPPY_DRIVERS= floppy floppy_nmi_A floppy_nmi_B floppy_nmi_C floppy_nmi_D
+TUBE_DRIVERS=	TubeCheckAddrAndClaim TubeStartXfer
 
-TUBE_DRIVERS=	TubeCheckAddrAndClaim.asm TubeStartXfer.asm
 .PHONY: all compares comparedirs
 
 
@@ -48,6 +47,10 @@ define exec
 $(1)
 
 endef
+
+SS:=	$(shell mkdir -p $(BUILDDIR))
+SS2:=	$(shell mkdir -p $(addprefix $(BUILDDIR)/, $(ROMNAMES)))
+
 
 all:: $(TARGETS) $(addsuffix .noi, $(basename $(filter %.rom, $(TARGETS))))
 
@@ -109,8 +112,6 @@ comparedirs:
 	-mkdir -p compares/new
 	-mkdir -p compares/new/Hoglet15x
 
-$(BUILDDIR)/:
-	-mkdir -p $(BUILDDIR)
 
 compares/org/Hoglet15x/%.da.s: orgroms/Hoglet15x/%
 	$(DA65)  --cpu 65c02 --comments 4 --start-addr 0x8000 $< >$@
@@ -161,35 +162,55 @@ compares/new/Hoglet15x/IDE.da.s:compares/new/masIDE.da.s
 
 
 
-$(BUILDDIR)/masIDE.o: adfs.asm $(IDE_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
-$(BUILDDIR)/masSCSI.o: adfs.asm $(SCSI_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
-$(BUILDDIR)/masMMC_hog_SD.o: adfs.asm $(MMC_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) 
-$(BUILDDIR)/masMMC_hog_SDT.o: adfs.asm $(MMC_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) 
-$(BUILDDIR)/masMMC_hog_SD2.o: adfs.asm $(MMC_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) 
-$(BUILDDIR)/masMMC_hog_SD2T.o: adfs.asm $(MMC_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) 
-$(BUILDDIR)/masMMC_hog_SD3.o: adfs.asm $(MMC_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) 
-$(BUILDDIR)/masMMC_hog_SD3T.o: adfs.asm $(MMC_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) 
-$(BUILDDIR)/masBM_XDFS.o: adfs.asm $(SCSI_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
-$(BUILDDIR)/bbcIDE.o: adfs.asm $(IDE_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
-$(BUILDDIR)/bbcIDEF.o: adfs.asm $(IDE_DRIVERS_F) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
-$(BUILDDIR)/bbcSCSI.o: adfs.asm $(SCSI_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
-$(BUILDDIR)/bbcSCSI_AH.o: adfs.asm $(SCSI_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
-$(BUILDDIR)/bbcSCS2.o: adfs.asm $(SCSI2_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
-$(BUILDDIR)/elkIDE.o: adfs.asm $(IDE_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
-$(BUILDDIR)/elkSCSI.o: adfs.asm $(SCSI_DRIVERS) $(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
+$(BUILDDIR)/masIDE.rom: $(addsuffix .o, $(addprefix $(BUILDDIR)/masIDE/, adfs 	\
+	$(IDE_DRIVERS) 		$(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)))
+$(BUILDDIR)/masSCSI.rom: $(addsuffix .o, $(addprefix $(BUILDDIR)/masSCSI/, adfs.o \
+    $(SCSI_DRIVERS) 	$(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)))
+$(BUILDDIR)/masMMC_hog_SD.rom: $(addsuffix .o, $(addprefix $(BUILDDIR)/masMMC_hog_SD/, adfs.o \
+	$(MMC_DRIVERS) 		$(TUBE_DRIVERS) $(STARMAP) ))
+$(BUILDDIR)/masMMC_hog_SDT.rom: $(addsuffix .o, $(addprefix $(BUILDDIR)/masMMC_hog_SDT/, adfs.o \
+	$(MMC_DRIVERS) 		$(TUBE_DRIVERS) $(STARMAP) ))
+$(BUILDDIR)/masMMC_hog_SD2.rom: $(addsuffix .o, $(addprefix $(BUILDDIR)/masMMC_hog_SD2/, adfs.o \
+	$(MMC_DRIVERS) 		$(TUBE_DRIVERS) $(STARMAP) ))
+$(BUILDDIR)/masMMC_hog_SD2T.rom: $(addsuffix .o, $(addprefix $(BUILDDIR)/masMMC_hog_SD2T/, adfs.o \
+	$(MMC_DRIVERS) 		$(TUBE_DRIVERS) $(STARMAP) ))
+$(BUILDDIR)/masMMC_hog_SD3.rom: $(addsuffix .o, $(addprefix $(BUILDDIR)/masMMC_hog_SD3/, adfs.o \
+	$(MMC_DRIVERS) 		$(TUBE_DRIVERS) $(STARMAP) ))
+$(BUILDDIR)/masMMC_hog_SD3T.rom: $(addsuffix .o, $(addprefix $(BUILDDIR)/masMMC_hog_SD3T/, adfs.o \
+	$(MMC_DRIVERS) 		$(TUBE_DRIVERS) $(STARMAP) ))
+$(BUILDDIR)/masBM_XDFS.rom: $(addsuffix .o, $(addprefix $(BUILDDIR)/masBM_XDFS/, adfs.o \
+	$(SCSI_DRIVERS) 	$(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)))
+$(BUILDDIR)/bbcIDE.rom: $(addsuffix .o, $(addprefix $(BUILDDIR)/bbcIDE/, adfs.o \
+	$(IDE_DRIVERS) 		$(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)))
+$(BUILDDIR)/bbcIDEF.rom: $(addsuffix .o, $(addprefix $(BUILDDIR)/bbcIDEF/, adfs.o \
+	$(IDE_DRIVERS_F) 	$(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)))
+$(BUILDDIR)/bbcSCSI.rom: $(addsuffix .o, $(addprefix $(BUILDDIR)/bbcSCSI/, adfs.o \
+	$(SCSI_DRIVERS) 	$(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)))
+$(BUILDDIR)/bbcSCSI_AH.rom: $(addsuffix .o, $(addprefix $(BUILDDIR)/bbcSCSI_AH/, adfs.o \
+	$(SCSI_DRIVERS) 	$(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)))
+$(BUILDDIR)/bbcSCS2.rom: $(addsuffix .o, $(addprefix $(BUILDDIR)/bbcSCS2/, adfs.o \
+	$(SCSI2_DRIVERS) 	$(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)))
+$(BUILDDIR)/elkIDE.rom: $(addsuffix .o, $(addprefix $(BUILDDIR)/elkIDE/, adfs.o \
+	$(IDE_DRIVERS) 		$(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)))
+$(BUILDDIR)/elkSCSI.rom: $(addsuffix .o, $(addprefix $(BUILDDIR)/elkSCSI/, adfs.o \
+	$(SCSI_DRIVERS) 	$(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)))
 
 
+.PRECIOUS: $(addsuffix /config.inc, $(addprefix $(BUILDDIR)/, $(ROMNAMES)))
 
-$(BUILDDIR)/%.o $(BUILDDIR)/%.lst: %.asm 
-		$(AS) $(ASFLAGS) $(ASFLAGS2) -i $< -o $@ -v -l $(basename $@).lst
+$(BUILDDIR)/%/config.inc: configs/%.inc
+	cp $< $@
+
+$(BUILDDIR)/masIDE/%.o $(BUILDDIR)/masIDE/%.lst: %.asm $(BUILDDIR)/masIDE/config.inc
+	$(AS) $(ASFLAGS) $(ASFLAGS2) -I $(BUILDDIR)/masIDE -I includes $< -o $@ -v -l $(basename $@).lst
 
 
-$(BUILDDIR)/%.rom $(BUILDDIR)/%.dbg:$(BUILDDIR)/%.o rom.lnk.cfg
-		$(LD) $(LDFLAGS) --dbgfile $(basename $@).dbg -C rom.lnk.cfg -o $@ $(filter %.o, $^)
-		$(SCRIPTS)/ca65lstupdate.pl $(basename $@).dbg $(BUILDDIR)
+$(BUILDDIR)/masIDE.rom $(BUILDDIR)/masIDE.dbg: rom.lnk.cfg
+	$(LD) $(LDFLAGS) --dbgfile $(basename $@).dbg -C rom.lnk.cfg -o $@ $(filter %.o, $^)
+	$(SCRIPTS)/ca65lstupdate.pl $(basename $@).dbg $(BUILDDIR)/masIDE
 
 $(BUILDDIR)/%.noi: $(BUILDDIR)/%.dbg
-		$(DBGSYMS) --romno "1" $< $@
+	$(DBGSYMS) --romno "1" $< $@
 
 clean::
 	-rm $(BUILDDIR)/*.rom

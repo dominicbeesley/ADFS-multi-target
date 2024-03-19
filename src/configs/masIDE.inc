@@ -1,3 +1,6 @@
+.ifndef __CONFIG_INC__
+__CONFIG_INC__:
+
 ; Build file for Master ADFS with IDE drivers
 ; -------------------------------------------
 
@@ -11,6 +14,7 @@ UNSUPPORTED_OSFILE:=	1	; Unknown OSFILE returns A preserved
 PRESERVE_CONTEXT	:=	1	; Ctrl-Break doesn't lose context
 EXTERNAL		:=	1	; External support
 ;
-USE65C12		:=	1	; use 65c12 opcodes
+USE65C12 	:= 1
+		.pc02		; USE65C12
 
-.include "adfs.asm"
+.endif

@@ -1,3 +1,5 @@
+		.include "config.inc"
+
 ;;
 ;; BGET from hard drive
 ;; --------------------

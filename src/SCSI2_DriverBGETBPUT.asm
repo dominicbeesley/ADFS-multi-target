@@ -1,3 +1,5 @@
+		.include "config.inc"
+
 .proc HD_CommandBGETBPUTsector
 
 		;TODO: check assumptions:

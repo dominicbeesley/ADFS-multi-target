@@ -1,3 +1,5 @@
+		.include "config.inc"
+
 HD_BPUT_WriteSector:
 
 ; setup data address frmo &BE

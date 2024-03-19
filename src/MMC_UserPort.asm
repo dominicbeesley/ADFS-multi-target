@@ -1,3 +1,5 @@
+        .include "config.inc"
+
 ;; ADFS MMC Card Driver
 ;; (C) 2015 David Banks
 ;; Based on code from MMFS ROM by Martin Mather

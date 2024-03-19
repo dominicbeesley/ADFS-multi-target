@@ -1,3 +1,25 @@
+		.include "config.inc"
+		.include "os.inc"
+		.include "workspace.inc"
+		.include "hardware.inc"
+		.include "nmivars.inc"
+
+		.export DoFloppySCSICommand
+		.export DoFloppySCSICommandIND
+		.export ExecFloppyReadBPUTSector
+		.export ExecFloppyReadBPUTSectorIND
+		.export ExecFloppyPartialSectorBuf
+		.export ExecFloppyPartialSectorBufIND
+		.export ExecFloppyWriteBPUTSectorIND
+
+		.export LBA57
+		.export LBAFA
+		.export LBB3B
+		.export LBC0E
+
+
+		.segment "floppy"
+
 ;; ACCESS FLOPPY CONTROLLER
 ;; ========================
 
@@ -409,23 +431,13 @@ LBC0E:		ldy	WKSP_ADFS_2E1			; Get previous owner's ID
 		jmp	OSBYTE				; Release NMI
 
 
-NMIVARS_CMD_PRECOMP		= $0D56			; bit 2 set if precomp
-NMIVARS_TRACK_COUNT		= $0D57
-NMIVARS_SECTOR_COUNT		= $0D58			; sector count?
-NMIVARS_SECTOR			= $0D59			; sector number?
-NMIVARS_SECTORS_THIS_TRACK	= $0D5A
-NMIVARS_FDC_CMD_STEP		= $0D5C			; bits 0/1 set to step rate
-NMIVARS_FLAGS_SAVE 		= $0D5D			; ZP_ADFS_FLAGS is put here before an NMI transfer
-NMIVARS_SIDE			= $0D5E			; side of disk
-NMIVAR_WTF			= $0D5F			; gets set but not read?
 
-
-.if TARGETOS=0 && .def(HD_SCSI)
-		.include "floppy_nmi_A.asm"
-		.include "floppy_nmi_D.asm"
-.else
-		.include "floppy_nmi_B.asm"
-		.include "floppy_nmi_A.asm"
-		.include "floppy_nmi_C.asm"
-		.include "floppy_nmi_D.asm"
-.endif
+;;.if TARGETOS=0 && .def(HD_SCSI)
+;;		.include "floppy_nmi_A.asm"
+;;		.include "floppy_nmi_D.asm"
+;;.else
+;;		.include "floppy_nmi_B.asm"
+;;		.include "floppy_nmi_A.asm"
+;;		.include "floppy_nmi_C.asm"
+;;		.include "floppy_nmi_D.asm"
+;;.endif

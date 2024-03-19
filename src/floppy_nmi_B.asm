@@ -1,3 +1,18 @@
+		.include "config.inc"
+		.include "os.inc"
+		.include "workspace.inc"
+		.include "hardware.inc"
+		.include "nmivars.inc"
+
+		.export CopyCodeToNMISpace
+		.export FloppyWaitNMIFinish
+
+		.export NMICODE_WR_OFFS
+		.export NMICODE_RD_OFFS
+
+
+		.segment "floppy_nmi_B"
+
 ;;
 ;; Copy NMI code to NMI space
 ;; --------------------------

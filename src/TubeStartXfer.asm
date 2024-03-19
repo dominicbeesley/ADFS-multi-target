@@ -1,3 +1,12 @@
+		.include "config.inc"
+
+
+		.export TubeDelay
+		.export TubeDelay2
+		.export TubeStartXfer406
+
+		.segment "tube_start_xfer"
+
 ; Start a Tube transfer
 ; ---------------------
 TubeStartXferSEI_406:

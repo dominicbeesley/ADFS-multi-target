@@ -1,3 +1,20 @@
+		.include "config.inc"
+		.include "os.inc"
+		.include "workspace.inc"
+		.include "hardware.inc"
+		.include "nmivars.inc"
+
+		.export bne_FloppyErrorA0or2E3
+		.export FloppyErrorA0or2E3
+		.export LBD6E
+		.export LBDBA
+		.export LBE77
+		.export LBF0A
+		.export LBF6F
+		.export XA_DIV16_TO_YA
+
+		.segment "floppy_nmi_D"
+
 ;;
 LBD6E:		lda	WKSP_ADFS_2E2
 .if TARGETOS=0 && .def(HD_SCSI)

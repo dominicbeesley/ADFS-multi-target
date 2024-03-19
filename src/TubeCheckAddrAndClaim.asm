@@ -1,4 +1,6 @@
+                .include "config.inc"
 
+                .segment "tube_claim"
 
 ; Check transfer address for Tube or I/O transfer
 ; -----------------------------------------------

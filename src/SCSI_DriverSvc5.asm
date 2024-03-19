@@ -1,3 +1,5 @@
+		.include "config.inc"
+
 
 ;;
 ;; Service 5 - Interupt occured

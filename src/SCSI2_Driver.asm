@@ -1,3 +1,5 @@
+		.include "config.inc"
+
 
 ZP_ADFS_SCSI2_PHASE		=	$CC			;; store the current scsi 2 phase
 

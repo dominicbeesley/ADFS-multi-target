@@ -1,4 +1,21 @@
 
+		.include "config.inc"
+		.include "os.inc"
+		.include "workspace.inc"
+		.include "hardware.inc"
+
+		.export WaitEnsuring
+		.export WaitForData
+		.export CommandExecFloppyOp
+		.export GenerateErrorSuffX
+		.export L92A8
+		.export L9322
+		.export LA03A
+		.export LA091
+		.export LABE6
+		.export TUBE_CLAIM_IF_PRESENT
+		.export TubeRelease
+		.export IDE_WaitforReq
 ;; TODO:
 ; - version string etc for FAST IDE
 
@@ -68,524 +85,6 @@ OSWORD_BASE=$70
 		.error	"Cannot build for multiple device drivers or no HD_xx"
 .endif
 
-NMI=$0D00
-
-;; MOS ZP regs
-ZP_MOS_CURROM		= $F4
-ZP_MOS_ESCFLAG 		= $FF
-
-;; OS CALLS
-OSBYTE			= $FFF4
-OSCLI			= $FFF7
-OSNEWL			= $FFE7
-OSWRCH			= $FFEE
-OSASCI			= $FFE3
-OSARGS			= $FFDA
-
-OSBYTE_77_CLOSE		= $77
-OSBYTE_8F_ISSUE_SERV	= $8F
-OSBYTE_A1_READ_CMOS	= $A1
-OSBYTE_FF_RW_STARTOPT	= $FF
-CMOS_ADFS		= $0B
-
-.if TARGETOS > 1
-CONFIG_BIT_FD_SPEED	= $01
-.else
-CONFIG_BIT_FD_SPEED	= $10
-.endif
-
-.if TARGETOS > 1 || .def(AUTOHAZEL)
-WKSP_BASE			= $C000
-.else
-WKSP_BASE			= $0E00
-.endif
-
-;;	 Workspace
-;;	 =========
-;;E00	 C000-FF Free Space Map sector 0
-;;F00	 C100-FF Free Space Map sector 1
-;;1000	 C200-FF Workspace
-;;1100	 C300-FF Workspace
-;;1200	 C400-FF Directory buffer
-;;1300	 C500-FF Directory buffer
-;;1400	 C600-FF Directory buffer
-;;1500	 C700-FF Directory buffer
-;;1600	 C800-FF Directory buffer
-;;1700	 C900-FF Random access buffer 1 - also *CDIR buffer
-;;1800	 CA00-FF Random access buffer 2
-;;1900	 CB00-FF Random access buffer 3
-;;2000	 CC00-FF Random access buffer 4
-;;2100	 CD00-FF Random access buffer 5
-;;
-;;	 C200-14
-;;	 C215-23 Disk access control block
-;;	 C224-27
-;;	 C228-2B
-;;	 C22C-2F Current Selected Directory?
-;;	 C230-33
-;;	 C234-37 Current object sector
-;;	 C238-3F
-;;	 C240-51 Control block for commands translated to OSFILE calls
-;;	 C262-6B Current object name
-;;
-;;	 C300-09 Current directory name
-;;	 C30A-13 Current library name
-;;	 C314-17 Current directory sector
-;;	 C318-1B Library directory sector
-;;	 C31C-1F Previous directory sector
-;;	  byte 0/1/2 = sector
-;;	  byte 3     = drive*32, &FF=unset
-;;	 C320 - saved FLAGS
-WKSP_ADFS_000_FSM_S0		= WKSP_BASE + $0000
-WKSP_ADFS_100_FSM_S1		= WKSP_BASE + $0100
-WKSP_ADFS_200			= WKSP_BASE + $0200
-WKSP_ADFS_227_TUBE_XFER		= WKSP_BASE + $0227
-WKSP_ADFS_22B			= WKSP_BASE + $022B
-WKSP_ADFS_22C_CSD		= WKSP_BASE + $022C
-WKSP_ADFS_237			= WKSP_BASE + $0237
-WKSP_ADFS_300_CSDNAME		= WKSP_BASE + $0300
-WKSP_ADFS_30A_LIBNAME		= WKSP_BASE + $030A
-
-WKSP_ADFS_320_FLAGS_SAVE	= WKSP_BASE + $0320
-WKSP_ADFS_400_DIR_BUFFER	= WKSP_BASE + $0400
-WKSP_ADFS_405_DIR_START		= WKSP_ADFS_400_DIR_BUFFER + $05
-WKSP_ADFS_409			= WKSP_ADFS_400_DIR_BUFFER + $09
-WKSP_ADFS_500_DIR_BUFFER	= WKSP_BASE + $0500
-WKSP_ADFS_600_DIR_BUFFER	= WKSP_BASE + $0600
-WKSP_ADFS_700_DIR_BUFFER	= WKSP_BASE + $0700
-WKSP_ADFS_800_DIR_BUFFER	= WKSP_BASE + $0800
-WKSP_ADFS_800_DIR_C0		= WKSP_ADFS_800_DIR_BUFFER + $C0
-WKSP_ADFS_800_DIR_D9		= WKSP_ADFS_800_DIR_BUFFER + $D9
-WKSP_ADFS_900_RND_BUFFER	= WKSP_BASE + $0900
-WKSP_ADFS_A00_RND_BUFFER	= WKSP_BASE + $0A00
-WKSP_ADFS_B00_RND_BUFFER	= WKSP_BASE + $0B00
-WKSP_ADFS_C00_RND_BUFFER	= WKSP_BASE + $0C00
-WKSP_ADFS_D00_RND_BUFFER	= WKSP_BASE + $0D00
-WKSP_ADFS_E00_END		= WKSP_BASE + $0E00
-
-WKSP_ADFS_201			= WKSP_BASE + $0201
-WKSP_ADFS_202			= WKSP_BASE + $0202
-WKSP_ADFS_203			= WKSP_BASE + $0203
-WKSP_ADFS_204			= WKSP_BASE + $0204
-WKSP_ADFS_208			= WKSP_BASE + $0208
-WKSP_ADFS_20C			= WKSP_BASE + $020C
-WKSP_ADFS_20D			= WKSP_BASE + $020D
-WKSP_ADFS_20E			= WKSP_BASE + $020E
-WKSP_ADFS_210			= WKSP_BASE + $0210
-WKSP_ADFS_211			= WKSP_BASE + $0211
-WKSP_ADFS_214			= WKSP_BASE + $0214
-WKSP_ADFS_215_DSKOPSAV_RET	= WKSP_BASE + $0215
-WKSP_ADFS_216_DSKOPSAV_MEMADDR	= WKSP_BASE + $0216
-WKSP_ADFS_21A_DSKOPSAV_CMD	= WKSP_BASE + $021A
-WKSP_ADFS_21B_DSKOPSAV_SEC	= WKSP_BASE + $021B				; big endian!
-WKSP_ADFS_21E_DSKOPSAV_SECCNT	= WKSP_BASE + $021E
-WKSP_ADFS_21F_DSKOPSAV_CTL	= WKSP_BASE + $021F
-WKSP_ADFS_220_DSKOPSAV_XLEN	= WKSP_BASE + $0220				; little endian!
-WKSP_ADFS_224			= WKSP_BASE + $0224
-WKSP_ADFS_228			= WKSP_BASE + $0228
-WKSP_ADFS_229			= WKSP_BASE + $0229
-WKSP_ADFS_22A			= WKSP_BASE + $022A
-WKSP_ADFS_22D			= WKSP_BASE + $022D
-WKSP_ADFS_22E			= WKSP_BASE + $022E
-WKSP_ADFS_22F			= WKSP_BASE + $022F
-WKSP_ADFS_230			= WKSP_BASE + $0230
-WKSP_ADFS_233			= WKSP_BASE + $0233
-WKSP_ADFS_234			= WKSP_BASE + $0234
-WKSP_ADFS_235			= WKSP_BASE + $0235
-WKSP_ADFS_236			= WKSP_BASE + $0236
-WKSP_ADFS_238			= WKSP_BASE + $0238
-WKSP_ADFS_23A			= WKSP_BASE + $023A
-WKSP_ADFS_23B			= WKSP_BASE + $023B
-WKSP_ADFS_23C			= WKSP_BASE + $023C
-WKSP_ADFS_23D			= WKSP_BASE + $023D
-WKSP_ADFS_23E			= WKSP_BASE + $023E
-WKSP_ADFS_23F			= WKSP_BASE + $023F
-WKSP_ADFS_240			= WKSP_BASE + $0240
-WKSP_ADFS_241			= WKSP_BASE + $0241
-WKSP_ADFS_242			= WKSP_BASE + $0242
-WKSP_ADFS_243			= WKSP_BASE + $0243
-WKSP_ADFS_246			= WKSP_BASE + $0246
-WKSP_ADFS_247			= WKSP_BASE + $0247
-WKSP_ADFS_248			= WKSP_BASE + $0248
-WKSP_ADFS_249			= WKSP_BASE + $0249
-WKSP_ADFS_24A			= WKSP_BASE + $024A
-WKSP_ADFS_24B			= WKSP_BASE + $024B
-WKSP_ADFS_24C			= WKSP_BASE + $024C
-WKSP_ADFS_24D			= WKSP_BASE + $024D
-WKSP_ADFS_24F			= WKSP_BASE + $024F
-WKSP_ADFS_250			= WKSP_BASE + $0250
-WKSP_ADFS_252			= WKSP_BASE + $0252
-WKSP_ADFS_253			= WKSP_BASE + $0253
-WKSP_ADFS_254			= WKSP_BASE + $0254
-WKSP_ADFS_25D			= WKSP_BASE + $025D
-WKSP_ADFS_25E			= WKSP_BASE + $025E
-WKSP_ADFS_25F			= WKSP_BASE + $025F
-WKSP_ADFS_260			= WKSP_BASE + $0260
-WKSP_ADFS_261			= WKSP_BASE + $0261
-WKSP_ADFS_262			= WKSP_BASE + $0262
-WKSP_ADFS_263			= WKSP_BASE + $0263
-WKSP_ADFS_26C			= WKSP_BASE + $026C
-WKSP_ADFS_26F			= WKSP_BASE + $026F
-WKSP_ADFS_270			= WKSP_BASE + $0270
-WKSP_ADFS_273			= WKSP_BASE + $0273
-WKSP_ADFS_274			= WKSP_BASE + $0274
-WKSP_ADFS_27E			= WKSP_BASE + $027E
-WKSP_ADFS_27F			= WKSP_BASE + $027F
-WKSP_ADFS_280			= WKSP_BASE + $0280
-WKSP_ADFS_289			= WKSP_BASE + $0289
-WKSP_ADFS_28C			= WKSP_BASE + $028C
-WKSP_ADFS_28D			= WKSP_BASE + $028D
-WKSP_ADFS_291			= WKSP_BASE + $0291
-WKSP_ADFS_292			= WKSP_BASE + $0292
-WKSP_ADFS_293			= WKSP_BASE + $0293
-WKSP_ADFS_294			= WKSP_BASE + $0294
-WKSP_ADFS_295			= WKSP_BASE + $0295
-WKSP_ADFS_296			= WKSP_BASE + $0296
-WKSP_ADFS_297			= WKSP_BASE + $0297
-WKSP_ADFS_298			= WKSP_BASE + $0298
-WKSP_ADFS_29A			= WKSP_BASE + $029A
-WKSP_ADFS_29B			= WKSP_BASE + $029B
-WKSP_ADFS_29C			= WKSP_BASE + $029C
-WKSP_ADFS_29D			= WKSP_BASE + $029D
-WKSP_ADFS_29E			= WKSP_BASE + $029E
-WKSP_ADFS_29F			= WKSP_BASE + $029F
-WKSP_ADFS_2A0			= WKSP_BASE + $02A0
-WKSP_ADFS_2A1			= WKSP_BASE + $02A1
-WKSP_ADFS_2A2			= WKSP_BASE + $02A2
-WKSP_ADFS_2A3			= WKSP_BASE + $02A3
-WKSP_ADFS_2A4			= WKSP_BASE + $02A4
-WKSP_ADFS_2A5			= WKSP_BASE + $02A5
-WKSP_ADFS_2A6			= WKSP_BASE + $02A6
-WKSP_ADFS_2A7			= WKSP_BASE + $02A7
-WKSP_ADFS_2A8			= WKSP_BASE + $02A8
-WKSP_ADFS_2A9			= WKSP_BASE + $02A9
-WKSP_ADFS_2AA			= WKSP_BASE + $02AA
-WKSP_ADFS_2AB			= WKSP_BASE + $02AB
-WKSP_ADFS_2AC			= WKSP_BASE + $02AC
-WKSP_ADFS_2AD			= WKSP_BASE + $02AD
-WKSP_ADFS_2B4			= WKSP_BASE + $02B4
-WKSP_ADFS_2B5			= WKSP_BASE + $02B5
-WKSP_ADFS_2B6			= WKSP_BASE + $02B6
-WKSP_ADFS_2B7			= WKSP_BASE + $02B7
-WKSP_ADFS_2B8			= WKSP_BASE + $02B8
-WKSP_ADFS_2B9			= WKSP_BASE + $02B9
-WKSP_ADFS_2BA			= WKSP_BASE + $02BA
-WKSP_ADFS_2BB			= WKSP_BASE + $02BB
-WKSP_ADFS_2BC			= WKSP_BASE + $02BC
-WKSP_ADFS_2BF			= WKSP_BASE + $02BF
-WKSP_ADFS_2C0			= WKSP_BASE + $02C0
-WKSP_ADFS_2C1			= WKSP_BASE + $02C1
-WKSP_ADFS_2C2			= WKSP_BASE + $02C2
-WKSP_ADFS_2C3			= WKSP_BASE + $02C3
-WKSP_ADFS_2C8			= WKSP_BASE + $02C8
-WKSP_ADFS_2C9			= WKSP_BASE + $02C9
-WKSP_ADFS_2CA			= WKSP_BASE + $02CA
-WKSP_ADFS_2CB			= WKSP_BASE + $02CB
-WKSP_ADFS_2CC			= WKSP_BASE + $02CC
-WKSP_ADFS_2CD			= WKSP_BASE + $02CD
-WKSP_ADFS_2CE			= WKSP_BASE + $02CE
-WKSP_ADFS_2CF			= WKSP_BASE + $02CF
-WKSP_ADFS_2D0_ERR_SECTOR	= WKSP_BASE + $02D0	; little endian!
-;;WKSP_ADFS_2D0_ERR_SECTOR+1			= WKSP_BASE + &02D1
-;;WKSP_ADFS_2D2			= WKSP_BASE + &02D2
-WKSP_ADFS_2D3_ERR_CODE		= WKSP_BASE + $02D3
-WKSP_ADFS_2D4			= WKSP_BASE + $02D4
-WKSP_ADFS_2D5_CUR_CHANNEL			= WKSP_BASE + $02D5
-WKSP_ADFS_2D6			= WKSP_BASE + $02D6
-WKSP_ADFS_2D7_SHADOW_SAVE	= WKSP_BASE + $02D7
-WKSP_ADFS_2D8			= WKSP_BASE + $02D8
-WKSP_ADFS_2D9			= WKSP_BASE + $02D9
-WKSP_ADFS_2E0			= WKSP_BASE + $02E0
-WKSP_ADFS_2E1			= WKSP_BASE + $02E1
-WKSP_ADFS_2E2			= WKSP_BASE + $02E2
-WKSP_ADFS_2E3_ERR_NO			= WKSP_BASE + $02E3
-WKSP_ADFS_2E4			= WKSP_BASE + $02E4
-WKSP_ADFS_2E5			= WKSP_BASE + $02E5
-WKSP_ADFS_2E6			= WKSP_BASE + $02E6
-WKSP_ADFS_2E7_STKSAVE		= WKSP_BASE + $02E7
-WKSP_ADFS_2E8_FDC_CMD_STEP			= WKSP_BASE + $02E8
-
-WKSP_ADFS_2EC_HOG_QRY		= WKSP_BASE + $02EC
-
-WKSP_ADFS_2FE			= WKSP_BASE + $02FE
-WKSP_ADFS_313			= WKSP_BASE + $0313
-WKSP_ADFS_314			= WKSP_BASE + $0314
-WKSP_ADFS_315			= WKSP_BASE + $0315
-WKSP_ADFS_316			= WKSP_BASE + $0316
-WKSP_ADFS_317_CURDRV		= WKSP_BASE + $0317
-WKSP_ADFS_318			= WKSP_BASE + $0318
-WKSP_ADFS_319			= WKSP_BASE + $0319
-WKSP_ADFS_31A			= WKSP_BASE + $031A
-WKSP_ADFS_31B			= WKSP_BASE + $031B
-WKSP_ADFS_31C			= WKSP_BASE + $031C
-WKSP_ADFS_31D			= WKSP_BASE + $031D
-WKSP_ADFS_31E			= WKSP_BASE + $031E
-WKSP_ADFS_31F			= WKSP_BASE + $031F
-WKSP_ADFS_321			= WKSP_BASE + $0321
-WKSP_ADFS_322			= WKSP_BASE + $0322
-WKSP_ADFS_331			= WKSP_BASE + $0331
-WKSP_ADFS_332			= WKSP_BASE + $0332
-WKSP_ADFS_333_LASTACCDRV	= WKSP_BASE + $0333
-
-; Per-channel EXT 32 bit value across 4 tables
-WKSP_ADFS_334_CH_EXT_H		= WKSP_BASE + $0334
-WKSP_ADFS_33E_CH_EXT_MH		= WKSP_BASE + $033E
-WKSP_ADFS_348_CH_EXT_ML		= WKSP_BASE + $0348
-WKSP_ADFS_352_CH_EXT_L		= WKSP_BASE + $0352
-
-; Per-channel PTR 32 bit value across 4 tables
-WKSP_ADFS_35C_CH_PTR_H		= WKSP_BASE + $035C
-WKSP_ADFS_366_CH_PTR_MH		= WKSP_BASE + $0366
-WKSP_ADFS_370_CH_PTR_ML		= WKSP_BASE + $0370
-WKSP_ADFS_37A_CH_PTR_L		= WKSP_BASE + $037A
-
-
-WKSP_ADFS_383			= WKSP_BASE + $0383
-WKSP_ADFS_384			= WKSP_BASE + $0384
-WKSP_ADFS_38E			= WKSP_BASE + $038E
-WKSP_ADFS_398			= WKSP_BASE + $0398
-WKSP_ADFS_3A2			= WKSP_BASE + $03A2
-WKSP_ADFS_3AC_CH_FLAGS		= WKSP_BASE + $03AC
-CH_FLAGS_80_WRITEABLE		= $80
-CH_FLAGS_04_ATEOF		= $04			; PTR == EXT
-CH_FLAGS_08_EOF_READ		= $08			; already BGET'd EOF, fail if another BGET
-
-WKSP_ADFS_3B6			= WKSP_BASE + $03B6
-WKSP_ADFS_3C0			= WKSP_BASE + $03C0
-WKSP_ADFS_3CA			= WKSP_BASE + $03CA
-WKSP_ADFS_3D4			= WKSP_BASE + $03D4
-WKSP_ADFS_3DE			= WKSP_BASE + $03DE
-WKSP_ADFS_3E8			= WKSP_BASE + $03E8
-WKSP_ADFS_3F2			= WKSP_BASE + $03F2
-
-
-;;
-;; C3AC-B3 open channel flags
-;;
-
-
-;; User Disk Access
-;; ================
-;; Do a disk access using SCSI API. Control block at &C215-&C224
-;;
-;;    Addr Ctrl
-;;   &C215  Returned result
-;;   &C216  Addr0
-;;   &C217  Addr1
-;;   &C218  Addr2
-;;   &C219  Addr3
-;;   &C21A  Command
-;;   &C21B  Drive+Sector b16-b20
-;;   &C21C  Sector b8-b15
-;;   &C21D  Sector b0-b7
-;;   &C21E  Sector Count
-;;   &C21F  -
-;;   &C220  Length0
-;;   &C221  Length1
-;;   &C222  Length2
-;;   &C223  Length3
-;;   &C224
-
-ZP_ADFS_C2_SAVE_Y		= $C2
-ZP_ADFS_C3_SAVE_X		= $C3
-
-ZP_ADFS_HD_STATUS		= $CC
-ZP_ADFS_CF_CHANNEL_OFFS		= $CF
-
-
-; FS ZP variables
-;; ZP_ADFS_FLAGS (&CD) ADFS status flag
-;; --------------------
-ZP_ADFS_FLAGS			= $CD
-;; b7 Tube present
-ADFS_FLAGS_TUBE_PRESENT		= $80
-;; b6 Tube being used
-ADFS_FLAGS_TUBE_INUSE		= $40
-;; b5 Hard Drive present
-ADFS_FLAGS_HD_PRESENT		= $20
-;; b4 FSM in memory inconsistent/being loaded
-ADFS_FLAGS_FSM_INCONSISTENT	= $10
-;; b3 (not documented, unsure)
-ADFS_FLAGS_WTF			= $08
-;; b2 *OPT1 setting
-ADFS_FLAGS_OPT1			= $04
-;; b1 Bad Free Space Map
-ADFS_FLAGS_FSM_BAD		= $02
-;; b0 Files being ensured
-ADFS_FLAGS_ENSURING		= $01
-
-ZP_ADFS_RETRY_CTDN		= $CE
-
-; drive control flags (some set below in machine specific section)
-FDCDS0 				= $01
-FDCDS1 				= $02
-
-.ifdef USE65C12
-		.pc02
-.else
-		.p02
-.endif
-; Target-specific equates
-; -----------------------
-.if   TARGETOS=0
-  VERBASE=$100		; Electron
-  HDDBASE=$FC40		; Hard drive controller
-  FDCBASE=$FCC4		; Floppy controller
-  DRVSEL =FDCBASE-4	; Drive control register
-  FDCRES =$20		; Reset FDC
-  FDCSIDE=$04		; Side select
-  ROMSEL =$FE05		; ROM select register
-  TUBEIO =$FCE5		; Tube data port
-  TUBEIOSTAT =$FCE4
-  FILEBLK=$02E2		; OSFILE control block
-.elseif TARGETOS=1 || TARGETOS=2
-  VERBASE=$130		; BBC B, BBC B+
-  HDDBASE=$FC40		; Hard drive controller
-  FDCBASE=$FE84		; Floppy controller
-  DRVSEL =FDCBASE-4	; Drive control register
-  FDCRES =$20		; Reset FDC
-  FDCSIDE=$04		; Side select
-  ROMSEL =$FE30		; ROM select register
-  TUBEIO =$FEE5		; Tube data port
-  TUBEIOSTAT = $FEE4
-  FILEBLK=$02EE	  ; OSFILE control block
-.elseif TARGETOS>2
-  VERBASE=$150		; Master
-.ifdef HD_XDFS
-  	HDDBASE=$FC44		; Hard drive controller
-.else
-  	HDDBASE=$FC40		; Hard drive controller
-.endif
-  FDCBASE=$FE28		; Floppy controller
-  DRVSEL =FDCBASE-4	; Drive control register
-  FDCRES =$04		; Reset FDC
-  FDCSIDE=$10		; Side select
-  ROMSEL =$FE30		; ROM select register
-  TUBEIO =$FEE5		; Tube data port
-  TUBEIOSTAT = $FEE4
-  FILEBLK=$02EE		; OSFILE control block
-.endif
-
-FDC_CMD 		= FDCBASE
-FDC_TRACK		= FDCBASE+1
-FDC_SEC			= FDCBASE+2
-FDC_DATA		= FDCBASE+3
-
-; HD INTERFACE specifics
-.ifdef HD_IDE
-	IDE_DATA 	= HDDBASE + 0
-	IDE_ERROR	= HDDBASE + 1
-	IDE_SEC_CT	= HDDBASE + 2
-	IDE_SEC_NO	= HDDBASE + 3
-	IDE_CYL_NO_LO	= HDDBASE + 4
-	IDE_CYL_NO_HI	= HDDBASE + 5
-	IDE_DRVHEAD	= HDDBASE + 6
-	IDE_STATUS	= HDDBASE + 7
-.elseif .def(HD_SCSI) || .def(HD_XDFS)
-	SCSI_DATA 	= HDDBASE + 0
-	SCSI_STATUS	= HDDBASE + 1
-	SCSI_SELECT	= HDDBASE + 2
-	SCSI_IRQEN	= HDDBASE + 3
-
-	SCSI_STATUS_BIT_CnD		= $80			; 1 for command 0 for data
-	SCSI_STATUS_BIT_InO		= $40			; 0 for I->T 1 for T->I
-	SCSI_STATUS_BIT_REQ		= $20			; 1 for data ready
-	SCSI_STATUS_BIT_IF		= $10			; 1 when interrupt pending
-	SCSI_STATUS_BIT_BUSY	 	= $02			; 1 when SCSI bus BUSY asserted
-	SCSI_STATUS_BIT_MSG	 	= $01			; 1 when SCSI bus MSG asserted
-
-
-.elseif .def(HD_MMC_JGH) || .def(HD_MMC_HOG)
-
-.elseif .def(HD_SCSI2)
-	; The host adapter is always ID=7!
-	SCSI2_INITIATOR_ID		=	7
-	SCSI2_INITIATOR_ID_BITS		=	1<<SCSI2_INITIATOR_ID
-
-	SCSI2_DATA_0			=	HDDBASE + 0	; live data bus lines
-
-	SCSI2_INIT_CMD_1		=	HDDBASE + 1	; initiator command reg
-	S2_INIT_CMD_ASSERT_DATA		=	$01
-	S2_INIT_CMD_ASSERT_nATN		=	$02
-	S2_INIT_CMD_ASSERT_nSEL		=	$04
-	S2_INIT_CMD_ASSERT_nBSY		=	$08
-	S2_INIT_CMD_ASSERT_nACK		=	$10
-	S2_INIT_CMD_ARB_LOST		=	$20
-	S2_INIT_CMD_ARB_PROG		=	$40
-	S2_INIT_CMD_ASSERT_nRST		=	$80
-
-	SCSI2_MODE_2			=	HDDBASE + 2
-	S2_MODE_ARBITRATE		=	$01
-	S2_MODE_DMA			=	$02
-	S2_MODE_MONITOR_BSY		=	$04
-	S2_MODE_IE_EOP			=	$08
-	S2_MODE_IE_PAR			=	$10
-	S2_MODE_PARCHECK		=	$20
-	S2_MODE_TARGET			=	$40
-
-	SCSI2_TARGET_CMD_3		=	HDDBASE + 3
-	S2_TARG_CMD_ASSERT_InO		=	$01
-	S2_TARG_CMD_ASSERT_CnD		=	$02
-	S2_TARG_CMD_ASSERT_nMSG		=	$04
-	S2_TARG_CMD_ASSERT_nREQ		=	$08
-	S2_TARG_CMD_ASSERT_LASTBYTE	=	$80
-
-	SCSI2_BUS_STATUS_4		=	HDDBASE + 4
-	S2_BUS_nDBP			=	$01
-	S2_BUS_nSEL			=	$02
-	S2_BUS_InO			=	$04
-	S2_BUS_CnD			=	$08
-	S2_BUS_nMSG			=	$10
-	S2_BUS_nREQ			=	$20
-	S2_BUS_nBSY			=	$40
-	S2_BUS_nRST			=	$80
-
-	SCSI2_SELECT_ENABLE_4		=	HDDBASE + 4
-
-	SCSI2_BUS_STATUS2_5		=	HDDBASE + 5
-	S2_BUS2_nACK			=	$01
-	S2_BUS2_nATN			=	$02
-	S2_BUS2_BUSY_ERR		=	$04
-	S2_BUS2_PHASE_MATCH		=	$08
-	S2_BUS2_IRQ			=	$10
-	S2_BUS2_PARTIY_ERR		=	$20
-	S2_BUS2_DMA_REQ			=	$40
-	S2_BUS2_DMA_END			=	$80
-	SCSI2_DMA_INIT_SEND		=	HDDBASE + 5
-
-	SCSI2_DATA_IN_6			=	HDDBASE + 6	; latched data
-	SCSI2_DMA_INIT_TGT_RCV_6	=	HDDBASE + 6
-
-	SCSI2_DMA_INIT_RECV_7		=	HDDBASE + 7
-
-	SCSI2_IRQRESET			=	HDDBASE + 7
-
-	SCSI2_DMA_DATA			=	HDDBASE + 8
-
-
-; phase bits in status 4 register, shift right by 2 for TCR register bits
-	S2_BUS_PHASE_MASK 		=	(S2_BUS_nMSG | S2_BUS_CnD | S2_BUS_InO)
-												; ==		targetcmd
-	S2_BUS_PHASE_DATAOUT		=	0						; 00			0
-	S2_BUS_PHASE_DATAIN		=	S2_BUS_InO					; 04			1
-	S2_BUS_PHASE_CMDOUT		=	S2_BUS_CnD					; 08			2
-	S2_BUS_PHASE_STATIN		=	(S2_BUS_CnD | S2_BUS_InO)			; 0C			3
-	S2_BUS_PHASE_MSGOUT		=	(S2_BUS_nMSG | S2_BUS_CnD)			; 18			6
-	S2_BUS_PHASE_MSGIN		=	(S2_BUS_nMSG | S2_BUS_CnD | S2_BUS_InO)	; 1C			7
-	S2_BUS_PHASE_UNKNOWN		=	$FF
-
-	S2_CMD_PHASE_DATAOUT		=	0						; 00			0
-	S2_CMD_PHASE_DATAIN		=	1						; 04			1
-	S2_CMD_PHASE_CMDOUT		=	2						; 08			2
-	S2_CMD_PHASE_STATIN		=	3						; 0C			3
-	S2_CMD_PHASE_MSGOUT		=	6						; 18			6
-	S2_CMD_PHASE_MSGIN		=	7						; 1C			7
-
-	S2_MSG_IDENTIFY			=	$80
-	S2_MSG_IDENTIFY_DISCPRIV	=	$40
-	S2_MSG_IDENTIFY_LUNTAR		=	$20
-.endif
-
 VERSION=VERBASE + .def(PRESERVE_CONTEXT) * 1 + .def(HD_IDE) * 2 + (.def(HD_MMC_JGH) | .def(HD_MMC_HOG)) * 6  + .def(HD_SCSI2) * 4
 ; Version number x.yz
 ;		  1.0z = Electron
@@ -601,7 +100,26 @@ VERSION=VERBASE + .def(PRESERVE_CONTEXT) * 1 + .def(HD_IDE) * 2 + (.def(HD_MMC_J
 
 ; ROM HEADER
 ; ==========
-		.org $8000
+
+		.import TubeDelay2
+		.import ExecFloppyReadBPUTSectorIND
+		.import HD_BGET_ReadSector
+		.import ExecFloppyWriteBPUTSectorIND
+		.import LABB4
+		.import starMAP
+		.import LBA57
+		.import Svc5_IRQ
+		.import CommandDone
+		.import TubeDelay
+		.import SetSector
+		.import SetGeometry
+		.import ExecFloppyPartialSectorBufIND
+		.import DoFloppySCSICommandIND
+
+
+		.segment "rom_header"
+
+
 L8000:		.byte	$00,$00,$00			; No language entry
 		jmp	ServiceCallHandlerL9ACE		; Jump to service handler
 		.byte	$82				; Service ROM, 6502 code
@@ -643,6 +161,7 @@ L8017:		.byte	$00				; Copyright string
 .endif
 .endif
 
+		.segment "rom_main_1"
 
 ; Claim Tube if present
 ; ---------------------
@@ -975,6 +494,8 @@ CommandExecSkStartExec:
 ;; No hard drive present, drive 0 to 7 map onto floppies 0 to 3.
 ;; When hard drives are present, drives 4 to 7 map onto floppies 0 to 3.
 ;;
+
+;;TODO:OBJ; Move to Floppy?
 .ifdef FLOPPY
 		lda	ZP_ADFS_FLAGS			; Get ADFS I/O status
 		and	#ADFS_FLAGS_HD_PRESENT		; Hard drive present?
@@ -1000,34 +521,13 @@ CommandExecFloppyOp:
 		sta	WKSP_ADFS_2D3_ERR_CODE		; Store
 L8110:		rts
 .endif ; FLOPPY
-.if .def(HD_MMC_JGH) || .def(HD_MMC_HOG)
-							;Do an MMC data transfer
-							;-----------------------
-		.include	"MMC_Driver.asm"
-.endif
-.ifdef HD_MMC_JGH
-; Include MMC low-level driver and User Port driver
-; -------------------------------------------------
-              .include       "MMC.asm"
-              .include       "MMC_UserPort.asm"
-.endif
-.ifdef HD_IDE
-	.ifdef HD_IDE_FAST
-		.include "IDE_Driver_Fast.asm"
-	.else
-		.include "IDE_Driver.asm"
-	.endif
-.endif
-.if .def(HD_SCSI) || .def(HD_XDFS)
-		.include "SCSI_Driver.asm"
-.endif
-.ifdef HD_SCSI2
-		.include "SCSI2_Driver.asm"
-.endif
 
 
+HD_Command:	
 
+;;;;;;; The HD_Command code must be linked in here
 
+		.segment "rom_main_2"
 
 ;; Do disk access from control block in workspace
 ;; ==============================================
@@ -1143,6 +643,9 @@ TSDelay:
 	.endif
 .endif
 .endif
+
+;;TODO:OBJ: move all these into drivers?
+
 .if .def(HD_SCSI) || .def(HD_XDFS)
 SCSI_SendCMDByte:
 		jsr	L8324				; Wait until not busy, then write command to command register
@@ -1547,9 +1050,10 @@ strExecAbbrev:						; L84BD
 strSpoolAbbrev:
 		.byte	"SP."				; Abbreviation of 'Spool'
 		.byte	$0D
-.if (>strExecAbbrev) <> (>strSpoolAbbrev)
-		.error	"Exec/Spool table run over page boundary"
-.endif
+;;TODO:OBJ: POST BUILD CHECK?
+;;.if (>strExecAbbrev) <> (>strSpoolAbbrev)
+;;		.error	"Exec/Spool table run over page boundary"
+;;.endif
 
 ; OSBYTE READ
 ; -----------
@@ -4076,10 +3580,11 @@ L942A:		.byte	"Off "
 L942E:		.byte	"Load"
 L9432:		.byte	"Run "
 L9436:		.byte	"Exec"
-.if >L942A <> >L9436
-							;TODO reinstate this!!!
-		print	"Option strings run over page boundary"
-.endif
+;;TODO:OBJ: POST BUILD CHECK?
+;;.if >L942A <> >L9436
+;;							;TODO reinstate this!!!
+;;		print	"Option strings run over page boundary"
+;;.endif
 ;;
 ;; FSC 9 - *EX
 ;; =============
@@ -5176,9 +4681,13 @@ L9A9C:
 		.byte	"E.$.!BOOT"			; *Exec option
 .endif ; TARGETOS
 		.byte	$0D
-.if >L9A92 <> >L9A9C
-		error	"Boot strings run over page boundary"
-.endif
+
+;;TODO:OBJ: POST BUILD CHECK?
+;;.if >L9A92 <> >L9A9C
+;;		.error	"Boot strings run over page boundary"
+;;.endif
+
+
 ;;
 ;;
 ;; SERVICE CALL HANDLERS
@@ -6498,10 +6007,11 @@ L9FE7:		.byte	"(L)(W)(R)(E)"
 L9FF4:		.byte	"<Title>"
 L9FFB:		.byte	$00
 
-.if >* <> >L9FB1
-		.warning	"***WARNING: Help string table runs over page boundary"
-;		ORG	(P% AND &FF00)+256
-.endif
+;;TODO:OBJ: POST BUILD CHECK?
+;;.if >* <> >L9FB1
+;;		.warning	"***WARNING: Help string table runs over page boundary"
+;;		ORG	(P% AND &FF00)+256
+;;.endif
 
 
 
@@ -6659,8 +6169,12 @@ LA079:		lda	WKSP_ADFS_000_FSM_S0 + $FB,Y
 		.byte	"Used", $8D
 LA091:		rts
 
+;;;; star map might be linked in here
+
+		.segment "rom_main_3"
+
 .if TARGETOS > 0 || (!(.def(HD_SCSI) || .def(HD_XDFS)))
-	.include "starmap.asm"
+	;;.include "starmap.asm"
 .endif ; NOT ELK SCSI
 
 ;;
@@ -6680,11 +6194,10 @@ LA0DC:
 		.byte	"Compaction recommended", $8D
 LA102:		rts
 
-.if (TARGETOS = 0) && (.def(HD_SCSI) || .def(HD_XDFS))
-	.include "starmap.asm"
-.endif ; NOT ELK SCSI
+;;;; star map might be linked in here
 
 
+		.segment "rom_main_4"
 
 ;;TODO: put this back for SCSI2
 .if (TARGETOS <= 1) && (!.def(HD_SCSI2))
@@ -8320,15 +7833,10 @@ LAAD0:		dex
 		jmp	LA98C				; Exit
 .endif
 
-.if .def(HD_MMC_JGH) || .def(HD_MMC_HOG)
-		.include "MMC_DriverBGETBPUT.asm"
-.elseif .def(HD_IDE)
-		.include "IDE_DriverBGETBPUT.asm"
-.elseif .def(HD_SCSI) || .def(HD_XDFS)
-		.include "SCSI_DriverBGETBPUT.asm"
-.elseif .def(HD_SCSI2)
-		.include "SCSI2_DriverBGETBPUT.asm"
-.endif
+;;; hd_driver_bgetbput linked here
+
+
+		.segment "rom_main_5"
 
 LAB03:		jsr	LACE6				; Check checksum
 LAB06:
@@ -8385,32 +7893,16 @@ LAB5BJmpGenerateError:
 		jmp	GenerateError				; Generate disk error
 .endif
 
-.ifdef HD_IDE
-		.include "IDE_DriverBPUT.asm"
-.elseif .def(HD_MMC_JGH) || .def(HD_MMC_HOG)
-		.include "MMC_DriverBPUT.asm"
-.elseif .def(HD_SCSI) || .def(HD_XDFS)
-		.include "SCSI_DriverBPUT.asm"
-.elseif .def(HD_SCSI2)
-		.include "SCSI2_DriverBPUT.asm"
-.endif
+;;; The HD_Driver for BPUT must be linked in here
 
+		.segment "rom_main_6"
 RestoreChanInXrts:
 		ldx	$C1				; Restore X, offset to channel info
-.if .def(HD_MMC_JGH) 
-Svc5_IRQ:
-.endif
 LAB88:		rts
 
-.ifdef HD_IDE
-		.include "IDE_DriverSvc5.asm"
-.elseif .def(HD_MMC_JGH) | .def(HD_MMC_HOG)
-		.include "MMC_DriverSvc5.asm"
-.elseif .def(HD_SCSI) || .def(HD_XDFS)
-		.include "SCSI_DriverSvc5.asm"
-.elseif .def(HD_SCSI2)
-		.include "SCSI2_DriverSvc5.asm"
-.endif
+;;; The HD_Driver for Svc5 must be linked in here (if required)
+
+		.segment "rom_main_7"
 
 
 
@@ -8535,16 +8027,10 @@ LACBA:		dec	ZP_ADFS_RETRY_CTDN		; Decrement retries
 		bpl	LACA8				; Loop to rey again
 		jmp	GenerateError			; Generate a disk error
 
-.ifdef HD_IDE
-		.include "IDE_DriverBGET.asm"
-.elseif .def(HD_MMC_JGH) || .def(HD_MMC_HOG)
-		.include "MMC_DriverBGET.asm"
-.elseif .def(HD_SCSI) || .def(HD_XDFS)
-		.include "SCSI_DriverBGET.asm"
-.elseif .def(HD_SCSI2)
-		.include "SCSI2_DriverBGET.asm"
-.endif
 
+;;; HD_driver_bget linked in here
+
+		.segment "rom_main_8"
 
 		bne	LACBA				; Retry if error occured
 LACDA:		ldx	$B0				; Restore X & Y
@@ -10328,10 +9814,13 @@ LBA40:		iny
 		plp
 		jmp	TubeRelease
 
+;;;;; floppy drivers linked in here
 
-.ifdef FLOPPY
-		.include "floppy.asm"
-.else
+
+		.segment "rom_main_9"
+
+
+.ifndef FLOPPY
 	; TODO remove this?
 LBA57:		lda	#$FF
 		sta	WKSP_ADFS_2E4
@@ -10341,17 +9830,18 @@ LBA57:		lda	#$FF
 .ifdef HD_MMC_HOG
 ; Include MMC low-level driver and User Port driver
 ; -------------------------------------------------
-              .include       "MMC.asm"
-              .include       "MMC_UserPort.asm"
+              ;;.include       "MMC.asm"
+              ;;.include       "MMC_UserPort.asm"
 .endif ; NOT HOG
 
 
 
 .if TARGETOS > 1
 	; TODOXDFS - the A9 byte (I think this is a JGH revision number thing?) is not at end of rom, mistake?
-	.if (* < $BFFF) && (!.def(HD_XDFS))
-		.ORG	$BFFF
-	.endif
+;;TODO:OBJ: POST BUILD CHECK?
+;;	.if (* < $BFFF) && (!.def(HD_XDFS))
+;;		;.ORG	$BFFF
+;;	.endif
 	.if .def(HD_MMC_JGH) || .def(HD_MMC_HOG)
 		.byte	$00				; MMC revision 0
 	.endif

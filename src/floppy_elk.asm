@@ -1,3 +1,9 @@
+                .include "config.inc"
+                .include "os.inc"
+                .include "workspace.inc"
+                .include "hardware.inc"
+
+                .export FloppyWaitNMIFinish
 
 
 ; TODO: Tidy up and replace hard coded addresses

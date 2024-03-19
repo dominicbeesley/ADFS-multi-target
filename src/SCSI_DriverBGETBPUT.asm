@@ -1,3 +1,5 @@
+		.include "config.inc"
+
 ;;
 ;; Set up a hard drive command for for BGET/BPUT
 ;; ---------------------------------------------

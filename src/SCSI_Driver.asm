@@ -1,3 +1,5 @@
+		.include "config.inc"
+
 ;;
 ;; Hard drive hardware is present. Check what drive is being accessed.
 ;;

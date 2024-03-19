@@ -1,3 +1,5 @@
+		.include "config.inc"
+
 HD_BGET_ReadSector:
 	; setup data address frmo &BE
 	lda	$BE
