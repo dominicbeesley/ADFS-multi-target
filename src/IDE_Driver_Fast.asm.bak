@@ -15,6 +15,8 @@
 .endif	
 
 		.segment "hd_driver_1"
+
+
 ;;
 ;; Hard drive hardware is present. Check what drive is being accessed.
 ;;
@@ -28,9 +30,7 @@ HD_Command:
               ldy    #$00
               nop
 
-;;; TubeCheckAddrAndClaim must be linked in here
-
-		.segment "hd_driver_2"
+              .include "TubeCheckAddrAndClaim.asm"
 
 ; Do a data transfer to/from a hard drive device
 ; ----------------------------------------------
@@ -74,8 +74,8 @@ CommandSaveLp:
 		jsr	SetGeometry
 		plp
 CommandLoop:
-		ldx	#2
-Twice:							; First pass to seek sector
+;		ldx	#2
+;.Twice							; First pass to seek sector
 		bit	ZP_ADFS_FLAGS
 		bvc	CommandStart			; Accessing I/O memory
 		php
@@ -96,31 +96,33 @@ Twice:							; First pass to seek sector
 		plp
 CommandStart:						; C=R/W, &B0/1=>block
 		jsr	SetSector			; Set sector, count, command
-TransferLoop:
+
+		; once busy has gone low we don't need to test for each byte?!?
 		jsr	WaitForData
 		and	#$21
 		bne	TransDone
+
+TransferLoop:
 		bit	ZP_ADFS_FLAGS
 		bvs	TransTube
 		bcc	IORead
 IOWrite:
 		lda	($80),Y
 		sta	IDE_DATA
+		iny
+		bne	IOWrite
+		beq	TransferBytesDone
 
-.if TARGETOS = 0
-		jmp	TransferByte
-.else ;TARGETOS <> 0
-		bcs	TransferByte
-.endif
+
 IORead:
 		lda	IDE_DATA
 		sta	($80),Y
+		iny
+		bne	IORead
+		beq	TransferBytesDone
+
 .if TARGETOS = 0
-		jmp	TransferByte
-.else ;TARGETOS <> 0
-		bcc	TransferByte
-.endif
-.if TARGETOS = 0
+;;; TODO: what's all this then!?
 TransTube:
 		bcc     _lelk817E                       ; 8173 90 09                    ..
         	sbc     $EDED                           ; 8175 ED ED ED                 ...
@@ -136,25 +138,31 @@ _lelk817E:	sbc     $EDED                           ; 817E ED ED ED              
 _lelk8187:  	jmp     CommandLoop                     ; 8187 4C 3B 81                 L;.
 .else ; TARGETOS > 0
 TransTube:
-		jsr	TubeDelay
 		bcc	TubeRead
-TubeWrite:
+TubeWrite:	lda	TUBEIOSTAT
+		bpl	TubeWrite
 		lda	TUBEIO
 		sta	IDE_DATA
-		bcs	TransferByte
-TubeRead:
-		lda	IDE_DATA
+		iny
+		bne	TubeWrite
+		beq	TransferBytesDone
+
+
+TubeRead:	lda	IDE_DATA
+TubeReadW:	bit	TUBEIOSTAT
+		bvc	TubeReadW
 		sta	TUBEIO
-		bcc	TransferByte
+		iny
+		bne	TubeRead
+		beq	TransferBytesDone
 
 
 .endif ; TARGETOS > 0
 
 L81AD:							; Aligned to L81AD
-;;;TODO:OBJ: POST CHECK
-;;;.if L81AD<>$81AD
-;;;		.warning "L81AD/CommandDone must be anchored at &81AD " + .string(L81AD)
-;;;.endif
+.if L81AD<>$81AD
+		.warning "L81AD/CommandDone must be anchored at &81AD"
+.endif
 CommandDone:
 		jsr	IDE_GetResult			; Get IDE result
 CommandExit:
@@ -165,11 +173,15 @@ CommandExit:
 		ldy	$B1
 		and	#$7F
 		rts
-TransferByte:
-		iny					; Loop for 256 bytes
-		bne	TransferLoop
-		dex
-		bne	Twice				; Second pass to do real transfer
+;;.TransferByte
+;;		iny					; Loop for 256 bytes
+;;		bne	TransferLoop
+;;;		dex
+;;;		bne	Twice				; Second pass to do real transfer
+
+
+TransferBytesDone:
+
 		inc	$81
 		lda	IDE_STATUS
 		and	#$21
@@ -190,7 +202,8 @@ TransCount:
 .if TARGETOS = 0
 		bne	_lelk8187
 .else
-		bne	CommandLoop			; Done, check for errors
+		beq	TransDone
+		jmp	CommandLoop			; Done, check for errors
 .endif
 TransDone:
 		pla					; Restore pointer
@@ -221,9 +234,7 @@ SetGeometry:
 		bne	IDE_SetCmd				; 4 heads per cylinder
 
 
-;;;  TubeStartXfer must be linked in here
-
-		.segment "hd_driver_3"
+		.include	"TubeStartXfer.asm"
 
 .if TARGETOS > 0
 TubeAction:
@@ -336,17 +347,3 @@ GetResLp:
 		lda	ResultCodes,X
 GetResOk:
 		rts
-.if TARGETOS > 0
-		.byte	0,0,0,0,0,0
-		.byte	0,0,0,0,0
-.else
-		nop
-		nop
-		nop
-		nop
-		nop
-		nop
-		nop
-.endif
-;       LDA #&FF         ;; leftover code
-;       JMP &81D4        ;; Jump to return result

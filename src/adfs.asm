@@ -4,17 +4,42 @@
 		.include "workspace.inc"
 		.include "hardware.inc"
 
+		.export GenerateError
 		.export GenerateErrorSuffX
 		.export GenerateErrorNoSuff
 		.export L92A8
 		.export L9322
+.if TARGETOS < 1 && .def(HD_IDE)
+		.export _lelkA0C4
+		.export _lelkLA0D8
+.endif
+.if TARGETOS > 1
 		.export LA03A
+.endif
 		.export LA091
 		.export LABE6
 		.export TUBE_CLAIM_IF_PRESENT
 		.export TubeRelease
+		.export L9DB4
 	.ifdef FLOPPY
 		.export CommandExecFloppyOp
+	.endif
+	.ifdef HD_SCSI2
+		.export WaitEnsuring
+		.export LAB5BJmpGenerateError
+		.export L8098rts
+	.endif
+	.if .def(HD_SCSI) || .def(HD_XDFS)
+		.export WaitEnsuring
+		.export SCSI_GetStatus
+		.export SCSI_send_byteA
+		.export SCSI_SendCMDByte
+		.export SCSI_StartCommand2
+		.export SCSI_StartCommand
+		.export WaitEnsuring
+	.endif
+	.ifdef HD_XDFS
+		.export SCSI_WaitforReq
 	.endif
 	.ifdef HD_IDE
 		.export WaitEnsuring
@@ -4857,7 +4882,7 @@ L9AED:		cmp	#$21				; Check against the lowest value
 ;; on this call.
 ;;
 Serv1:
-.if FLOPPY
+.ifdef FLOPPY
 		jsr	floppy_check_present_bbc
 .endif
 		inx
@@ -6161,10 +6186,6 @@ LA091:		rts
 ;;;; star map might be linked in here
 
 		.segment "rom_main_3"
-
-.if TARGETOS > 0 || (!(.def(HD_SCSI) || .def(HD_XDFS)))
-	;;.include "starmap.asm"
-.endif ; NOT ELK SCSI
 
 ;;
 ;; FSC 8 - OSCLI being processed
@@ -7877,8 +7898,8 @@ LAB50:		ldx	$C1
 		bpl	LAB50
 .endif
 
-LAB5BJmpGenerateError:
 .ifndef HD_MMC_HOG
+LAB5BJmpGenerateError:
 		jmp	GenerateError				; Generate disk error
 .endif
 

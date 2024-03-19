@@ -1,4 +1,11 @@
 		.include "config.inc"
+		.include "os.inc"
+		.include "workspace.inc"
+		.include "hardware.inc"
+
+		.export HD_BPUT_WriteSector
+
+		.segment "hd_driver_bput"
 
 HD_BPUT_WriteSector:
 

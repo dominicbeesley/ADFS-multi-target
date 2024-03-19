@@ -2,14 +2,14 @@ DA65=da65
 BUILDDIR=build
 
 
-ROMNAMES= \
-        masIDE \
+ROMNAMES= 	masIDE \
 		masMMC_hog_SD \
 		masMMC_hog_SDT \
 		masMMC_hog_SD2 \
 		masMMC_hog_SD2T \
 		masMMC_hog_SD3 \
 		masMMC_hog_SD3T \
+		masBM_XDFS \
 		masSCSI \
 		bbcSCSI \
 		bbcSCSI_AH \

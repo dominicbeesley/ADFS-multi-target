@@ -11,15 +11,16 @@ DBGSYMS=$(SCRIPTS)/ld65debugsymbols.pl
 # this is used when generating symbols
 ROMNO=1
 
-ADFS=		adfs
-IDE_DRIVERS=	IDE_Driver IDE_DriverBGET IDE_DriverBPUT IDE_DriverBGETBPUT IDE_DriverSvc5
-IDE_DRIVERS_F=	IDE_Driver_Fast IDE_DriverBGET IDE_DriverBPUT IDE_DriverBGETBPUT IDE_DriverSvc5
-SCSI_DRIVERS=	SCSI_Driver SCSI_DriverBGET SCSI_DriverBPUT SCSI_DriverBGETBPUT SCSI_DriverSvc5
-SCSI2_DRIVERS=	SCSI2_Driver SCSI2_DriverBGET SCSI2_DriverBPUT SCSI2_DriverBGETBPUT SCSI2_DriverSvc5
-MMC_DRIVERS=	MMC_Driver MMC_DriverBGET MMC_DriverBPUT MMC MMC_UserPort MMC_DriverBGETBPUT MMC_DriverSvc5
-STARMAP=	starmap
-FLOPPY_DRIVERS= floppy floppy_nmi_A floppy_nmi_B floppy_nmi_C floppy_nmi_D
-TUBE_DRIVERS=	TubeCheckAddrAndClaim TubeStartXfer
+ADFS=			adfs
+IDE_DRIVERS=		IDE_Driver IDE_DriverBGET IDE_DriverBPUT IDE_DriverBGETBPUT IDE_DriverSvc5
+IDE_DRIVERS_F=		IDE_Driver_Fast IDE_DriverBGET IDE_DriverBPUT IDE_DriverBGETBPUT IDE_DriverSvc5
+SCSI_DRIVERS=		SCSI_Driver SCSI_DriverBGET SCSI_DriverBPUT SCSI_DriverBGETBPUT SCSI_DriverSvc5
+SCSI2_DRIVERS=		SCSI2_Driver SCSI2_DriverBGET SCSI2_DriverBPUT SCSI2_DriverBGETBPUT SCSI2_DriverSvc5
+MMC_DRIVERS=		MMC_Driver MMC_DriverBGET MMC_DriverBPUT MMC MMC_UserPort MMC_DriverBGETBPUT MMC_DriverSvc5
+STARMAP=		starmap
+FLOPPY_DRIVERS= 	floppy floppy_nmi_A floppy_nmi_B floppy_nmi_C floppy_nmi_D
+FLOPPY_DRIVERS_ELK= 	floppy floppy_elk floppy_nmi_A floppy_nmi_D
+TUBE_DRIVERS=		TubeCheckAddrAndClaim TubeStartXfer
 
 .PHONY: all compares comparedirs
 
@@ -51,15 +52,24 @@ OBJS_bbcSCSI= 		$(ADFS) $(SCSI_DRIVERS) 	$(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRI
 OBJS_bbcSCSI_AH=	$(ADFS) $(SCSI_DRIVERS) 	$(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
 OBJS_bbcSCS2= 		$(ADFS) $(SCSI2_DRIVERS) 	$(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
 OBJS_elkIDE=		$(ADFS) $(IDE_DRIVERS) 		$(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
-OBJS_elkSCSI= 		$(ADFS) $(SCSI_DRIVERS) 	$(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
+OBJS_elkSCSI= 		$(ADFS) $(SCSI_DRIVERS) 	$(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS_ELK)
 
-LINK_masIDE=		masIDE
+LINK_masIDE=		mas
+LINK_masSCSI=		mas
+LINK_bbcIDE=		mas
+LINK_bbcIDEF=		mas
+LINK_bbcSCSI=		mas
+LINK_bbcSCSI_AH=	mas
+LINK_bbcSCS2=		mas
+LINK_elkIDE=		mas
+LINK_elkSCSI=		elkSCSI
 LINK_masMMC_hog_SD=	masMMC_hog
 LINK_masMMC_hog_SDT=	masMMC_hog
 LINK_masMMC_hog_SD2=	masMMC_hog
 LINK_masMMC_hog_SD2T=	masMMC_hog
 LINK_masMMC_hog_SD3=	masMMC_hog
 LINK_masMMC_hog_SD3T=	masMMC_hog
+LINK_masBM_XDFS=	mas
 
 .PRECIOUS: $(addsuffix /config.inc, $(addprefix $(BUILDDIR)/, $(ROMNAMES)))
 

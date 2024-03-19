@@ -22,7 +22,7 @@ HD_Command:
               ldy    #$06
               lda    ($B0),Y                            ; Get drive
               ora    WKSP_ADFS_317_CURDRV        ; OR with current drive
-.ifdef FLOPPY
+.if FLOPPY
               bmi    CommandExecFloppyOp         ; Jump back with 4,5,6,7 as floppies
 .endif
               ldy    #$00

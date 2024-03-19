@@ -4,7 +4,13 @@
                 .include "hardware.inc"
 
                 .export FloppyWaitNMIFinish
+                .export CopyCodeToNMISpace2Elk
+                .export elkLBAB6
+                .export elkLBB20
+                .export elkLBB53
+                .export FloppyWaitNMIFinish2elk
 
+                .segment "floppy_2"
 
 ; TODO: Tidy up and replace hard coded addresses
 

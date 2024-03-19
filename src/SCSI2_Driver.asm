@@ -1,5 +1,13 @@
 		.include "config.inc"
+		.include "workspace.inc"
+		.include "os.inc"
+		.include "hardware.inc"
 
+		.export HD_Command
+		.export CommandDone
+		.export SCSI2_CommandPartialSector
+
+		.segment "hd_driver_1"
 
 ZP_ADFS_SCSI2_PHASE		=	$CC			;; store the current scsi 2 phase
 
@@ -73,7 +81,10 @@ SCSI2_startCommandHD_partial2:				; enter here for partial transfer, length in W
               	jsr    SCSI2_StartCommand          	; Write &01 to SCSI, returns Y=0
                                                  	;Put SCSI in command mode
 
-              	.include "TubeCheckAddrAndClaim.asm"
+;;; TubeCheckAddrAndClaim must be linked in here
+
+		.segment "hd_driver_2"
+
 
 ; Do a data transfer to/from a hard drive device
 ; ----------------------------------------------
@@ -309,7 +320,9 @@ SCSI2_CommandPartialSector:
 ;;		ldy	#>WKSP_ADFS_227_TUBE_XFER
 ;;		rts
 
-		.include	"TubeStartXfer.asm"
+;;;  TubeStartXfer must be linked in here
+
+		.segment "hd_driver_3"
 
 ;;.L821F		ldx	#<WKSP_ADFS_227_TUBE_XFER
 ;;		ldy	#>WKSP_ADFS_227_TUBE_XFER

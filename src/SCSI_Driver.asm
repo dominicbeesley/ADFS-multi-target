@@ -1,18 +1,31 @@
 		.include "config.inc"
+		.include "workspace.inc"
+		.include "os.inc"
+		.include "hardware.inc"
+
+		.export HD_Command
+		.export CommandDone
+
+		.segment "hd_driver_1"
+
 
 ;;
 ;; Hard drive hardware is present. Check what drive is being accessed.
 ;;
 HD_Command:
-              ldy    #$06
-              lda    ($B0),Y                     	; Get drive
-              ora    WKSP_ADFS_317_CURDRV        	; OR with current drive
+		ldy	#$06
+		lda	($B0),Y                     	; Get drive
+		ora	WKSP_ADFS_317_CURDRV        	; OR with current drive
 .ifdef FLOPPY
-              bmi    CommandExecFloppyOp         	; Jump back with 4,5,6,7 as floppies
+		bmi	CommandExecFloppyOp         	; Jump back with 4,5,6,7 as floppies
 .endif
-              jsr    SCSI_StartCommand           	; Write &01 to SCSI, returns Y=0
+		jsr	SCSI_StartCommand           	; Write &01 to SCSI, returns Y=0
 
-              .include "TubeCheckAddrAndClaim.asm"
+
+;;; TubeCheckAddrAndClaim must be linked in here
+
+		.segment "hd_driver_2"
+
 
 ; Do a data transfer to/from a hard drive device
 ; ----------------------------------------------
@@ -162,7 +175,9 @@ L820D:		ldx	#<WKSP_ADFS_227_TUBE_XFER
 		ldy	#>WKSP_ADFS_227_TUBE_XFER
 		rts
 
-		.include	"TubeStartXfer.asm"
+;;;  TubeStartXfer must be linked in here
+
+		.segment "hd_driver_3"
 
 
 L821F:		ldx	#<WKSP_ADFS_227_TUBE_XFER

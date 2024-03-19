@@ -17,6 +17,9 @@
 		.export LBB3B
 		.export LBC0E
 
+.if TARGETOS <= 1
+		.export floppy_check_present_bbc
+.endif
 
 		.segment "floppy"
 
@@ -58,9 +61,9 @@ floppy_check_present_bbc:
 .endif
 LBA5Crts:	rts
 
-.if TARGETOS=0 && .def(HD_SCSI)
-	.include "floppy_elk.asm"
-.endif
+
+
+		.segment "floppy_3"
 
 ;;
 ExecFloppyWriteBPUTSector:
@@ -432,12 +435,3 @@ LBC0E:		ldy	WKSP_ADFS_2E1			; Get previous owner's ID
 
 
 
-;;.if TARGETOS=0 && .def(HD_SCSI)
-;;		.include "floppy_nmi_A.asm"
-;;		.include "floppy_nmi_D.asm"
-;;.else
-;;		.include "floppy_nmi_B.asm"
-;;		.include "floppy_nmi_A.asm"
-;;		.include "floppy_nmi_C.asm"
-;;		.include "floppy_nmi_D.asm"
-;;.endif

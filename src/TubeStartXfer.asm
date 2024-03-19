@@ -4,6 +4,7 @@
 		.export TubeDelay
 		.export TubeDelay2
 		.export TubeStartXfer406
+		.export TubeStartXferSEI_406
 
 		.segment "tube_start_xfer"
 

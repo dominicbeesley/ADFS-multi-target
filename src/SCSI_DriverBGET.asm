@@ -1,4 +1,11 @@
 		.include "config.inc"
+		.include "os.inc"
+		.include "workspace.inc"
+		.include "hardware.inc"
+
+		.export HD_BGET_ReadSector
+		
+		.segment "hd_driver_bget"
 
 ;;
 ;; BGET from hard drive
