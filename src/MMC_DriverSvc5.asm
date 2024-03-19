@@ -1,4 +1,14 @@
 		.include "config.inc"
+		.include "os.inc"
+		.include "workspace.inc"
+		.include "hardware.inc"
+		.include "MMC.inc"
+
+		.export Svc5_IRQ
+		.export LABB4
+		.export UpdateDrive
+
+		.segment "hd_driver_svc5"
 
 ; this file is empty, there is a bodge in main adfs.asm for MMC rts for IRQ
 ; TODO: optimise away the MMC irq handler and service call code

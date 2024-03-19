@@ -1,0 +1,1 @@
+make roms 2>&1 | sed -E -n "s/Unresolved external '([^']+).*/\1:/p" | xargs -I mat grep mat *.asm | sort

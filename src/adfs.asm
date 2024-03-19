@@ -4,10 +4,8 @@
 		.include "workspace.inc"
 		.include "hardware.inc"
 
-		.export WaitEnsuring
-		.export WaitForData
-		.export CommandExecFloppyOp
 		.export GenerateErrorSuffX
+		.export GenerateErrorNoSuff
 		.export L92A8
 		.export L9322
 		.export LA03A
@@ -15,7 +13,17 @@
 		.export LABE6
 		.export TUBE_CLAIM_IF_PRESENT
 		.export TubeRelease
+	.ifdef FLOPPY
+		.export CommandExecFloppyOp
+	.endif
+	.ifdef HD_IDE
+		.export WaitEnsuring
+		.export WaitForData
 		.export IDE_WaitforReq
+	.endif
+	.if .def(HD_SCSI) || .def(HD_MMC_HOG)
+		.export SCSI_WaitforReq
+	.endif
 ;; TODO:
 ; - version string etc for FAST IDE
 
@@ -100,22 +108,6 @@ VERSION=VERBASE + .def(PRESERVE_CONTEXT) * 1 + .def(HD_IDE) * 2 + (.def(HD_MMC_J
 
 ; ROM HEADER
 ; ==========
-
-		.import TubeDelay2
-		.import ExecFloppyReadBPUTSectorIND
-		.import HD_BGET_ReadSector
-		.import ExecFloppyWriteBPUTSectorIND
-		.import LABB4
-		.import starMAP
-		.import LBA57
-		.import Svc5_IRQ
-		.import CommandDone
-		.import TubeDelay
-		.import SetSector
-		.import SetGeometry
-		.import ExecFloppyPartialSectorBufIND
-		.import DoFloppySCSICommandIND
-
 
 		.segment "rom_header"
 
@@ -522,9 +514,6 @@ CommandExecFloppyOp:
 L8110:		rts
 .endif ; FLOPPY
 
-
-HD_Command:	
-
 ;;;;;;; The HD_Command code must be linked in here
 
 		.segment "rom_main_2"
@@ -742,7 +731,7 @@ L8349:		pla					; Drop return address
 		jmp	CommandDone			; Jump to get result and return
 .else ; HD_SCSI
 .ifdef HD_MMC_HOG
-SCSI_WaitforReq:
+SCSI_WaitforReq:		;; TODO - get rid
 		rts
 .elseif TARGETOS <> 0
 		.byte	0,0,0,0,0
@@ -9835,6 +9824,8 @@ LBA57:		lda	#$FF
 .endif ; NOT HOG
 
 
+
+		.segment "rom_main_10"
 
 .if TARGETOS > 1
 	; TODOXDFS - the A9 byte (I think this is a JGH revision number thing?) is not at end of rom, mistake?

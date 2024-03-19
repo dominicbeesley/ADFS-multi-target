@@ -1,5 +1,12 @@
               .include "config.inc"
+              .include "workspace.inc"
+              .include "os.inc"
+              .include "hardware.inc"
+              .include "MMC.inc"
 
+              .segment "hd_driver_1"
+
+              .export CommandExit2       
 
 ; ADFS MMC Card Driver
 ; (C) 2015 David Banks
@@ -8,22 +15,6 @@
 ; 27-Mar-2016 JGH: Tweeked comments
 ; JSR MMC_BEGIN exits on failure
 ; JSR setCommandAddress exits on failure
-
-
-;;; MMC settings
-MAX_DRIVES          = 2         ; Don't make this bigger than 2 or the drive table below will overflow
-
-MMC_ATTEMPTS           = $C2E9     ; 1 byte
-MMC_SECTORCOUNT        = $C2EA     ; 1 byte
-MMC_CARDSORT           = $C2EB     ; 1 byte
-MMC_MMCSTATE           = $C2EC     ; 1 byte
-MMC_NUMDRIVES          = $C2ED     ; 1 byte
-MMC_CMDSEQ             = $C2F0     ; 8 bytes
-MMC_DRIVETABLE         = $C2F8     ; 4 * MAX_DRIVES
-MMC_MBRSECTOR          = $C000     ; 512 bytes tmp storage before fs is mounted
-MMC_DATPTR             = $B2
-EscapeFlag          = $FF
-;;;;
 
 ;TODO: do we need B0 here at all - isn't it always from WKSP_215...?
 ;TODO: free up B0 and use for temp vars instead of WKSP?
@@ -47,7 +38,9 @@ HD_Command:
               nop
 .endif
 
-              .include "TubeCheckAddrAndClaim.asm"
+;;; TubeCheckAddrAndClaim must be linked in here
+
+              .segment "hd_driver_2"
 
 ; Do a data transfer to/from a hard drive device
 ; ----------------------------------------------
@@ -152,8 +145,5 @@ CommandExit:
        LDY $B1
        AND #$7F		; Set EQ flag from result
        RTS
-
-
-              .include       "TubeStartXfer.asm"
 
 

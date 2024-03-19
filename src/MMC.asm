@@ -1,4 +1,26 @@
-          .include "config.inc"
+                .include "config.inc"
+                .include "os.inc"
+                .include "workspace.inc"
+                .include "hardware.inc"
+                .include "MMC.inc"
+
+                .export errWrite
+                .export MMC_SetupRW
+                .export MMC_SetupRW
+                .export MMC_StartRead
+                .export MMC_StartRead
+                .export MMC_StartWrite
+                .export MMC_StartWrite
+                .export incCommandAddress
+                .export initializeDriveTable
+                .export MMC_BEGIN
+                .export MMC_BEGIN
+                .export setCommandAddress
+                .export setCommandAddressSDHC
+                .export setRandomAddress          
+
+
+                .segment "mmc_driver_a"
 
 ;TODO: DB - sort out hard coded addresses and harmonise with adfs.asm style
 
@@ -176,7 +198,7 @@ il10:
 .endif
 
 il11:
-     BIT EscapeFlag                  ; may hang
+     BIT ZP_MOS_ESCFLAG                  ; may hang
      BMI ifail
      CMP #0
      BNE il1                         ; not 'ok', try again

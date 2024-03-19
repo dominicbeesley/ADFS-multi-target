@@ -1,27 +1,27 @@
-        .include "config.inc"
+                .include "config.inc"
+                .include "os.inc"
+                .include "workspace.inc"
+                .include "hardware.inc"
+                .include "MMC.inc"
+
+                .export MMC_16Clocks
+                .export MMC_DEVICE_RESET
+                .export MMC_DoCommand
+                .export MMC_Read256
+                .export MMC_ReadX
+                .export MMC_Write256
+                .export MMC_Clocks
+                .export MMC_EndWrite
+                .export MMC_Read512
+                .export MMC_SendingData
+                .export MMC_WaitForData
+                .export UP_ReadByteX
+
+                .segment "mmc_driver_b"
 
 ;; ADFS MMC Card Driver
 ;; (C) 2015 David Banks
 ;; Based on code from MMFS ROM by Martin Mather
-
-;; User VIA registers
-MMC_IORB=MMC_VIA_BASE
-MMC_DDRB=MMC_VIA_BASE + $02
-MMC_SR  =MMC_VIA_BASE + $0A
-MMC_ACR =MMC_VIA_BASE + $0B
-MMC_IFR =MMC_VIA_BASE + $0D
-MMC_IER =MMC_VIA_BASE + $0E
-
-.ifdef _TURBOMMC
-   temp    = $CF
-   ddrmask = $1F ;; 0001 1111
-   msbits  = $08 ;; 0000 1000
-   msmask  = $E9 ;; 1110 1001
-.else
-   ddrmask = $03 ;; 0000 0011
-   msbits  = $00 ;; 0000 0000
-   msmask  = $FD ;; 1111 1101
-.endif
 
 
 ;; Reset the User VIA

@@ -1,4 +1,12 @@
 		.include "config.inc"
+		.include "os.inc"
+		.include "workspace.inc"
+		.include "hardware.inc"
+		.include "MMC.inc"
+
+		.export HD_CommandBGETBPUTsector
+
+		.segment "hd_driver_bget_bput"
 
 ;;
 ;; Set up a hard drive command for for BGET/BPUT
