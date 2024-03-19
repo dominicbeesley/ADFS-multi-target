@@ -54,14 +54,14 @@ OBJS_bbcSCS2= 		$(ADFS) $(SCSI2_DRIVERS) 	$(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DR
 OBJS_elkIDE=		$(ADFS) $(IDE_DRIVERS) 		$(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
 OBJS_elkSCSI= 		$(ADFS) $(SCSI_DRIVERS) 	$(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS_ELK)
 
-LINK_masIDE=		mas
-LINK_masSCSI=		mas
-LINK_bbcIDE=		mas
-LINK_bbcIDEF=		mas
-LINK_bbcSCSI=		mas
-LINK_bbcSCSI_AH=	mas
-LINK_bbcSCS2=		mas
-LINK_elkIDE=		mas
+LINK_masIDE=		default
+LINK_masSCSI=		default
+LINK_bbcIDE=		default
+LINK_bbcIDEF=		default
+LINK_bbcSCSI=		default
+LINK_bbcSCSI_AH=	default
+LINK_bbcSCS2=		default
+LINK_elkIDE=		default
 LINK_elkSCSI=		elkSCSI
 LINK_masMMC_hog_SD=	masMMC_hog
 LINK_masMMC_hog_SDT=	masMMC_hog
@@ -69,7 +69,7 @@ LINK_masMMC_hog_SD2=	masMMC_hog
 LINK_masMMC_hog_SD2T=	masMMC_hog
 LINK_masMMC_hog_SD3=	masMMC_hog
 LINK_masMMC_hog_SD3T=	masMMC_hog
-LINK_masBM_XDFS=	mas
+LINK_masBM_XDFS=	default
 
 .PRECIOUS: $(addsuffix /config.inc, $(addprefix $(BUILDDIR)/, $(ROMNAMES)))
 
