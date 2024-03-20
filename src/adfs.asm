@@ -5750,6 +5750,9 @@ L9DF6:		jsr	L92A8
 .if .def(HD_XDFS)
 		.byte	$0D, "External ADFS 1.50"	; Help string
 		.byte	$8D
+.elseif .def(IDE_JGH_R23)
+		.byte	$0D, "Acorn ADFS 1.33r23"
+		.byte	$8D
 .elseif .def(IDE_HOG_TMP)
 		.byte	$0D, "Acorn ADFS 1.33.005"
 		.byte	$8D
@@ -5766,7 +5769,7 @@ Serv9:
 
 		tya
 		pha
-	.ifdef IDE_HOG_TMP
+	.if .def(IDE_HOG_TMP) || .def(IDE_JGH_R23)
 		jsr	GetChar
 	.else
 		lda	($F2),Y		
