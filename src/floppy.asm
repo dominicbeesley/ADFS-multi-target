@@ -30,7 +30,7 @@
 ;; --------------------------------------
 .if TARGETOS = 0 && .def(HD_SCSI)
 		brk
-.elseif TARGETOS <= 1
+.elseif (TARGETOS <= 1) 
 		.byte	$2E
 		.byte	$0D
 .endif

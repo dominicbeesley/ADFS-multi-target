@@ -19,13 +19,13 @@ HD_BPUT_WriteSector:
 		jsr	HD_CommandBGETBPUTsector	; Send command block to SCSI/IDE/SD
 		ldy	#$00
 		jsr	IDE_WaitforReq			; Wait for IDE not busy
-.if TARGETOS = 0
-	.ifndef IDE_HOG_TMP
+.if (TARGETOS = 0) || .def(IDE_DC)
+	.if !.def(IDE_HOG_TMP)
 		nop					; TODO: Ask JGH - is this necessary?
 	.endif
 .endif
 		jmp	LAB76				; Always jump to write
-.if TARGETOS = 0
+.if (TARGETOS = 0) || .def(IDE_DC)
 ResultCodes:
 		.byte	$FF
 		.byte	$FF

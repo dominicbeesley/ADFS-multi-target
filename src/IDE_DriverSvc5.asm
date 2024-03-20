@@ -6,7 +6,7 @@
 		.export Svc5_IRQ
 		.export LABB4
 		.export UpdateDrive
-.if TARGETOS > 0
+.if !((TARGETOS = 0) || .def(IDE_DC))
 		.export GetChar
 .endif
 		.segment "hd_driver_svc5"
@@ -22,7 +22,24 @@ UpdateDrive:
 		sta	WKSP_ADFS_333_LASTACCDRV	; Store for any error
 		lda	#$7F
 		rts
-.if TARGETOS > 0
+.if (TARGETOS = 0) || .def(IDE_DC)
+		nop
+		lda	#$05
+		rts
+
+		tya
+		pha
+		lda	#$00
+		sta     IDE_SEC_NO                      ; AB8E 8D 43 FC                 .C.
+	        	ror     ZP_ADFS_FLAGS                   ; AB91 66 CD                    f.
+	        	clc                                     ; CLEAR bit 0 - ADFS_FLAGS_ENSURING
+	        	rol     ZP_ADFS_FLAGS                   ; AB94 26 CD                    &.
+	        	lda     IDE_DATA                         ; AB96 AD 40 FC                 .@.
+	        	jsr     IDE_WaitforReq                   ; AB99 20 0F 83                  ..
+	        	ora     IDE_DATA                        ; AB9C 0D 40 FC                 .@.
+	        	sta     $1131                           ; AB9F 8D 31 11                 .1.
+	        	jmp     L9DB4			        ; ABA2 4C 63 9D
+.else ; TARGETOS > 0
 GetChar:
 		lda	($F2),Y
 		cmp	#$20
@@ -36,23 +53,6 @@ GetChar:
 		.byte	0,0
 	.endif
 .endif ; TARGETOS = 1
-.else ; TARGETOS = 0
-		nop
-		lda	#$05
-		rts
-
-		tya
-		pha
-		lda	#$00
-		sta     IDE_SEC_NO                      ; AB8E 8D 43 FC                 .C.
-        	ror     ZP_ADFS_FLAGS                   ; AB91 66 CD                    f.
-        	clc                                     ; CLEAR bit 0 - ADFS_FLAGS_ENSURING
-        	rol     ZP_ADFS_FLAGS                   ; AB94 26 CD                    &.
-        	lda     IDE_DATA                         ; AB96 AD 40 FC                 .@.
-        	jsr     IDE_WaitforReq                   ; AB99 20 0F 83                  ..
-        	ora     IDE_DATA                        ; AB9C 0D 40 FC                 .@.
-        	sta     $1131                           ; AB9F 8D 31 11                 .1.
-        	jmp     L9DB4			        ; ABA2 4C 63 9D
 .endif ; TARGETOS = 0
 
 ; Check for data loss

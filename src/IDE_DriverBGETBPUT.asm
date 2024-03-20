@@ -15,7 +15,7 @@ HD_CommandBGETBPUTsector:
 		pha
 		jsr	WaitEnsuring				; Wait for ensuring to complete
 .if TARGETOS > 0						; TODO: This needs to be reinstaged for Elk after byte perfect
-  .ifndef IDE_HOG_TMP
+  .if (!.def(IDE_HOG_TMP)) && (!.def(IDE_DC))
 		nop					; Pause for PanOS
 		nop
 		nop
@@ -30,14 +30,14 @@ HD_CommandBGETBPUTsector:
 		adc	#1
 		sta	IDE_SEC_NO
 		lda	WKSP_ADFS_202,X			; Set sector b8-b15
-.if TARGETOS = 0
+.if (TARGETOS = 0) || .def(IDE_DC)
 		adc	#0				; TODO: Ask JGH - is this really not necessary in other versions?
 .endif
 		sta	IDE_CYL_NO_LO
 		lda	WKSP_ADFS_203,X			; Set sector b16-b21
 		sta	WKSP_ADFS_333_LASTACCDRV
 		jmp	SetRandom
-.if TARGETOS = 0
+.if (TARGETOS = 0) || .def(IDE_DC)
 		nop
 		nop
 .else

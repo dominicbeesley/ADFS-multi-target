@@ -8,7 +8,7 @@
 		.export SetGeometry
 		.export SetRandom
 		.export SetSector
-.if TARGETOS < 1
+.if (TARGETOS < 1) || .def(IDE_DC)
 		.export CommandExit
 		.export CommandOk
 		.export SetCommand
@@ -37,7 +37,7 @@ HD_Command:
 ; Do a data transfer to/from a hard drive device
 ; ----------------------------------------------
 
-.if TARGETOS = 0
+.if TARGETOS = 0 || .def(IDE_DC)
 		jmp	_lelkA0C4
 		nop
 		nop
@@ -85,7 +85,7 @@ Twice:							; First pass to seek sector
 		pha
 		ldx	#<WKSP_ADFS_227_TUBE_XFER	; Point to address block
 		ldy	#>WKSP_ADFS_227_TUBE_XFER
-.if TARGETOS = 0
+.if (TARGETOS = 0) || .def(IDE_DC)
 		lda	#0
 		rol	a
 		eor	#1				; why?
@@ -109,7 +109,7 @@ IOWrite:
 		lda	($80),Y
 		sta	IDE_DATA
 
-.if TARGETOS = 0
+.if (TARGETOS = 0) || .def(IDE_DC)
 		jmp	TransferByte
 .else ;TARGETOS <> 0
 		bcs	TransferByte
@@ -117,12 +117,12 @@ IOWrite:
 IORead:
 		lda	IDE_DATA
 		sta	($80),Y
-.if TARGETOS = 0
+.if (TARGETOS = 0) || .def(IDE_DC)
 		jmp	TransferByte
 .else ;TARGETOS <> 0
 		bcc	TransferByte
 .endif
-.if TARGETOS = 0
+.if TARGETOS = 0 
 TransTube:
 		bcc     _lelk817E                       ; 8173 90 09                    ..
         	sbc     $EDED                           ; 8175 ED ED ED                 ...
@@ -138,21 +138,33 @@ _lelk817E:	sbc     $EDED                           ; 817E ED ED ED              
 _lelk8187:  	jmp     CommandLoop                     ; 8187 4C 3B 81                 L;.
 .else ; TARGETOS > 0
 TransTube:
-.ifndef IDE_HOG_TMP
+.if (!.def(IDE_HOG_TMP)) && (!.def(IDE_DC))
 		jsr	TubeDelay
 .endif
 		bcc	TubeRead
 TubeWrite:
 		lda	TUBEIO
 		sta	IDE_DATA
+  .ifdef IDE_DC
+		jmp	TransferByte
+  .else
 		bcs	TransferByte
+  .endif
 TubeRead:
 		lda	IDE_DATA
 		sta	TUBEIO
+  .ifdef IDE_DC
+		jmp	TransferByte
+  .else
 		bcc	TransferByte
+  .endif
 
 
 .endif ; TARGETOS > 0
+
+.ifdef IDE_DC
+_lelk8187:	jmp	CommandLoop
+.endif
 
 L81AD:							; Aligned to L81AD
 ;;;TODO:OBJ: POST CHECK
@@ -191,7 +203,7 @@ TubeAddr:
 		inc	$85
 TransCount:
 		dec	$88				; Loop for all sectors
-.if TARGETOS = 0
+.if (TARGETOS = 0) || .def(IDE_DC)
 		bne	_lelk8187
 .else
 		bne	CommandLoop			; Done, check for errors
@@ -229,7 +241,7 @@ SetGeometry:
 
 		.segment "hd_driver_3"
 
-.if TARGETOS > 0
+.if (TARGETOS > 0) && (!.def(IDE_DC))
 TubeAction:
 		lda	#0				; Set Tube action
 		rol	A				; A=0/1 for Read/Write
@@ -249,7 +261,7 @@ SetSector:
 		sta	IDE_SEC_NO
 		dey					; Set sector b8-b15 Y=7
 		lda	($B0),Y
-.if TARGETOS = 0
+.if (TARGETOS = 0) || (.def(IDE_DC))
 		adc	#0				; TODO: ASK JGH
 .endif
 		sta	IDE_CYL_NO_LO
@@ -267,22 +279,22 @@ SetSector:
 		dey
 		lda	($B0),Y
 SetCommand:
-.if TARGETOS > 0
+.if (TARGETOS = 0) || .def(IDE_DC)
+		and     #$02                            ; 822F 29 02                    ).
+        		pha                                     ; 8231 48                       H
+        		eor     #$02                            ; 8232 49 02                    I.
+        		lsr     a                               ; 8234 4A                       J
+        		lsr     a                               ; 8235 4A                       J
+        		pla                                     ; 8236 68                       h
+        		asl     a                               ; 8237 0A                       .
+        		asl     a                               ; 8238 0A                       .
+        		asl     a                               ; 8239 0A                       .
+        		ora     #$20                            ; 823A 09 20                    .
+.else
 		asl	A				; Convert &08/&0A to &20/&30
 		asl	A
 		asl	A
 		eor	#$60
-.else
-		and     #$02                            ; 822F 29 02                    ).
-        	pha                                     ; 8231 48                       H
-        	eor     #$02                            ; 8232 49 02                    I.
-        	lsr     a                               ; 8234 4A                       J
-        	lsr     a                               ; 8235 4A                       J
-        	pla                                     ; 8236 68                       h
-        	asl     a                               ; 8237 0A                       .
-        	asl     a                               ; 8238 0A                       .
-        	asl     a                               ; 8239 0A                       .
-        	ora     #$20                            ; 823A 09 20                    .
 .endif
 		ldy	#0				; Set IDE command &20 or &30
 		plp					; Get CC/CS Read/Write back
@@ -300,7 +312,7 @@ IDE_SetDriveHeadA:
 IDE_SetCylinderHi:
 		pha					; Set sector b16-b21
 		and	#$3F
-.if TARGETOS = 0
+.if (TARGETOS = 0) || .def(IDE_DC)
 		adc	#0
 .endif
 		sta	IDE_CYL_NO_HI
@@ -317,17 +329,17 @@ SetRandom:
 		eor	WKSP_ADFS_201,X
 		jsr	IDE_SetDriveHead			; Set device and command
 		pla
-.if TARGETOS > 0
+.if (TARGETOS = 0) || .def(IDE_DC)		
+		jmp	_lelkLA0D8			; TODO: Ask JGH - is this vestigial it seems unnecessary
+.else
 		php
 		jmp	SetCommand
-.else
-		jmp	_lelkLA0D8			; TODO: Ask JGH - is this vestigial it seems unnecessary
 .endif
 IDE_GetResult:
 		lda	IDE_STATUS			; Get IDE result
 		and	#$21
 		beq	GetResOk
-.if TARGETOS = 0
+.if (TARGETOS = 0) || .def(IDE_DC)
 		ora	IDE_ERROR			; Get IDE error code, CS already set
 .else
 		lda	IDE_ERROR			; Get IDE error code, CS already set
@@ -340,19 +352,19 @@ GetResLp:
 		lda	ResultCodes,X
 GetResOk:
 		rts
-.if TARGETOS > 0
-.ifndef IDE_HOG_TMP
+.if (TARGETOS = 0) || .def(IDE_DC)
+		nop
+		nop
+		nop
+		nop
+		nop
+		nop
+		nop
+.else
+  .ifndef IDE_HOG_TMP
 		.byte	0,0,0,0,0,0
 		.byte	0,0,0,0,0
-.endif
-.else
-		nop
-		nop
-		nop
-		nop
-		nop
-		nop
-		nop
+  .endif
 .endif
 ;       LDA #&FF         ;; leftover code
 ;       JMP &81D4        ;; Jump to return result

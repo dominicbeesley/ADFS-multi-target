@@ -9,7 +9,7 @@
 		.export GenerateErrorNoSuff
 		.export L92A8
 		.export L9322
-.if TARGETOS < 1 && .def(HD_IDE)
+.if (TARGETOS < 1 && .def(HD_IDE)) || .def(IDE_DC)
 		.export _lelkA0C4
 		.export _lelkLA0D8
 .endif
@@ -159,18 +159,18 @@ L8017:		.byte	$00				; Copyright string
 .elseif .def(HD_MMC_JGH) || .def(HD_MMC_HOG)
 		.byte	"(C)2016",0
 .elseif .def(HD_IDE)
-.if .def(IDE_HOG_TMP)
+  .if .def(IDE_HOG_TMP)
 		.byte	"(C)2017 Acorn",0
-.elseif .def(HD_IDE_FAST)
+  .elseif .def(HD_IDE_FAST)
 		.byte	"(C)2021 FAST",0
-.else
-.if TARGETOS = 0
+  .else
+  .if TARGETOS = 0 || .def(IDE_DC)
 		.byte	"(C)1983 Acorn", 0		; TODO: Ask JGH?
-.elseif TARGETOS = 1
+  .elseif TARGETOS = 1
 		.byte	"(C)2005 Acorn",0
-.else
+  .else
 		.byte	"(C)2005",0
-.endif ; TARGETOS
+  .endif ; TARGETOS
 .endif ; IDE_FASE
 .else
 .if TARGETOS > 2
@@ -306,13 +306,13 @@ X807E:		rts
 .endif
 
 .ifdef HD_IDE
-.if TARGETOS > 0
-.ifdef PRESERVE_CONTEXT
+  .if TARGETOS > 0 && (!.def(IDE_DC))
+    .ifdef PRESERVE_CONTEXT
 ReadBreak:
 		lda	$028D
 		and	#$01
 		rts
-.endif
+    .endif
 WaitForData:
 		pha					; Balance stack
 WaitForLp:
@@ -323,7 +323,7 @@ WaitForLp:
 		beq	WaitForLp			; Loop until data ready
 		pla					; Return status
 		rts
-.else ; TARGETOS = 0
+  .else ; TARGETOS = 0
 	nop
 	nop
 	nop
@@ -342,7 +342,7 @@ WaitForData:
 	RTS
 ;; TODO: ASK JGH - why the larger/slower version?
 ;; TODO: Check this bug fix is right
-.endif ; TARGETOS = 0
+  .endif ; TARGETOS = 0
 .endif ; .def(HD_IDE)
 
 .ifdef HD_MMC_HOG
@@ -374,13 +374,13 @@ L8076:
 .if (.def(HD_IDE)) || (.def(HD_MMC_JGH))
 starMOUNTck:
 		jsr	starMOUNT				; Do *MOUNT, then reselect ADFS
-.if TARGETOS = 0
+.if (TARGETOS = 0) || (.def(IDE_DC))
 		jmp	L9B4C
 .else
 		jmp	L9B50
 .endif
 .endif
-.if .def(HD_IDE) && TARGETOS >= 1 && (!.def(IDE_HOG_TMP))
+.if .def(HD_IDE) && TARGETOS >= 1 && (!.def(IDE_HOG_TMP)) && (!.def(IDE_DC))
 		.byte	$F9
 .endif
 
@@ -467,7 +467,7 @@ CommandExecXY:						; L80A2
 ;;
 CommandExecRetryLp:
 		jsr	CommandExecSkStartExec		; Do the specified command
-.if (.def(HD_IDE) || (.def(HD_MMC_JGH) )) && (TARGETOS > 0)			; TODO : rationalise
+.if ((.def(HD_IDE) && (!.def(IDE_DC))) || (.def(HD_MMC_JGH) )) && (TARGETOS > 0)			; TODO : rationalise
 		beq	L809Erts			; Exit if ok
 .else
 		beq	L8098rts			; Exit if ok
@@ -646,7 +646,7 @@ L830B:		jsr	L834E				; Do something, then generate an error
 .ifdef HD_IDE
 TubeStore:
 		jsr	TSDelay				; JSR/RTS delay
-.if TARGETOS = 0
+.if (TARGETOS = 0) || .def(IDE_DC)
 		bne	GenerateError
 		rts
 TSDelay:
@@ -685,16 +685,17 @@ WaitEnsuring:						; L8328
 		rts
 .endif
 .ifdef HD_IDE
-.if TARGETOS = 0
+  .if (TARGETOS = 0) || (.def(IDE_DC))
 _lelk830C:
 		bne	WaitEnsuring
 		rts
-.else ; TARGETOS > 0
-.ifndef IDE_HOG_TMP
+  .else ; TARGETOS > 0
+    .ifndef IDE_HOG_TMP
 		.byte	0,0,0
-.endif
-.endif ; TARGETOS > 0
+    .endif
+  .endif ; TARGETOS > 0
 .endif ; .def(HD_IDE)
+
 .if .def(HD_SCSI) || .def(HD_XDFS) || .def(HD_SCSI2)
 WaitEnsuring:						; L8328
 		lda	#ADFS_FLAGS_ENSURING		; Prepare to look at bit 0
@@ -722,7 +723,7 @@ lp:		jsr	IDE_GetStatus
 		plp
 		rts
 .endproc
-.if TARGETOS < 1
+.if (TARGETOS = 0) || .def(IDE_DC)
 _lelk831B:
 		jsr	IDE_WaitforReq
 		bvs	_lelk8326
@@ -767,8 +768,8 @@ L8349:		pla					; Drop return address
 .ifdef HD_MMC_HOG
 SCSI_WaitforReq:		;; TODO - get rid
 		rts
-.elseif TARGETOS <> 0
-	.ifndef IDE_HOG_TMP
+.elseif TARGETOS <> 0 
+	.if (!.def(IDE_HOG_TMP)) && (!.def(IDE_DC))
 		.byte	0,0,0,0,0
 	.endif
 .endif ; TARGETOS <> 0
@@ -2220,7 +2221,7 @@ L8BA2:
 		beq	L8BB8				; Jump to ignore extra bytes
 		bit	ZP_ADFS_FLAGS			; Tube or I/O?
 		bvc	L8BB5				; Jump to read to I/O memory
-.if (.def(HD_IDE) && TARGETOS >= 1) && (!.def(IDE_HOG_TMP))	; TODO: Ask JGH why different for Elk, IDE, SCSI?
+.if (.def(HD_IDE) && TARGETOS >= 1) && (!.def(IDE_HOG_TMP)) && (!.def(IDE_DC))	; TODO: Ask JGH why different for Elk, IDE, SCSI?
 		jsr	TubeDelay			; Longer delay
 .else
 		jsr	TubeDelay2			; Pause a bit
@@ -2897,10 +2898,10 @@ L8FE8:		jsr	L8870
 		plp
 L8FF2:		rts
 ;;
-;; Check Free Space Map consistancy
+;; Check Free Space Map consistency
 ;; ================================
 L8FF3:
-.if (TARGETOS = 0) && (!(.def(HD_SCSI) || .def(HD_XDFS))); TODO: ASK JGH - this looks like debugging stuff left in?
+.if .def(IDE_DC) || ((TARGETOS = 0) && (!.def(HD_SCSI))) ; TODO: ASK JGH - this looks like debugging stuff left in?
 		rts
 		.byte	$09, $90
 .else
@@ -4585,7 +4586,7 @@ HD_InitDetect:
 		stz	mmcstate			; mark the mmc system as un-initialized
 		jmp	initializeDriveTable
 .elseif .def(HD_IDE)
-.if TARGETOS = 0
+.if (TARGETOS = 0) || .def(IDE_DC)
 HD_InitDetectBoot:
 HD_InitDetect:
 		lda	IDE_STATUS
@@ -4969,7 +4970,7 @@ L9B0A:
 		jsr	L9A88				; Read BREAK type
 .endif
 .else ; TARGETOS <= 1
-.if .def(PRESERVE_CONTEXT) && (TARGETOS > 0)
+.if .def(PRESERVE_CONTEXT) && (TARGETOS > 0) && (!.def(IDE_DC))
 		jsr	ReadBreak
 .else
 		lda	$028D				; TODO Ask JGH : should this not be ReadBreak?
@@ -5105,7 +5106,7 @@ Serv3:
 		bne	_lbbc9B57			; 9B49 D0 0C                    ..
 		jsr	HD_InitDetectBoot		; 9B4B 20 63 9A                  c.
 		beq	L9B74				; 9B4E F0 1E                    ..
-.if (.def(HD_IDE) || .def(HD_MMC_JGH) || .def(HD_MMC_HOG)) && (TARGETOS > 0) && .def(PRESERVE_CONTEXT); TODO should this not be readbreak for Elk too?
+.if ((.def(HD_IDE) && (!.def(IDE_DC))) || .def(HD_MMC_JGH) || .def(HD_MMC_HOG)) && (TARGETOS > 0) && .def(PRESERVE_CONTEXT); TODO should this not be readbreak for Elk too?
 		jsr	ReadBreak
 .else
 		lda	$028D				; 9B50 AD 8D 02                 ...
@@ -5289,7 +5290,7 @@ L9C1A:		lda	WKSP_ADFS_314,Y
 		jsr	LB4CD
 .ifdef PRESERVE_CONTEXT
 		lda	WKSP_ADFS_31B			; Lib not unset, jump ahead
-  .if TARGETOS = 0
+  .if (TARGETOS = 0) || .def(IDE_DC)
 		clc					; TODO: Ask JGH - I can't see the purpose of this? Am I missing somthing subtle with carry flag?
 		adc	#1
   .else
@@ -5314,7 +5315,7 @@ L9C1A:		lda	WKSP_ADFS_314,Y
 ;       EQUB &1B		; leftover bytes
 ;       EQUB ZP_ADFS_C3_SAVE_X
 ;       BNE L9C7A        ; leftover bytes
-    .if TARGETOS = 0
+    .if (TARGETOS = 0) || .def(IDE_DC)
 		rts
 		rts
     .else
@@ -6274,7 +6275,7 @@ starBYE:
 		beq	LA102					; No drive selected
 		jmp	starCLOSE				; Do CLOSE#0
 .else
-.if TARGETOS = 0 && .def(HD_IDE)
+.if (TARGETOS = 0 && .def(HD_IDE)) || .def(IDE_DC)
 		rts                                     ; A0C3 60                       `
 
 ; ----------------------------------------------------------------------------
@@ -6301,15 +6302,15 @@ _lelkLA0D8:	php                                     ; A0D8 08                   
 
 		lda	WKSP_ADFS_317_CURDRV			; Get current drive
 		pha					; Save current drive
-.if (TARGETOS = 0) && (.def(HD_SCSI) || .def(HD_XDFS))
+  .if (TARGETOS = 0) && (.def(HD_SCSI) || .def(HD_XDFS))
 		jsr	starCLOSE
 
-.else
+  .else
 		tax
 		inx
 		beq	LA10E				; No drive selected
 		jsr	starCLOSE				; Do CLOSE#0
-.endif
+  .endif
 LA10E:		lda	#$60
 		sta	WKSP_ADFS_317_CURDRV			; Set drive to 3
 LA113:		ldx	#<LA12A
@@ -9609,7 +9610,7 @@ LB898:
 ;;
 LB8A5:		bit	ZP_ADFS_FLAGS
 		bvc	LB8AD
-.if .def(HD_IDE) && (!.def(IDE_HOG_TMP))
+.if .def(HD_IDE) && (!.def(IDE_HOG_TMP)) && (!.def(IDE_DC))
   .if TARGETOS = 0 && (!.def(HD_SCSI))
 		sbc	$EDED				; TODO: Reinstate?
   .else
@@ -9909,7 +9910,7 @@ LBA57:		lda	#$FF
 	.endif
 .elseif (TARGETOS = 1 || (!.def(HD_SCSI))) && (!.def(IDE_HOG_TMP))
 		.byte	"and Hugo."
-	.if .def(HD_IDE) && TARGETOS >= 1
+	.if .def(HD_IDE) && TARGETOS >= 1 && (!.def(IDE_DC))
 		.byte	$23
 	.else
 		.byte	$D
