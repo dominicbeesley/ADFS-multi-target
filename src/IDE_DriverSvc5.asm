@@ -6,8 +6,9 @@
 		.export Svc5_IRQ
 		.export LABB4
 		.export UpdateDrive
+.if TARGETOS > 0
 		.export GetChar
-
+.endif
 		.segment "hd_driver_svc5"
 
 ;;
