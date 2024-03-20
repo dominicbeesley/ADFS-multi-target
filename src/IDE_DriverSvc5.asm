@@ -6,6 +6,7 @@
 		.export Svc5_IRQ
 		.export LABB4
 		.export UpdateDrive
+		.export GetChar
 
 		.segment "hd_driver_svc5"
 
@@ -25,10 +26,14 @@ GetChar:
 		lda	($F2),Y
 		cmp	#$20
 		rts
+	.ifndef IDE_HOG_TMP
 		.dword	0,0,0
 		.dword	0,0,0
+	.endif
 .if TARGETOS = 1
+	.ifndef IDE_HOG_TMP
 		.byte	0,0
+	.endif
 .endif ; TARGETOS = 1
 .else ; TARGETOS = 0
 		nop

@@ -17,7 +17,8 @@ ROMNAMES= 	masIDE \
 		elkIDE \
 		elkSCSI \
 		bbcSCS2 \
-		bbcIDEF
+		bbcIDEF \
+		bbcIDE_hog 
 
 ROMS=$(addsuffix .rom, $(addprefix $(BUILDDIR)/, $(ROMNAMES)))
 
@@ -54,7 +55,8 @@ $(BUILDDIR)/adfsroms.ssd:
 	dfs read -w "*.*" -i -d ~/hostfs/roms65 $@
 
 
-HOGLETORGS=$(addsuffix .da.s, $(addprefix compares/org/Hoglet15x/, $(notdir $(filter-out %.md, $(wildcard orgroms/Hoglet15x/*)))))
+HOG15x_ORGS=$(addsuffix .da.s, $(addprefix compares/org/Hoglet15x/, $(notdir $(filter-out %.md, $(wildcard orgroms/Hoglet15x/*)))))
+HOG13x_ORGS=$(addsuffix .da.s, $(addprefix compares/org/Hoglet13x/, $(notdir $(basename $(wildcard orgroms/Hoglet13x/*.rom)))))
 
 COMPARES=	compares/org/masIDE.da.s \
 	compares/org/masSCSI.da.s \
@@ -77,18 +79,30 @@ COMPARES=	compares/org/masIDE.da.s \
 	compares/new/bbcSCSI.da.s \
 	compares/new/elkIDE.da.s \
 	compares/new/elkSCSI.da.s \
-	$(HOGLETORGS)
+	$(HOG15x_ORGS) \
+	$(HOG13x_ORGS) \
+	compares/new/Hoglet13x/ADFS130.da.s \
+	compares/new/Hoglet13x/ADFS133.da.s \
+	compares/new/Hoglet13x/DC133.da.s \
+	compares/new/Hoglet13x/JGH133.da.s \
+	compares/new/Hoglet13x/ELK100.da.s \
+	compares/new/Hoglet13x/ELK103.da.s \
 
 
-compares: all comparedirs $(COMPARES)
+compares: roms comparedirs $(COMPARES)
 
 comparedirs:
 	-mkdir -p compares
 	-mkdir -p compares/org
 	-mkdir -p compares/org/Hoglet15x
+	-mkdir -p compares/org/Hoglet13x
 	-mkdir -p compares/new
 	-mkdir -p compares/new/Hoglet15x
+	-mkdir -p compares/new/Hoglet13x
 
+compares/org/Hoglet13x/%.da.s: orgroms/Hoglet13x/%.rom
+	$(DA65)  --comments 4 --start-addr 0x8000 $< >$@
+	sed -i 1,4d $@
 compares/org/Hoglet15x/%.da.s: orgroms/Hoglet15x/%
 	$(DA65)  --cpu 65c02 --comments 4 --start-addr 0x8000 $< >$@
 	sed -i 1,4d $@
@@ -134,6 +148,19 @@ compares/new/Hoglet15x/%.da.s:$(BUILDDIR)/masBM_%.rom
 compares/new/Hoglet15x/ORIG.da.s:compares/new/masSCSI.da.s
 	cp $< $@
 compares/new/Hoglet15x/IDE.da.s:compares/new/masIDE.da.s
+	cp $< $@
+
+compares/new/Hoglet13x/ADFS130.da.s:compares/new/bbcSCSI.da.s
+	cp $< $@
+compares/new/Hoglet13x/ADFS133.da.s:compares/new/bbcIDE_hog.da.s
+	cp $< $@
+compares/new/Hoglet13x/DC133.da.s:compares/new/bbcIDE.da.s
+	cp $< $@
+compares/new/Hoglet13x/JGH133.da.s:compares/new/bbcIDE.da.s
+	cp $< $@
+compares/new/Hoglet13x/ELK100.da.s:compares/new/elkSCSI.da.s
+	cp $< $@
+compares/new/Hoglet13x/ELK103.da.s:compares/new/elkIDE.da.s
 	cp $< $@
 
 

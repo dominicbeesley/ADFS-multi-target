@@ -31,6 +31,8 @@ LBD31:
 		sta	FDC_CMD				; FDC Status/Command
 .endif
 		jmp	FloppyWaitNMIFinish
+	;; TODO: this block looks to be pretty redundant!
+	.ifndef IDE_HOG_TMP
 ;;
 .ifdef USE65C12
 		lda	#FDCSIDE
@@ -41,6 +43,7 @@ LBD31:
 		sta	NMIVARS_SIDE
 .endif
 		rts
+	.endif
 ;;
 FloppySetSide1:
 .ifdef USE65C12

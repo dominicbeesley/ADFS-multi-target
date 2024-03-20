@@ -26,7 +26,9 @@ HD_Command:
               bmi    CommandExecFloppyOp         ; Jump back with 4,5,6,7 as floppies
 .endif
               ldy    #$00
+.ifndef IDE_HOG_TMP
               nop
+.endif
 
 ;;; TubeCheckAddrAndClaim must be linked in here
 
@@ -136,7 +138,9 @@ _lelk817E:	sbc     $EDED                           ; 817E ED ED ED              
 _lelk8187:  	jmp     CommandLoop                     ; 8187 4C 3B 81                 L;.
 .else ; TARGETOS > 0
 TransTube:
+.ifndef IDE_HOG_TMP
 		jsr	TubeDelay
+.endif
 		bcc	TubeRead
 TubeWrite:
 		lda	TUBEIO
@@ -337,8 +341,10 @@ GetResLp:
 GetResOk:
 		rts
 .if TARGETOS > 0
+.ifndef IDE_HOG_TMP
 		.byte	0,0,0,0,0,0
 		.byte	0,0,0,0,0
+.endif
 .else
 		nop
 		nop

@@ -15,9 +15,11 @@ HD_CommandBGETBPUTsector:
 		pha
 		jsr	WaitEnsuring				; Wait for ensuring to complete
 .if TARGETOS > 0						; TODO: This needs to be reinstaged for Elk after byte perfect
+  .ifndef IDE_HOG_TMP
 		nop					; Pause for PanOS
 		nop
 		nop
+  .endif
 .endif
 		jsr	IDE_WaitforReq
 		lda	#1				; one sector
@@ -39,5 +41,7 @@ HD_CommandBGETBPUTsector:
 		nop
 		nop
 .else
+  .ifndef IDE_HOG_TMP
 		.byte	0
+  .endif
 .endif

@@ -417,8 +417,10 @@ LBF75:		ldx	$B0
 		lda	#$76
 		jsr	$FFF1
 		jmp	FloppyErrorA0or2E3
+	.ifndef IDE_HOG_TMP
 		.byte	0,0,0,0,0,0,0
 		.byte	0,0,0,0,0,0,0
+	.endif
 .endif
 
 ; Sector < &A00, convert to track+sector

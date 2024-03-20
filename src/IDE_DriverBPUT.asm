@@ -20,7 +20,9 @@ HD_BPUT_WriteSector:
 		ldy	#$00
 		jsr	IDE_WaitforReq			; Wait for IDE not busy
 .if TARGETOS = 0
+	.ifndef IDE_HOG_TMP
 		nop					; TODO: Ask JGH - is this necessary?
+	.endif
 .endif
 		jmp	LAB76				; Always jump to write
 .if TARGETOS = 0
@@ -63,9 +65,11 @@ LAB76:		lda	($BC),Y				; Get byte from buffer
 		sta	ZP_ADFS_FLAGS
 .endif
 		dey
+	.ifndef IDE_HOG_TMP
 		nop					; Don't trample on IDE register
 		nop
 		nop
+	.endif
 
 
 
