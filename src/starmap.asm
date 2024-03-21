@@ -19,7 +19,7 @@ LA0A9:		cpx	WKSP_ADFS_100_FSM_S1 + $FE
 		inx
 		inx
 		inx
-.if TARGETOS=0 && .def(HD_SCSI)
+.ifdef ELK_100_ADFS
 		stx	$B2
 .else
 		stx	$C6
@@ -33,7 +33,7 @@ LA0B5:		dex
 		jsr	L92A8
 		.byte	"  : ", $A0
 
-.if TARGETOS=0 && .def(HD_SCSI)
+.ifdef ELK_100_ADFS
 		ldx	$B2
 .else
 		ldx	$C6
@@ -50,7 +50,7 @@ LA0CB:		dex
 		jsr	OSNEWL
 .endif
 
-.if TARGETOS=0 && .def(HD_SCSI)
+.ifdef ELK_100_ADFS
 		ldx	$B2
 .else
 		ldx	$C6

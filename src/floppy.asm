@@ -28,7 +28,7 @@
 
 ;; Pass SCSI command to floppy controller
 ;; --------------------------------------
-.if TARGETOS = 0 && .def(HD_SCSI)
+.if .def(ELK_100_FLOPPY) && (!.def(SCSI_ELK_HOG))
 		brk
 .elseif (TARGETOS <= 1) 
 		.byte	$2E
@@ -76,7 +76,7 @@ LBA63:		sta	WKSP_ADFS_2E0
 		tsx
 		stx	WKSP_ADFS_2E7_STKSAVE
 		pha
-.if TARGETOS=0 && .def(HD_SCSI)
+.ifdef ELK_100_FLOPPY
 		jsr	FloppyElkBeforeNMI
 .endif
 		jsr	FloppyGetStepRate
@@ -195,14 +195,14 @@ LBAFA:		jsr	LBD46
 .endif
 .endif
 		lda	#$14
-.if TARGETOS=0 && .def(HD_SCSI)
+.ifdef ELK_100_FLOPPY
 		ora	NMIVARS_FDC_CMD_STEP
 		jsr	FloppyWaitNMIFinish2elk
 .else
 		ora	NMIVARS_FDC_CMD_STEP
 		sta	FDC_CMD				; FDC Status/Command
 		jsr	FloppyWaitNMIFinish
-.endif ; ELK SCSI
+.endif ; ELK_100_FLOPPY
 		lda	$A1
 		ror	A
 		bcc	LBB26
@@ -235,7 +235,7 @@ LBB3D:		sta	FDC_TRACK,X			; Store in FDC Track/Sector
 DoFloppySCSICommand:					; LBB46
 		tsx
 		stx	WKSP_ADFS_2E7_STKSAVE			; Save stack pointer
-.if TARGETOS=0 && .def(HD_SCSI)
+.ifdef ELK_100_FLOPPY
 		jsr	FloppyElkBeforeNMI
 .endif
 		lda	#$10
@@ -248,7 +248,7 @@ DoFloppySCSICommand:					; LBB46
 ExecFloppyPartialSectorBuf:		sta	WKSP_ADFS_2E2			; Store where to load partial sector to
 		tsx
 		stx	WKSP_ADFS_2E7_STKSAVE
-.if TARGETOS=0 && .def(HD_SCSI)
+.ifdef ELK_100_FLOPPY
 		jsr	FloppyElkBeforeNMI
 .endif
 		lda	#>WKSP_ADFS_215_DSKOPSAV_RET			; Point to copy of command block in workspace
@@ -400,7 +400,7 @@ FloppyGetStepRate:
 .endif
 .endif	;TARGETOS=0
 
-.if TARGETOS<>0 || (!.def(HD_SCSI))
+.ifndef ELK_100_FLOPPY
 		beq	LBBF6
 		lda	#$03
 		sta	WKSP_ADFS_2E8_FDC_CMD_STEP		; If FDrive=2,3,6,7 set &C2E8=3

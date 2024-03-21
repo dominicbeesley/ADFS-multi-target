@@ -26,7 +26,7 @@ LBD24:		cmp	#$14
 LBD2F:		lda	#$80
 LBD31:
 
-.if TARGETOS<>0 || (!.def(HD_SCSI))
+.ifndef ELK_100_FLOPPY
 		jsr	ORA4_if_2E4_b0
 		sta	FDC_CMD				; FDC Status/Command
 .endif
@@ -91,7 +91,7 @@ LBD50:
 
 ;;
 FloppyRestTrk0:
-.if TARGETOS=0 && .def(HD_SCSI)
+.ifdef ELK_100_FLOPPY
 		lda	#$04
 .else
 		lda	#$00
@@ -102,7 +102,7 @@ FloppyRestTrk0:
 		sta	FDC_CMD				; FDC Status/Command
 .endif	; ELK SCSI
 
-.if TARGETOS=0 && .def(HD_SCSI)
+.ifdef ELK_100_FLOPPY
 		jmp	FloppyWaitNMIFinish2elk
 .else
 		jmp	FloppyWaitNMIFinish

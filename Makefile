@@ -20,7 +20,8 @@ ROMNAMES= 	masIDE \
 		bbcIDEF \
 		bbcIDE_hog \
 		bbcIDE_hog_JGH_133r23 \
-		bbcIDE_hog_DC
+		bbcIDE_hog_DC \
+		elkSCSI_hog
 
 
 ROMS=$(addsuffix .rom, $(addprefix $(BUILDDIR)/, $(ROMNAMES)))
@@ -161,7 +162,7 @@ compares/new/Hoglet13x/JGH133.da.s:compares/new/bbcIDE_hog_JGH_133r23.da.s
 	cp $< $@
 compares/new/Hoglet13x/DC133.da.s:compares/new/bbcIDE_hog_DC.da.s
 	cp $< $@
-compares/new/Hoglet13x/ELK100.da.s:compares/new/elkSCSI.da.s
+compares/new/Hoglet13x/ELK100.da.s:compares/new/elkSCSI_hog.da.s
 	cp $< $@
 compares/new/Hoglet13x/ELK103.da.s:compares/new/elkIDE.da.s
 	cp $< $@

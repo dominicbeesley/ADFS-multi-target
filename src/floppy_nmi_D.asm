@@ -155,7 +155,7 @@ LBE37:		sta	$A6
 		jsr	LBD46
 		lda	$A6
 
-.if TARGETOS<>0 || (!.def(HD_SCSI))
+.ifndef ELK_100_FLOPPY
 		sta	FDC_CMD			; FDC Status/Command
 .endif
 
@@ -167,11 +167,11 @@ elkLBE4A:	lda	$A2
 		jsr	LBD50
 		lda	#$54
 		ora	NMIVARS_FDC_CMD_STEP
-.if TARGETOS<>0 || (!.def(HD_SCSI))
+.ifndef ELK_100_FLOPPY
 		sta	FDC_CMD				; FDC Status/Command
 .endif
 		inc	$A3
-.if TARGETOS=0 && .def(HD_SCSI)
+.ifdef ELK_100_FLOPPY
 		jsr	FloppyWaitNMIFinish2elk
 		jmp	elkLBE4A
 .else
@@ -190,13 +190,13 @@ LBE5C:		lda	$A2
 		lda	#$00
 .endif
 		ora	NMIVARS_FDC_CMD_STEP
-.if TARGETOS=0 && .def(HD_SCSI)
+.ifdef ELK_100_FLOPPY
 		jsr	FloppyWaitNMIFinish2elk
 .else
 		sta	FDC_CMD				; FDC Status/Command
 .endif
 
-.if TARGETOS=0 && .def(HD_SCSI)
+.ifdef ELK_100_FLOPPY
 		jmp	elkLBE4A
 .else
 		bpl	LBE41
@@ -466,7 +466,7 @@ LBFB6:		rts
 ; Return result from &A0 (or from &C2E3 if hardware not accessed)
 ; ---------------------------------------------------------------
 FloppyErrorA0or2E3:
-.if TARGETOS=0 && .def(HD_SCSI)
+.ifdef ELK_100_FLOPPY
 		jsr	FloppyElkAfterNMI
 .endif
 		ldx	WKSP_ADFS_2E7_STKSAVE

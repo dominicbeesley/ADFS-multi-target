@@ -600,7 +600,7 @@ GenerateError:						; L82BD
 		cmp	#$6F				; Floppy error &2F (Abort)?
 		bne	L82DC				; If no, report a disk error
 ;;
-.if TARGETOS > 1		; TODO: not sure this is necessary
+.if (TARGETOS > 1) 
 ErrorEscapeACKInvalidReloadFSM:
 		jsr	InvalidateFSMandDIR		; Invalidate FSM and DIR in memory
 ErrorEscapeACKReloadFSM:
@@ -609,7 +609,7 @@ ErrorEscapeACKReloadFSM:
 		jsr	ReloadFSMandDIR_ThenBRK		; Reload FSM and DIR, generate an error
 .else
 ErrorEscapeACKInvalidReloadFSM:
-.if (TARGETOS <> 0) || (!(.def(HD_SCSI) || .def(HD_XDFS)))
+.ifndef ELK_100_ADFS
 		lda	#$7E
 		jsr	OSBYTE				; Acknowledge Escape state
 .endif
@@ -2487,7 +2487,7 @@ L8D04:		cmp	#$21
 		cmp	#$22
 		beq	L8D0F				; quote, end of filename
 		iny					; Step to next character
-	.if (.def(HD_SCSI) || .def(HD_XDFS)) && (TARGETOS=0)
+	.ifdef ELK_100_ADFS
 		cpy	#$0A				; TODO: work out why!
 	.endif
 
@@ -2591,7 +2591,7 @@ L8DAF:		cmp	#'.'				; '.'
 ;;
 L8DB6:		jsr	L8743
 		beq	L8DAF
-	.if (TARGETOS = 0) && (.def(HD_SCSI) || .def(HD_XDFS))
+	.ifdef ELK_100_ADFS
 		cmp	#$7F
 		beq	L8DE6
 		cmp	#'^'
@@ -2634,7 +2634,7 @@ L8DE9:		jsr	ReloadFSMandDIR_ThenBRK
 		.byte	$FD				; ERR=253
 		.byte	"Wild cards"
 		.byte	$00
-.if TARGETOS<>0 || (!(.def(HD_SCSI) || .def(HD_XDFS)))
+.ifndef ELK_100_ADFS
 L8DF8:		.byte	$7F, "^@:$&"			; Directory characters
 .endif
 L8DFE:		jsr	L8CF4
@@ -2866,10 +2866,16 @@ L8F99:		lda	L883C,X				; Copy control block to load '$'
 		jsr	LB5C5				; X=(A DIV 16)
 		lda	WKSP_ADFS_100_FSM_S1 + $FC
 		sta	WKSP_ADFS_322,X
-.if (TARGETOS = 0) && (.def(HD_SCSI) || .def(HD_XDFS))
-		lda	$0295				; TODO: should this be all elks?
+.ifdef ELK_100_ADFS
+		lda	SYSVARS_ELK_291_TIME_A+4	; TODO: should this be all elks?
 .else
-		lda	$FE44				; System VIA Latch Lo
+		; TODO:HOG: Uses this on his ELK_100 build I suspect it should be the one above "random"
+	.if (TARGETOS = 0) && .def(HD_IDE)
+		; TODO:JGH: report as bug
+		lda	$FE44				; Bad address on Electron
+	.else
+		lda	SYSVIA+4			; System VIA Latch Lo
+	.endif
 .endif
 		sta	WKSP_ADFS_321,X
 		sta	WKSP_ADFS_100_FSM_S1 + $FB
@@ -4851,7 +4857,7 @@ _lbbc9AB9:
 ;; workspace somewhere in &40xx-&BFxx, then the ROM is disabled.
 ;;
 L9AD8:		cmp	#$12				; Select filing system?
-.if ((TARGETOS = 0) && (.def(HD_SCSI) || .def(HD_XDFS))) || .def(AUTOHAZEL)
+.if .def(ELK_100_ADFS) || .def(AUTOHAZEL)
 		bne	_elkL9AC4
 		jmp	L9B4C
 _elkL9AC4:
@@ -5004,15 +5010,14 @@ L9B38:		jsr	StoreWkspChecksumBA_Y		; Set workspace checksum
 _lbbc9B10:
 
 L9B3B:
-.if (TARGETOS = 0) && (.def(HD_SCSI) || .def(HD_XDFS))
+.ifdef ELK_100_ADFS
 		jsr	CalcWkspChecksum
 .else
 		jsr	CheckWkspChecksum		; Check workspace checksum
 .endif
 ;;
 
-.if TARGETOS <= 1
-.if (TARGETOS = 0) && (.def(HD_SCSI) || .def(HD_XDFS))
+.ifdef ELK_100_ADFS
 		cmp     ($BA),y                         ; 9B19 D1 BA                    ..
         	beq     _elkL9B23                       ; 9B1B F0 06                    ..
         	tya                                     ; 9B1D 98                       .
@@ -5021,6 +5026,7 @@ L9B3B:
 _elkL9B23:
 .endif
 
+.if TARGETOS <= 1
 		iny					; 9B13 C8                       .
 		lda	($BA),y				; 9B14 B1 BA                    ..
 		cmp	#$FF				; 9B16 C9 FF                    ..
@@ -6302,7 +6308,7 @@ _lelkLA0D8:	php                                     ; A0D8 08                   
 
 		lda	WKSP_ADFS_317_CURDRV			; Get current drive
 		pha					; Save current drive
-  .if (TARGETOS = 0) && (.def(HD_SCSI) || .def(HD_XDFS))
+  .ifdef ELK_100_ADFS
 		jsr	starCLOSE
 
   .else
@@ -6937,7 +6943,7 @@ LA555:		ldy	#$03
 .endif
 		ldy	#$00				; Caller may need this
 		lda	($B4),Y				; Get first character
-.if (TARGETOS = 0) && (.def(HD_SCSI) || .def(HD_XDFS))
+.ifdef ELK_100_ADFS
 		and	#$7F
 		cmp	#'$'				; Is it '$' or '&'
 		beq	LA53E				; If ROOT or URD, jump to 'Bad rename'
@@ -6964,11 +6970,11 @@ LA580:		jsr	LA394
 		lda	#>WKSP_ADFS_240
 		sta	$B9
 		jsr	L8CED
-.if (TARGETOS > 0) || (!(.def(HD_SCSI) || .def(HD_XDFS)))
+.ifndef ELK_100_ADFS
 		php
 .endif
 		jsr	L8E01				; Check
-.if (TARGETOS > 0) || (!(.def(HD_SCSI) || .def(HD_XDFS)))
+.ifndef ELK_100_ADFS
 		plp
 		bne	LA5A5
 		lda	$B6
@@ -7008,7 +7014,7 @@ LA5B5:		jsr	L89D8
 .endif
 		jsr	L8FE8
 		jsr	L8D1B
-.if (TARGETOS = 0) && (.def(HD_SCSI) || .def(HD_XDFS))
+.ifdef ELK_100_ADFS
         	ldy     #$18                            ; A58D A0 18                    ..
         	ldx     #$02                            ; A58F A2 02                    ..
 elkLA591:  	lda     ($B6),y                         ; A591 B1 B6                    ..
@@ -7035,7 +7041,7 @@ LA5DE:		ldy	#$00
 LA5E0:		lda	($B4),Y
 		cmp	#$2E
 		beq	LA5EF
-.if (TARGETOS = 0) && (.def(HD_SCSI) || .def(HD_XDFS))
+.ifdef ELK_100_ADFS
 		cmp	#$22
 		beq	LA5FA
 .else
@@ -7057,7 +7063,7 @@ LA5EF:		tya
 		inc	$B5
 		bne	LA5DE
 LA5FA:
-.if (TARGETOS = 0) && (.def(HD_SCSI) || .def(HD_XDFS))
+.ifdef ELK_100_ADFS
 		ldy	#0
 		ldx	#09
 .else
@@ -7075,7 +7081,7 @@ LA5FC:		lda	($B6),Y
 LA60F:		lda	#$0D
 LA611:		ora	WKSP_ADFS_22B
 		sta	($B6),Y
-.if (TARGETOS = 0) && (.def(HD_SCSI) || .def(HD_XDFS))
+.ifdef ELK_100_ADFS
 		iny
 		dex
 .else
@@ -7086,7 +7092,7 @@ LA611:		ora	WKSP_ADFS_22B
 		jsr	LA6BB
 		jmp	L89D8
 
-.if (TARGETOS > 0) || (!(.def(HD_SCSI) || .def(HD_XDFS)))
+.ifndef ELK_100_ADFS
 ;;
 LA622:		jmp	L95AB				; Error 'Already exists'
 ;;
@@ -7225,7 +7231,7 @@ CheckDirLoaded:						; LA6FD
 ;;
 LA714:		jsr	CheckDirLoaded			; Check if directory loaded
 		ldx	#$00				; Point to first character to check
-.if (TARGETOS = 0) && (.def(HD_SCSI) || .def(HD_XDFS))
+.ifdef ELK_100_ADFS
 		ldy	#$04
 .endif
 		lda	WKSP_ADFS_800_DIR_BUFFER + $FA	; Get initial character
@@ -7235,7 +7241,7 @@ LA71C:		cmp	WKSP_ADFS_400_DIR_BUFFER,X	; Check "Hugo" string at start of dir
 		bne	LA72F				; Jump to give broken dir error
 		inx					; Move to next char
 		lda	L84DC,X				; Get byte from "Hugo" string
-.if (TARGETOS = 0) && (.def(HD_SCSI) || .def(HD_XDFS))
+.ifdef ELK_100_ADFS
 		dey
 		bpl	LA71C
 .else
@@ -7376,7 +7382,7 @@ LA7D4:		php					; Save all registers
 .endif
 		jsr	LA7C9
 		sta	WKSP_ADFS_2C1
-.if TARGETOS > 1
+.ifdef USE65C12
 		stz	WKSP_ADFS_2CE
 		stz	WKSP_ADFS_2D5_CUR_CHANNEL
 		stz	WKSP_ADFS_2D9
@@ -7410,7 +7416,7 @@ LA7EC:
 		sta	$B7
 		lda	WKSP_ADFS_293
 		sta	$B6
-.if (TARGETOS = 0) && (.def(HD_SCSI) || .def(HD_XDFS))
+.ifdef ELK_100_ADFS
 		ldy	#$0A
 LA802:		lda	L883C,Y			; Copy 'load $' control block
 		sta	WKSP_ADFS_214+1,Y
@@ -7437,7 +7443,7 @@ LA81A:		inx
 
 
 LA821:
-.if (TARGETOS = 0) && (.def(HD_SCSI) || .def(HD_XDFS))
+.ifdef ELK_100_ADFS
 		ldy	#$0A
 LA823:		lda	L883C,Y				; Copy 'load $' control block
 		sta	WKSP_ADFS_214+1,Y
@@ -7646,7 +7652,7 @@ LA98C:		ldx	ZP_ADFS_C3_SAVE_X		; Restore X
 .else
 
 FSC6_NEWFS:
-.if TARGETOS<>0 || (!.def(HD_SCSI))
+.ifndef ELK_100_ADFS
 		jsr	GetWkspAddr_BA			; A93C 20 0E A7                  ..
 		ldy	#$FF				; A93F A0 FF                    ..
 		sta	($BA),y				; A941 91 BA                    ..
@@ -7657,7 +7663,7 @@ FSC6_NEWFS:
 		lda	#OSBYTE_77_CLOSE		; A949 A9 77                    .w
 		jsr	OSBYTE				; A94B 20 F4 FF                  ..
 		jsr	L89D8				; A94E 20 D3 89                  ..
-.if (TARGETOS = 0) && (.def(HD_SCSI) || .def(HD_XDFS))
+.ifdef ELK_100_ADFS
 		jsr	GetWkspAddr_BA
 		ldy	#$FF				; A951 A0 FF                    ..
 		lda	#0
@@ -8167,7 +8173,7 @@ LAD5A:		ldx	#$00
 		bcs	LAD5F
 		dex
 LAD5F:
-.if (TARGETOS<>0) || (!.def(HD_SCSI))
+.ifndef ELK_100_ADFS
 		ldy	$B5
 .endif
 		rts

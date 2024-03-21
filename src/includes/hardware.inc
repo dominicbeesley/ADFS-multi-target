@@ -11,6 +11,7 @@ FDCDS1 				= $02
 ; -----------------------
 .if   TARGETOS=0
   VERBASE=$100		; Electron
+  SYSVIA=$FCB0		; Sys via expansion
   HDDBASE=$FC40		; Hard drive controller
   FDCBASE=$FCC4		; Floppy controller
   DRVSEL =FDCBASE-4	; Drive control register
@@ -23,6 +24,7 @@ FDCDS1 				= $02
   ULA_CTL=$FE07		; ULA mode/control register
 .elseif TARGETOS=1 || TARGETOS=2
   VERBASE=$130		; BBC B, BBC B+
+  SYSVIA=$FE40		; Sys via
   HDDBASE=$FC40		; Hard drive controller
   FDCBASE=$FE84		; Floppy controller
   DRVSEL =FDCBASE-4	; Drive control register
@@ -34,6 +36,7 @@ FDCDS1 				= $02
   FILEBLK=$02EE	  ; OSFILE control block
 .elseif TARGETOS>2
   VERBASE=$150		; Master
+  SYSVIA=$FE40		; Sys via
 .ifdef HD_XDFS
   	HDDBASE=$FC44		; Hard drive controller
 .else
