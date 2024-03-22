@@ -19,13 +19,13 @@ HD_BPUT_WriteSector:
 		jsr	HD_CommandBGETBPUTsector	; Send command block to SCSI/IDE/SD
 		ldy	#$00
 		jsr	IDE_WaitforReq			; Wait for IDE not busy
-.if (TARGETOS = 0) || .def(IDE_DC)
+.ifdef X_IDE_OLD
 	.if !.def(IDE_HOG_TMP)
 		nop					; TODO: Ask JGH - is this necessary?
 	.endif
 .endif
 		jmp	LAB76				; Always jump to write
-.if (TARGETOS = 0) || .def(IDE_DC)
+.ifdef X_IDE_OLD
 ResultCodes:
 		.byte	$FF
 		.byte	$FF
@@ -36,7 +36,7 @@ ResultCodes:
 		.byte	$48
 		.byte	$FF
 
-.else ; TARGETOS > 0
+.else ; !.def X_IDE_OLD
 ResultCodes:
 		.byte	$12
 		.byte	$06
@@ -47,7 +47,7 @@ ResultCodes:
 		.byte	$11
 		.byte	$19
 		.byte	$03
-.endif ; TARGETOS > 0 and HD_IDE
+.endif 
 
 ;;
 ;; Write a BPUT buffer to hard drive
@@ -65,7 +65,7 @@ LAB76:		lda	($BC),Y				; Get byte from buffer
 		sta	ZP_ADFS_FLAGS
 .endif
 		dey
-	.ifndef IDE_HOG_TMP
+	.ifndef X_IDE_HOG
 		nop					; Don't trample on IDE register
 		nop
 		nop

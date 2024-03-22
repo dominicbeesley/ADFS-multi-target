@@ -219,7 +219,7 @@ NMI_WRITE_CODE_LEN = * - NMIWRITECODE
 ; ------------------------------------------
 ; DO NOT ATTEMPT TO OPTIMISE!
 NMITUBEWRCODE:
-.if TARGETOS = 0						; TODO : reinstate
+.ifdef ELK_100_TUBE					; TODO : reinstate
 		sbc	$EDED
 .else
 		lda	TUBEIO
@@ -233,7 +233,7 @@ NMI_TUBE_WR_CODE_LEN = * - NMITUBEWRCODE
 ; DO NOT ATTEMPT TO OPTIMISE!
 NMITUBERDCODE:
 		lda	FDC_DATA			; FDC Data register
-.if TARGETOS = 0						; TODO : reinstate
+.ifdef ELK_100_TUBE					; TODO : reinstate
 		sbc	$EDED
 .else
 		sta	TUBEIO

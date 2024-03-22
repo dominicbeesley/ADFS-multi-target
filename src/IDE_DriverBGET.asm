@@ -14,7 +14,7 @@ HD_BGET_ReadSector:
 		lda	#$08				; &08 - READ
 		jsr	HD_CommandBGETBPUTsector	; Send command block to hard drive
 		jsr	IDE_WaitforReq			; Wait for hard drive not busy
-	.ifndef IDE_HOG_TMP
+	.ifndef X_IDE_HOG
 		nop
 		nop
 	.endif

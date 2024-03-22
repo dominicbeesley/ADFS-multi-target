@@ -20,7 +20,6 @@ MMC_DRIVERS=		MMC_Driver MMC_DriverBGET MMC_DriverBPUT MMC MMC_UserPort MMC_Driv
 STARMAP=		starmap
 FLOPPY_DRIVERS= 	floppy floppy_nmi_A floppy_nmi_B floppy_nmi_C floppy_nmi_D
 FLOPPY_DRIVERS_ELK= 	floppy floppy_elk floppy_nmi_A floppy_nmi_D
-FLOPPY_DRIVERS_HOGELK= 	floppy floppy_elk floppy_nmi_A floppy_nmi_D
 TUBE_DRIVERS=		TubeCheckAddrAndClaim TubeStartXfer
 
 .PHONY: all compares comparedirs
@@ -57,7 +56,8 @@ OBJS_bbcSCSI_AH=	$(ADFS) $(SCSI_DRIVERS) 	$(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DR
 OBJS_bbcSCS2= 		$(ADFS) $(SCSI2_DRIVERS) 	$(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
 OBJS_elkIDE=		$(ADFS) $(IDE_DRIVERS) 		$(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
 OBJS_elkSCSI= 		$(ADFS) $(SCSI_DRIVERS) 	$(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS_ELK)
-OBJS_elkSCSI_hog=	$(ADFS) $(SCSI_DRIVERS) 	$(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS_HOGELK)
+OBJS_elkSCSI_hog=	$(ADFS) $(SCSI_DRIVERS) 	$(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS_ELK)
+OBJS_elkIDE_hog=	$(ADFS) $(IDE_DRIVERS) 		$(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS_ELK)
 
 LINK_masIDE=		default
 LINK_masSCSI=		default
@@ -72,6 +72,7 @@ LINK_bbcSCS2=		default
 LINK_elkIDE=		default
 LINK_elkSCSI=		elkSCSI
 LINK_elkSCSI_hog=	elkSCSI_hog
+LINK_elkIDE_hog=	elkSCSI_hog
 LINK_masMMC_hog_SD=	masMMC_hog
 LINK_masMMC_hog_SDT=	masMMC_hog
 LINK_masMMC_hog_SD2=	masMMC_hog

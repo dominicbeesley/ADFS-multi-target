@@ -98,9 +98,9 @@ FloppyRestTrk0:
 .endif
 		sta	$A3
 		ora	NMIVARS_FDC_CMD_STEP
-.if TARGETOS<>0 || (!.def(HD_SCSI))
+.ifndef ELK_100_FLOPPY
 		sta	FDC_CMD				; FDC Status/Command
-.endif	; ELK SCSI
+.endif
 
 .ifdef ELK_100_FLOPPY
 		jmp	FloppyWaitNMIFinish2elk

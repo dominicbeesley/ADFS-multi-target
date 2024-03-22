@@ -6,10 +6,12 @@ __CONFIG_INC__:
 
 TARGETOS	:=	0		; 0=Electron
 FLOPPY		:=	1		; Floppy drivers
-HD_SCSI		:=	1
+HD_IDE		:=	1
+FULL_ACCESS :=  1
+FULL_INFO   :=  1
+UNSUPPORTED_OSFILE := 1
 
-ELK_100_FLOPPY	:=	1		; include original "100" version floppy drivers
-ELK_100_ADFS    :=	1
-ELK_100_TUBE	:=	1
+IDE_ELK_HOG	:=	1
+ELK_100_FLOPPY  :=	1
 
 .endif

@@ -28,7 +28,13 @@
 
 ;; Pass SCSI command to floppy controller
 ;; --------------------------------------
-.if .def(ELK_100_FLOPPY) && (!.def(SCSI_ELK_HOG))
+
+;;;;TODO
+.if .def(IDE_ELK_HOG)
+		.byte	$2E
+		.byte	$0D
+		.res	$6D, $0
+.elseif .def(ELK_100_FLOPPY) && (!.def(SCSI_ELK_HOG))
 		brk
 .elseif (TARGETOS <= 1) 
 		.byte	$2E
@@ -90,26 +96,26 @@ LBA63:		sta	WKSP_ADFS_2E0
 		bit	$A1
 		bmi	LBA83
 		lda	$BC
-.if TARGETOS=0 && .def(HD_SCSI)
+.ifdef ELK_100_FLOPPY
 		sta	ZP_ELK_CE_NMIPTR
 .else
 		sta	a:$0D00 + NMICODE_WR_OFFS + 1
 .endif
 		lda	$BD
-.if TARGETOS=0 && .def(HD_SCSI)
+.ifdef ELK_100_FLOPPY
 		sta	ZP_ELK_CE_NMIPTR+1
 .else
 		sta	a:$0D00 + NMICODE_WR_OFFS + 2	; set write source address
 .endif
 		bne	LBA8D
 LBA83:		lda	$BE
-.if TARGETOS=0 && .def(HD_SCSI)
+.ifdef ELK_100_FLOPPY
 		sta	ZP_ELK_CE_NMIPTR
 .else
 		sta	a:$0D00 + NMICODE_RD_OFFS + 1
 .endif
 		lda	$BF
-.if TARGETOS=0 && .def(HD_SCSI)
+.ifdef ELK_100_FLOPPY
 		sta	ZP_ELK_CE_NMIPTR+1
 .else
 		sta	a:$0D00 + NMICODE_RD_OFFS + 2	; set read dest address
@@ -132,15 +138,15 @@ LBA99:		pla
 		bne	LBAAA
 LBAA8:		lda	#FDCRES + FDCDS1
 LBAAA:		sta	NMIVARS_SIDE
-.if TARGETOS<>0 || (!.def(HD_SCSI))
-.ifdef USE65C12
+.ifndef ELK_100_FLOPPY
+  .ifdef USE65C12
 		lda	#$01
 		tsb	WKSP_ADFS_2E4
-.else
+  .else
 		ror	WKSP_ADFS_2E4
 		sec
 		rol	WKSP_ADFS_2E4
-.endif
+ .endif
 .endif ; ELK SCSI
 		lda	WKSP_ADFS_201,X
 		pha
@@ -183,16 +189,16 @@ LBAFA:		jsr	LBD46
 		inx
 		jsr	LBB3B
 		cmp	$A3
-.if TARGETOS<>0 || (!.def(HD_SCSI))
+.ifndef ELK_100_FLOPPY
 		beq	LBB26
-.ifdef USE65C12
+  .ifdef USE65C12
 		lda	#$01
 		tsb	WKSP_ADFS_2E4
-.else
+  .else
 		ror	WKSP_ADFS_2E4
 		sec
 		rol	WKSP_ADFS_2E4
-.endif
+  .endif
 .endif
 		lda	#$14
 .ifdef ELK_100_FLOPPY
@@ -360,7 +366,7 @@ FloppyGetStepRate:
 		stz	NMIVARS_CMD_PRECOMP		; Set to zero
 		stz	WKSP_ADFS_2E8_FDC_CMD_STEP			; Set to zero
 .else
-.if TARGETOS<>0 || (!.def(HD_SCSI))
+.ifndef ELK_100_FLOPPY
 		lda	#0
 		sta	NMIVARS_CMD_PRECOMP		; Set to zero
 		sta	WKSP_ADFS_2E8_FDC_CMD_STEP			; Set to zero
@@ -380,7 +386,7 @@ FloppyGetStepRate:
 		tay
 		jsr	OSBYTE				; Read ADFS CMOS byte
 		txa
-.if TARGETOS=0 && .def(HD_SCSI)
+.ifdef ELK_100_FLOPPY
 		eor 	#$FF				; invert options
 		ror 	a
 		ror 	a

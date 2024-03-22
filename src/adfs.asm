@@ -9,7 +9,7 @@
 		.export GenerateErrorNoSuff
 		.export L92A8
 		.export L9322
-.if (TARGETOS < 1 && .def(HD_IDE)) || .def(IDE_DC)
+.ifdef X_IDE_OLD
 		.export _lelkA0C4
 		.export _lelkLA0D8
 .endif
@@ -96,8 +96,8 @@ KEYCODE_SELFS_MOUNT=$42			; OSBYTE 7A KEYCODE X
 KEYCODE_SELFS_NOMOUNT=$44		; OSYBTE 7A KEYCODE Y
 SELFS_CHAR_NOMOUNT='Y'
 OSWORD_BASE=$60
-.define NAMESTR "XDFS"
-.define NAMESTR_REV "sfdx"
+.define FSNAMESTR "XDFS"
+.define FSNAMESTR_REV "sfdx"
 .else
 ADFS_FS_NO=8
 CHANNEL_RANGE_HI=$39
@@ -107,8 +107,8 @@ KEYCODE_SELFS_NOMOUNT=$43 ; OSBYTE 7A KEYCODE F
 SELFS_CHAR_NOMOUNT='F'
 FLAG_NOTFADFS=$FF
 OSWORD_BASE=$70
-.define NAMESTR "ADFS"
-.define NAMESTR_REV "sfda"
+.define FSNAMESTR "ADFS"
+.define FSNAMESTR_REV "sfda"
 .endif
 
 
@@ -118,7 +118,7 @@ OSWORD_BASE=$70
 		.error	"Cannot build for multiple device drivers or no HD_xx"
 .endif
 
-VERSION=VERBASE + (.def(PRESERVE_CONTEXT) | .def(IDE_HOG_TMP)) * 1 + .def(HD_IDE) * 2 + (.def(HD_MMC_JGH) | .def(HD_MMC_HOG)) * 6  + .def(HD_SCSI2) * 4
+VERSION=VERBASE + (.def(PRESERVE_CONTEXT) | .def(X_IDE_HOG)) * 1 + .def(HD_IDE) * 2 + (.def(HD_MMC_JGH) | .def(HD_MMC_HOG)) * 6  + .def(HD_SCSI2) * 4
 ; Version number x.yz
 ;		  1.0z = Electron
 ;		  1.3z = BBC B/B+
@@ -142,7 +142,12 @@ L8000:		.byte	$00,$00,$00			; No language entry
 		.byte	$82				; Service ROM, 6502 code
 		.byte	L8017-L8000			; Offset to (C) string
 		.byte	VERSION & $FF			; Binary version number
-		.byte	"Acorn ", NAMESTR, 0		; ROM Title
+.ifdef IDE_ELK_HOG
+		.byte   "Electron "
+.else
+		.byte   "Acorn "
+.endif
+		.byte	FSNAMESTR, 0			; ROM Title
 		.byte	(VERSION >> 8)+'0'		; Version string
 .if TARGETOS <=1
 		.byte	'.'
@@ -159,7 +164,7 @@ L8017:		.byte	$00				; Copyright string
 .elseif .def(HD_MMC_JGH) || .def(HD_MMC_HOG)
 		.byte	"(C)2016",0
 .elseif .def(HD_IDE)
-  .if .def(IDE_HOG_TMP)
+  .if .def(IDE_HOG_TMP) || .def(IDE_ELK_HOG)
 		.byte	"(C)2017 Acorn",0
   .elseif .def(HD_IDE_FAST)
 		.byte	"(C)2021 FAST",0
@@ -306,7 +311,7 @@ X807E:		rts
 .endif
 
 .ifdef HD_IDE
-  .if TARGETOS > 0 && (!.def(IDE_DC))
+  .if (TARGETOS > 0 && (!.def(IDE_DC))) || .def(IDE_ELK_HOG)
     .ifdef PRESERVE_CONTEXT
 ReadBreak:
 		lda	$028D
@@ -374,11 +379,11 @@ L8076:
 .if (.def(HD_IDE)) || (.def(HD_MMC_JGH))
 starMOUNTck:
 		jsr	starMOUNT				; Do *MOUNT, then reselect ADFS
-.if (TARGETOS = 0) || (.def(IDE_DC))
+  .ifdef X_IDE_OLD
 		jmp	L9B4C
-.else
+  .else
 		jmp	L9B50
-.endif
+  .endif
 .endif
 .if .def(HD_IDE) && TARGETOS >= 1 && (!.def(IDE_HOG_TMP)) && (!.def(IDE_DC))
 		.byte	$F9
@@ -404,7 +409,7 @@ L8091:		jsr	SCSI_GetStatus			; Get SCSI status
 .endif ; HD SCSI
 
 
-.ifndef IDE_HOG_TMP
+.if (!.def(IDE_HOG_TMP)) && (!.def(IDE_ELK_HOG))
 L8098rts:	rts
 .endif
 
@@ -467,7 +472,7 @@ CommandExecXY:						; L80A2
 ;;
 CommandExecRetryLp:
 		jsr	CommandExecSkStartExec		; Do the specified command
-.if ((.def(HD_IDE) && (!.def(IDE_DC))) || (.def(HD_MMC_JGH) )) && (TARGETOS > 0)			; TODO : rationalise
+.if (((.def(HD_IDE) && (!.def(IDE_DC))) || (.def(HD_MMC_JGH) )) && (TARGETOS > 0)) || .def(IDE_ELK_HOG)			; TODO : rationalise
 		beq	L809Erts			; Exit if ok
 .else
 		beq	L8098rts			; Exit if ok
@@ -646,18 +651,18 @@ L830B:		jsr	L834E				; Do something, then generate an error
 .ifdef HD_IDE
 TubeStore:
 		jsr	TSDelay				; JSR/RTS delay
-.if (TARGETOS = 0) || .def(IDE_DC)
+.ifdef X_IDE_OLD
 		bne	GenerateError
 		rts
 TSDelay:
 		jsr	_lelk831B
 		rts
 
-.else
+.else ; !.def X_IDE_OLD
 		sta	TUBEIO				; Send to Tube
 TSDelay:
 		rts
-	.if (!.def(IDE_HOG_TMP)) && (!.def(HD_IDE_FAST))
+	.if (!.def(X_IDE_HOG)) && (!.def(HD_IDE_FAST))
 		.byte	0,0,0
 	.endif
 .endif
@@ -668,7 +673,7 @@ TSDelay:
 .if .def(HD_SCSI) || .def(HD_XDFS)
 SCSI_SendCMDByte:
 		jsr	L8324				; Wait until not busy, then write command to command register
-		bne	GenerateError				; If not Ok, generate disk error
+		bne	GenerateError			; If not Ok, generate disk error
 		rts
 L8324:		jsr	SCSI_send_byteA			; This code cannot be inlined or JMPed as
 		rts					; SCSI_send_byteA changes stack
@@ -685,16 +690,16 @@ WaitEnsuring:						; L8328
 		rts
 .endif
 .ifdef HD_IDE
-  .if (TARGETOS = 0) || (.def(IDE_DC))
+  .ifdef X_IDE_OLD
 _lelk830C:
 		bne	WaitEnsuring
 		rts
-  .else ; TARGETOS > 0
-    .ifndef IDE_HOG_TMP
+  .else ; !.def X_IDE_OLD
+    .ifndef X_IDE_HOG
 		.byte	0,0,0
     .endif
-  .endif ; TARGETOS > 0
-.endif ; .def(HD_IDE)
+  .endif
+.endif
 
 .if .def(HD_SCSI) || .def(HD_XDFS) || .def(HD_SCSI2)
 WaitEnsuring:						; L8328
@@ -723,7 +728,7 @@ lp:		jsr	IDE_GetStatus
 		plp
 		rts
 .endproc
-.if (TARGETOS = 0) || .def(IDE_DC)
+  .ifdef X_IDE_OLD
 _lelk831B:
 		jsr	IDE_WaitforReq
 		bvs	_lelk8326
@@ -734,12 +739,12 @@ _lelk8326:
 		pla
 		pla
 		jmp	CommandDone
-.else ; TARGETOS > 0
-	.ifndef IDE_HOG_TMP
+  .else ; !.def X_IDE_OLD
+	.ifndef X_IDE_HOG
 		.byte	0,0,0,0,0,0,0,0
 		.byte	0,0,0
 	.endif
-.endif ; TARGETOS > 0
+  .endif
 
 .endif ; .def(HD_IDE)
 
@@ -2145,7 +2150,7 @@ L8B71:		lda	WKSP_ADFS_21E_DSKOPSAV_SECCNT	; Get byte count (in Sector Count)
 		jsr	SetSector
 		pla
 		tax
-	.ifndef IDE_HOG_TMP
+	.ifndef X_IDE_HOG
 		nop
 		nop
 		nop
@@ -2221,12 +2226,12 @@ L8BA2:
 		beq	L8BB8				; Jump to ignore extra bytes
 		bit	ZP_ADFS_FLAGS			; Tube or I/O?
 		bvc	L8BB5				; Jump to read to I/O memory
-.if (.def(HD_IDE) && TARGETOS >= 1) && (!.def(IDE_HOG_TMP)) && (!.def(IDE_DC))	; TODO: Ask JGH why different for Elk, IDE, SCSI?
+.if (.def(HD_IDE) && TARGETOS >= 1) && (!.def(X_IDE_HOG)) && (!.def(IDE_DC))	; TODO: Ask JGH why different for Elk, IDE, SCSI?
 		jsr	TubeDelay			; Longer delay
 .else
 		jsr	TubeDelay2			; Pause a bit
 .endif
-.if (TARGETOS = 0) && (!(.def(HD_SCSI) || .def(HD_XDFS)))
+.ifdef ELK_103_TUBE
 		sbc	$EDED				; TODO: Reinstate tube code for AP5?
 .else
 		sta	TUBEIO				; Send to Tube
@@ -2391,11 +2396,11 @@ RdNext:
 		ldy	#$0E
 		sta	($B8),Y
 		rts
-.if (!.def(TRIM_REDUNDANT)) && (!.def(IDE_HOG_TMP))
+.if (!.def(TRIM_REDUNDANT)) && (!.def(X_IDE_HOG))
 		nop
 		nop
 .endif
-.else	; FULL ACCESS
+.else	; !.def FULL ACCESS
 		lda	#$00
 		sta	WKSP_ADFS_22B			; Clear byte for access
 		ldy	#$02				; Point to 'L' bit
@@ -2870,7 +2875,7 @@ L8F99:		lda	L883C,X				; Copy control block to load '$'
 		lda	SYSVARS_ELK_291_TIME_A+4	; TODO: should this be all elks?
 .else
 		; TODO:HOG: Uses this on his ELK_100 build I suspect it should be the one above "random"
-	.if (TARGETOS = 0) && .def(HD_IDE)
+	.ifdef X_IDE_OLD
 		; TODO:JGH: report as bug
 		lda	$FE44				; Bad address on Electron
 	.else
@@ -2907,10 +2912,10 @@ L8FF2:		rts
 ;; Check Free Space Map consistency
 ;; ================================
 L8FF3:
-.if .def(IDE_DC) || ((TARGETOS = 0) && (!.def(HD_SCSI))) ; TODO: ASK JGH - this looks like debugging stuff left in?
+.ifdef X_IDE_OLD ; TODO: ASK JGH - this looks like debugging stuff left in?
 		rts
 		.byte	$09, $90
-.else
+.else ; !.def X_IDE_OLD
 		jsr	L9012				; Check for overlapping FSM entries
 .endif
 		jsr	L9065				; Add up
@@ -3094,7 +3099,7 @@ WrIsE:
 WrNext:
 		dey
 		bpl	WrLp
-.if ((!.def(TRIM_REDUNDANT)) && (!.def(IDE_HOG_TMP))) || .def(HD_MMC_HOG)
+.if ((!.def(TRIM_REDUNDANT)) && (!.def(X_IDE_HOG))) || .def(HD_MMC_HOG)
 		nop
 		nop
 		nop
@@ -3300,7 +3305,7 @@ my_OSFILE:
 		inx
 .ifdef UNSUPPORTED_OSFILE
 		tya					; Unsupported calls should return A preserved
-	.ifndef IDE_HOG_TMP
+	.ifndef X_IDE_HOG
 		nop
 	.endif
 .else
@@ -3796,7 +3801,7 @@ L9508:		jsr	L92E5				; Print filename
 ;
 .if .def(FULL_INFO) && (!.def(TRIM_REDUNDANT))
 		jmp	L951E
-	.ifndef IDE_HOG_TMP
+	.ifndef X_IDE_HOG
 		.byte	0,0,0,0,0,0,0
 		.byte	0,0,0,0,0,0
 	.endif
@@ -4399,7 +4404,7 @@ L999E:		lda	($B6),Y
 		sta	($B6),Y
 		dey
 		rts
-	.ifndef IDE_HOG_TMP
+	.ifndef X_IDE_HOG
 		.byte	0,0,0,0
 	.endif
 .else
@@ -4592,7 +4597,7 @@ HD_InitDetect:
 		stz	mmcstate			; mark the mmc system as un-initialized
 		jmp	initializeDriveTable
 .elseif .def(HD_IDE)
-.if (TARGETOS = 0) || .def(IDE_DC)
+.ifdef X_IDE_OLD
 HD_InitDetectBoot:
 HD_InitDetect:
 		lda	IDE_STATUS
@@ -4621,11 +4626,11 @@ HD_InitDetect:
 DriveNotPresent:
 		dex					; NE - absent
 		rts
-	.ifndef IDE_HOG_TMP
+	.ifndef X_IDE_HOG
 		.byte	0,0,0,0,0,0,0,0
 	.endif
 .if TARGETOS = 1
-	.ifndef IDE_HOG_TMP
+	.ifndef X_IDE_HOG
 		.byte	0,0
 	.endif
 .endif ; TAEGETOS = 1
@@ -4720,7 +4725,7 @@ L9A94:		.byte	"$.!BOOT"			; *Run option and end of *Load option
 		.byte	$0D
 L9A9C:
 .if TARGETOS > 1
-		.byte	"E.-", NAMESTR, "-$.!BOOT"		; *Exec option
+		.byte	"E.-", FSNAMESTR, "-$.!BOOT"		; *Exec option
 .else ; TARGETOS
 		.byte	"E.$.!BOOT"			; *Exec option
 .endif ; TARGETOS
@@ -5179,7 +5184,12 @@ L9B74:		cli					; Enable IRQs
 
 .endif							; TARGETOS
 L9B85:		jsr	L92A8				; Print FS banner
-		.byte	"Acorn ", NAMESTR, $0D, $8D
+.ifdef IDE_ELK_HOG
+		.byte   "Electron "
+.else
+		.byte	"Acorn "
+.endif
+		.byte   FSNAMESTR, $0D, $8D
 ;;
 ;; Select ADFS
 ;; ===========
@@ -5296,10 +5306,10 @@ L9C1A:		lda	WKSP_ADFS_314,Y
 		jsr	LB4CD
 .ifdef PRESERVE_CONTEXT
 		lda	WKSP_ADFS_31B			; Lib not unset, jump ahead
-  .if (TARGETOS = 0) || .def(IDE_DC)
+  .ifdef X_IDE_OLD
 		clc					; TODO: Ask JGH - I can't see the purpose of this? Am I missing somthing subtle with carry flag?
 		adc	#1
-  .else
+  .else ; !.def X_IDE_OLD
 
     .ifdef HD_MMC_HOG
 		inc	A
@@ -5330,7 +5340,7 @@ L9C1A:		lda	WKSP_ADFS_314,Y
     .endif
   .endif
 .else ;(!.def(PRESERVE_CONTEXT))
-	.ifdef IDE_HOG_TMP
+	.ifdef X_IDE_HOG
 		lda	WKSP_ADFS_31B
 		cmp	#$FF
 		bne	L9C7A
@@ -5496,11 +5506,11 @@ FSINFO:		.byte	ADFS_FS_NO			; Filing system number
 		.byte	CHANNEL_RANGE_LO		; Lowest handle used
 		.byte	"    "
 str_SFDA:
-		.byte	NAMESTR_REV			; "adfs" filing system name
+		.byte	FSNAMESTR_REV			; "adfs" filing system name
 FSINFOLEN=*-FSINFO
 .else ; TARGETOS <= 1
 str_SFDA:
-		.byte    NAMESTR_REV
+		.byte    FSNAMESTR_REV
 .endif
 .if TARGETOS > 1
 ;;
@@ -5760,6 +5770,9 @@ L9DF6:		jsr	L92A8
 .elseif .def(IDE_JGH_R23)
 		.byte	$0D, "Acorn ADFS 1.33r23"
 		.byte	$8D
+.elseif .def(IDE_ELK_HOG)
+		.byte	$0D, "Electron ADFS 1.03.005"
+		.byte	$8D
 .elseif .def(IDE_HOG_TMP)
 		.byte	$0D, "Acorn ADFS 1.33.005"
 		.byte	$8D
@@ -5776,7 +5789,7 @@ Serv9:
 
 		tya
 		pha
-	.if .def(IDE_HOG_TMP) || .def(IDE_JGH_R23)
+	.if .def(X_IDE_HOG) || .def(IDE_JGH_R23)
 		jsr	GetChar
 	.else
 		lda	($F2),Y		
@@ -5787,7 +5800,7 @@ Serv9:
 		jsr	L92A8
 
 
-		.byte	"  ", NAMESTR, $8D
+		.byte	"  ", FSNAMESTR, $8D
 L9E22:
 		pla
 		tay
@@ -6041,7 +6054,7 @@ cmdLE:
 	.byte	"LEX",      >(starLEX-1)	, <(starLEX-1)		, $00
 	.byte	"LIB",      >(starLIB-1)	, <(starLIB-1)		, $30
 	.byte	"MAP",      >(starMAP-1)	, <(starMAP-1)		, $00
-.if (.def(PRESERVE_CONTEXT) || .def(IDE_HOG_TMP)) && (!(.def(HD_SCSI) || .def(HD_XDFS)))
+.if (.def(PRESERVE_CONTEXT) || .def(X_IDE_HOG)) && (!(.def(HD_SCSI) || .def(HD_XDFS)))
 	.byte	"MOUNT",    >(starMOUNTck-1)	, <(starMOUNTck-1)	, $40
 .else
 	.byte	"MOUNT",    >(starMOUNT-1)	, <(starMOUNT-1)	, $40
@@ -6281,7 +6294,7 @@ starBYE:
 		beq	LA102					; No drive selected
 		jmp	starCLOSE				; Do CLOSE#0
 .else
-.if (TARGETOS = 0 && .def(HD_IDE)) || .def(IDE_DC)
+.ifdef X_IDE_OLD
 		rts                                     ; A0C3 60                       `
 
 ; ----------------------------------------------------------------------------
@@ -6304,7 +6317,7 @@ _lelkLA0D8:	php                                     ; A0D8 08                   
 
 ; ----------------------------------------------------------------------------
         	ora     ($38),y                         ; A0DC 11 38
-.else
+.else ;!.def X_IDE_OLD
 
 		lda	WKSP_ADFS_317_CURDRV			; Get current drive
 		pha					; Save current drive
@@ -9616,8 +9629,8 @@ LB898:
 ;;
 LB8A5:		bit	ZP_ADFS_FLAGS
 		bvc	LB8AD
-.if .def(HD_IDE) && (!.def(IDE_HOG_TMP)) && (!.def(IDE_DC))
-  .if TARGETOS = 0 && (!.def(HD_SCSI))
+.if .def(HD_IDE) && (!.def(X_IDE_HOG)) && (!.def(IDE_DC))
+  .ifdef X_IDE_OLD
 		sbc	$EDED				; TODO: Reinstate?
   .else
 		jsr	TubeStore			; Longer delay
@@ -9853,14 +9866,14 @@ LBA29:		lda	($B2),Y
 LBA2F:		jsr	TubeDelay2
 		bcc	LBA3B
 		lda	($BE),Y
-.if TARGETOS > 0 || .def(HD_SCSI)			; TODO: reinstate
+.ifndef ELK_103_TUBE			; TODO: reinstate
 		sta	TUBEIO
 .else
 		sbc	$EDED
 .endif
 		bcs	LBA40
 LBA3B:
-.if TARGETOS > 0 || .def(HD_SCSI)			; TODO: reinstate
+.ifndef ELK_103_TUBE			; TODO: reinstate
 		lda	TUBEIO
 .else
 		sbc	$EDED
@@ -9914,14 +9927,14 @@ LBA57:		lda	#$FF
 		.byte	$A9				; 'A'corn revision 9
 		;TODOXDFS: this is actually at BFFC on BeebMasters' ROM?
 	.endif
-.elseif (TARGETOS = 1 || (!.def(HD_SCSI))) && (!.def(IDE_HOG_TMP))
+.elseif (TARGETOS = 1 || (!.def(HD_SCSI))) && (!.def(X_IDE_HOG))
 		.byte	"and Hugo."
 	.if .def(HD_IDE) && TARGETOS >= 1 && (!.def(IDE_DC))
 		.byte	$23
 	.else
 		.byte	$D
 	.endif
-.elseif (!.def(IDE_HOG_TMP))
+.elseif (!.def(X_IDE_HOG))
 		brk
 		.byte	"Roger"
 		brk

@@ -17,18 +17,18 @@
 
 ;;
 LBD6E:		lda	WKSP_ADFS_2E2
-.if TARGETOS=0 && .def(HD_SCSI)
+.ifdef ELK_100_FLOPPY
 		sta	$CF
 		lda	#0
 		sta	$CE
-.else
+.else ; !.def ELK_100_FLOPPY
 		sta	$0D0F
-.ifdef USE65C12
+  .ifdef USE65C12
 		stz	$0D0E
-.else
+  .else
 		lda	#0
 		sta	$0D0E
-.endif
+  .endif
 .endif
 		jsr	LBAFA
 		jsr	LBD1E
@@ -49,7 +49,7 @@ LBD99:		lda	($A3),Y
 		ldx	#$07
 LBD9D:		dex
 		bne	LBD9D				; Tube transfer delay
-.if TARGETOS = 0 && (!.def(HD_SCSI))
+.ifdef ELK_103_TUBE
 		sbc	$EDED				; TODO: reinstate TUBE
 .else
 		sta	TUBEIO
@@ -140,12 +140,12 @@ LBE1C:
 		jsr	LBB3B				; Set track
 		bit	$A1
 		bmi	LBE35
-.if TARGETOS=0 && .def(HD_SCSI)
+.ifdef ELK_100_FLOPPY
 		lda	#$A3
 		cmp	#$14
 		lda	#$A0
 		bcc	LBE37
-.else
+.else ; !.def ELK_100_FLOPPY
 		lda	#$A0				; &A0=writing
 .endif
 		ora	NMIVARS_CMD_PRECOMP
@@ -184,7 +184,7 @@ LBE5C:		lda	$A2
 		jsr	LBD4B
 		inc	$A3
 		jsr	FloppySetSide1
-.if TARGETOS=0 && .def(HD_SCSI)
+.ifdef ELK_100_FLOPPY
 		lda	#$04
 .else
 		lda	#$00
@@ -220,7 +220,7 @@ LBE77:		jsr	LBD46
 		rts
 ;;
 LBE85:		jsr	LBD50
-.if TARGETOS<>0 || (!.def(HD_SCSI))
+.ifndef ELK_100_FLOPPY
 		lda	$A6
 		jsr	ORA4_if_2E4_b0
 		sta	FDC_CMD				; FDC Status/Command
@@ -241,15 +241,15 @@ LBEA4:		dec	NMIVARS_SECTOR
 LBEAA:		lda	NMIVARS_SECTORS_THIS_TRACK
 		bne	LBEF2
 
-.if TARGETOS<>0 || (!.def(HD_SCSI))
-.ifdef USE65C12
+.ifndef ELK_100_FLOPPY
+  .ifdef USE65C12
 		lda	#$01
 		tsb	WKSP_ADFS_2E4
-.else
+  .else
 		ror	WKSP_ADFS_2E4
 		sec
 		rol	WKSP_ADFS_2E4
-.endif
+  .endif
 .endif ; ELK SCSI
 		lda	FDC_TRACK			; FDC Track register
 		cmp	#$4F
@@ -333,7 +333,7 @@ LBF24:		lda	$A6				; Get drive
 LBF2E:		lda	#FDCRES + FDCDS1		; Drive 1,5 -> &06=SDEN+DS1
 LBF30:		sta	NMIVARS_SIDE			; Store drive control byte
 
-.if TARGETOS<>0 || (!.def(HD_SCSI))
+.ifndef ELK_100_FLOPPY
 .ifdef USE65C12
 		lda	#$01
 		tsb	WKSP_ADFS_2E4
@@ -346,7 +346,7 @@ LBF30:		sta	NMIVARS_SIDE			; Store drive control byte
 		jsr	FloppyCalcTrkSecFromBlkChkRange	; Calculate sector/track
 		lda	NMIVARS_SIDE			; Get drive control byte
 
-.if TARGETOS = 0 && (!.def(HD_SCSI))
+.ifdef ELK_100_DRVSEL_BUG
 		lda	DRVSEL				; I'm not sure that this is right! TODO: Ask JGH
 .else
 		sta	DRVSEL				; Set drive control register

@@ -327,4 +327,16 @@ ADFS_FLAGS_ENSURING		= $01	; b0 Files being ensured
 
 ZP_ADFS_RETRY_CTDN		= $CE
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;; TODO ;;;;;;;;;;;;;;;;; MOVE ;;;;;;;;;;;;;;;;;;; THESE ;;;;;;;;;;;;;;;;;;;;
+
+.if .def(IDE_HOG_TMP) || .def(IDE_ELK_HOG)
+	X_IDE_HOG:
+.endif
+
+.if .def(HD_IDE) && (((TARGETOS = 0) || .def(IDE_DC)) && (!.def(IDE_ELK_HOG)))
+	X_IDE_OLD:
+.endif
+
+
+
 .endif 

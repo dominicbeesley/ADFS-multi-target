@@ -6,7 +6,7 @@
 		.export Svc5_IRQ
 		.export LABB4
 		.export UpdateDrive
-.if !((TARGETOS = 0) || .def(IDE_DC))
+.ifndef X_IDE_OLD
 		.export GetChar
 .endif
 		.segment "hd_driver_svc5"
@@ -22,7 +22,7 @@ UpdateDrive:
 		sta	WKSP_ADFS_333_LASTACCDRV	; Store for any error
 		lda	#$7F
 		rts
-.if (TARGETOS = 0) || .def(IDE_DC)
+.ifdef X_IDE_OLD
 		nop
 		lda	#$05
 		rts
@@ -39,17 +39,17 @@ UpdateDrive:
 	        	ora     IDE_DATA                        ; AB9C 0D 40 FC                 .@.
 	        	sta     $1131                           ; AB9F 8D 31 11                 .1.
 	        	jmp     L9DB4			        ; ABA2 4C 63 9D
-.else ; TARGETOS > 0
+.else ; !.def X_IDE_OLD
 GetChar:
 		lda	($F2),Y
 		cmp	#$20
 		rts
-	.ifndef IDE_HOG_TMP
+	.ifndef X_IDE_HOG
 		.dword	0,0,0
 		.dword	0,0,0
 	.endif
 .if TARGETOS = 1
-	.ifndef IDE_HOG_TMP
+	.ifndef X_IDE_HOG
 		.byte	0,0
 	.endif
 .endif ; TARGETOS = 1

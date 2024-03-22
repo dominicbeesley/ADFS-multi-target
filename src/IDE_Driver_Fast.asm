@@ -121,7 +121,7 @@ IORead:
 		bne	IORead
 		beq	TransferBytesDone
 
-.if TARGETOS = 0
+.ifdef ELK_100_TUBE
 ;;; TODO: what's all this then!?
 TransTube:
 		bcc     _lelk817E                       ; 8173 90 09                    ..
