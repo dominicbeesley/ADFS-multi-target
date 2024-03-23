@@ -11,6 +11,8 @@ DBGSYMS=$(SCRIPTS)/ld65debugsymbols.pl
 # this is used when generating symbols
 ROMNO=1
 
+INCS=			$(wildcard includes/*.inc)
+
 ADFS=			adfs
 IDE_DRIVERS=		IDE_Driver IDE_DriverBGET IDE_DriverBPUT IDE_DriverBGETBPUT IDE_DriverSvc5
 IDE_DRIVERS_F=		IDE_Driver_Fast IDE_DriverBGET IDE_DriverBPUT IDE_DriverBGETBPUT IDE_DriverSvc5
@@ -39,6 +41,7 @@ dir-%:
 
 OBJS_masIDE= 		$(ADFS) $(IDE_DRIVERS) 		$(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS) 
 OBJS_masSCSI=   	$(ADFS) $(SCSI_DRIVERS) 	$(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
+OBJS_masVFS=   		$(ADFS) $(SCSI_DRIVERS) 	$(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
 OBJS_masMMC_hog_SD= 	$(ADFS) $(MMC_DRIVERS) 		$(TUBE_DRIVERS) $(STARMAP) 
 OBJS_masMMC_hog_SDT= 	$(ADFS) $(MMC_DRIVERS) 		$(TUBE_DRIVERS) $(STARMAP)
 OBJS_masMMC_hog_SD2= 	$(ADFS) $(MMC_DRIVERS) 		$(TUBE_DRIVERS) $(STARMAP) 
@@ -80,13 +83,14 @@ LINK_masMMC_hog_SD2T=	masMMC_hog
 LINK_masMMC_hog_SD3=	masMMC_hog
 LINK_masMMC_hog_SD3T=	masMMC_hog
 LINK_masBM_XDFS=	default
+LINK_masVFS=		default
 
 .PRECIOUS: $(addsuffix /config.inc, $(addprefix $(BUILDDIR)/, $(ROMNAMES)))
 
 $(BUILDDIR)/%/config.inc: configs/%.inc
 	cp $< $@
 
-$(BUILDDIR)/$(ROMNAME)/%.o $(BUILDDIR)/$(ROMNAME)/%.lst: %.asm $(BUILDDIR)/$(ROMNAME)/config.inc
+$(BUILDDIR)/$(ROMNAME)/%.o $(BUILDDIR)/$(ROMNAME)/%.lst: %.asm $(BUILDDIR)/$(ROMNAME)/config.inc $(INCS)
 	$(AS) $(ASFLAGS) $(ASFLAGS2) -I $(BUILDDIR)/$(ROMNAME) -I includes $< -o $@ -v -l $(basename $@).lst
 
 $(BUILDDIR)/%.rom $(BUILDDIR)/%.dbg: \

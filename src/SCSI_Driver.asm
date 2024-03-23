@@ -13,11 +13,13 @@
 ;; Hard drive hardware is present. Check what drive is being accessed.
 ;;
 HD_Command:
+.ifndef HD_SCSI_VFS
 		ldy	#$06
 		lda	($B0),Y                     	; Get drive
 		ora	WKSP_ADFS_317_CURDRV        	; OR with current drive
-.ifdef FLOPPY
+  .ifdef FLOPPY
 		bmi	CommandExecFloppyOp         	; Jump back with 4,5,6,7 as floppies
+  .endif
 .endif
 		jsr	SCSI_StartCommand           	; Write &01 to SCSI, returns Y=0
 
@@ -39,6 +41,12 @@ HD_Command:
 		iny
 		lda	($B0),Y				; Get Drive
 		ora	WKSP_ADFS_317_CURDRV		; OR with current drive
+.ifdef HD_SCSI_VFS
+		cmp	#$FF
+		bne	@sk1
+		inc	A
+@sk1:
+.endif
 		sta	WKSP_ADFS_333_LASTACCDRV
 		jmp	L814C				; Send rest of command block
 ;;
@@ -53,7 +61,13 @@ L8159:		ldy	#$05
 		lda	($B0),Y				; Get Command
 		and	#$FD				; Lose bit 1
 		eor	#$08				; Is Command &08 or &0A?
+.ifdef HD_SCSI_VFS
+		bne	@sk2
+		jmp	HD_DataTransfer256
+@sk2:
+.else
 		beq	HD_DataTransfer256		; Jump if not Read or Write
+.endif
 		jsr	SCSI_WaitforReq			; Wait until SCSI busy
 		clc					; CC=Read
 		bvc	L816A				; Jump past with Read
@@ -79,8 +93,11 @@ L817C:		jsr	SCSI_WaitforReq			; Check SCSI status
 ;;
 ;;			    I/O write
 		lda	($B2),Y				; Get byte from memory
+.ifdef HD_SCSI_VFS
+		eor	#$FF
+.endif
 		sta	SCSI_DATA			; Write to SCSI data port
-.ifdef USE65C12
+.if .def(USE65C12) && (!.def(HD_SCSI_VFS))
 		bra	L8193				; Jump to update address
 .else
 		bcc	L8193				; Jump to update address
@@ -95,8 +112,11 @@ L8193:		iny					; Point to next byte
 ;;
 L819B:		bcs	L81A5				; Jump for Tube read
 		lda	TUBEIO				; Get byte from Tube
+.ifdef HD_SCSI_VFS
+		eor	#$FF
+.endif
 		sta	SCSI_DATA			; Write byte to SCSI data port
-.ifdef USE65C12
+.if .def(USE65C12) && (!.def(HD_SCSI_VFS))
 		bra	L817C				; Loop for next byte
 .else
 		bcc	L817C				; Loop for next byte
@@ -104,7 +124,7 @@ L819B:		bcs	L81A5				; Jump for Tube read
 ;;
 L81A5:		lda	SCSI_DATA			; Get byte from SCSI data port
 		sta	TUBEIO				; Write to Tube
-.ifdef USE65C12
+.if .def(USE65C12) && (!.def(HD_SCSI_VFS))
 		bra	L817C				; Loop for next byte
 .else
 		bcs	L817C				; Loop for next byte
@@ -145,6 +165,9 @@ L81E1:		jsr	SCSI_WaitforReq
 		bmi	CommandDone			; Jump to get result and return
 		bvs	L81F4
 L81E8:		lda	($B2),Y
+.ifdef HD_SCSI_VFS
+		eor	#$FF
+.endif
 		sta	SCSI_DATA
 		iny
 		bne	L81E8
@@ -155,7 +178,8 @@ L81E8:		lda	($B2),Y
 		bvc	L81E1
 .endif
 ;;
-L81F4:		lda	SCSI_DATA
+L81F4:		jsr	0
+		lda	SCSI_DATA
 		sta	($B2),Y
 		iny
 		bne	L81F4
@@ -190,10 +214,16 @@ L822B:		bvs	L8245
 		php
 		lda	#$06
 		jsr	TubeStartXferSEI_406
-L8233:		nop					; 3xNOP delay for Tube I/O
+L8233:		
+.ifndef HD_SCSI_VFS
+		nop					; 3xNOP delay for Tube I/O
 		nop
 		nop
+.endif
 		lda	TUBEIO				; Read from Tube
+.ifdef HD_SCSI_VFS
+		eor	#$FF
+.endif
 		sta	SCSI_DATA			; Write to SCSI data
 		iny
 		bne	L8233
@@ -243,6 +273,10 @@ L8275:		jsr	SCSI_WaitforReq			; Wait for SCSI
 		dex
 		bpl	L8275				; Loop to fetch four bytes, err, sec.hi, sec.mid, sec.lo
 		lda	WKSP_ADFS_333_LASTACCDRV
+.if HD_SCSI_VFS
+		cmp	#$FF
+		beq	L82A5
+.endif
 		and	#$E0
 		ora	WKSP_ADFS_2D0_ERR_SECTOR+2	; ORA drive number with current drive
 		sta	WKSP_ADFS_2D0_ERR_SECTOR+2

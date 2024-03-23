@@ -4,9 +4,10 @@ __CONFIG_INC__:
 ; Build file for Master ADFS with SCSI drivers on internal VFS slot
 ; --------------------------------------------
 
-TARGETOS		:=	3		; 3=Master
+TARGETOS	:=	3		; 3=Master
 FLOPPY		:=	1		; Floppy drivers
-HD_XDFS		:=	1
+HD_SCSI		:=	1
+HD_SCSI_XDFS	:=	1
 ;
 
 USE65C12 	:= 1

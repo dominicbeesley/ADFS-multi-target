@@ -11,6 +11,7 @@ ROMNAMES= 	masIDE \
 		masMMC_hog_SD3T \
 		masBM_XDFS \
 		masSCSI \
+		masVFS \
 		bbcSCSI \
 		bbcSCSI_AH \
 		bbcIDE \
@@ -65,6 +66,7 @@ HOG13x_ORGS=$(addsuffix .da.s, $(addprefix compares/org/Hoglet13x/, $(notdir $(b
 
 COMPARES=	compares/org/masIDE.da.s \
 	compares/org/masSCSI.da.s \
+	compares/org/masVFS.da.s \
 	compares/org/bbcIDE.da.s \
 	compares/org/bbcSCSI.da.s \
 	compares/org/elkIDE.da.s \
@@ -80,6 +82,7 @@ COMPARES=	compares/org/masIDE.da.s \
 	compares/new/Hoglet15x/IDE.da.s \
 	compares/new/Hoglet15x/XDFS.da.s \
 	compares/new/masSCSI.da.s \
+	compares/new/masVFS.da.s \
 	compares/new/bbcIDE.da.s \
 	compares/new/bbcSCSI.da.s \
 	compares/new/elkIDE.da.s \
@@ -115,6 +118,9 @@ compares/org/masIDE.da.s: orgroms/ADFS153
 	$(DA65)  --cpu 65c02 --comments 4 --start-addr 0x8000 $< >$@
 	sed -i 1,4d $@
 compares/org/masSCSI.da.s: orgroms/ADFS150
+	$(DA65)  --cpu 65c02 --comments 4 --start-addr 0x8000 $< >$@
+	sed -i 1,4d $@
+compares/org/masVFS.da.s: orgroms/VFS170
 	$(DA65)  --cpu 65c02 --comments 4 --start-addr 0x8000 $< >$@
 	sed -i 1,4d $@
 compares/org/bbcSCSI.da.s: orgroms/ADFS130

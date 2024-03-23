@@ -56,7 +56,7 @@ LA0CB:		dex
 		ldx	$C6
 .endif
 
-.ifdef USE65C12
+.if .def(USE65C12) && (!.def(HD_SCSI_VFS))
 		bra	LA0A9
 .else
 		bne	LA0A9
