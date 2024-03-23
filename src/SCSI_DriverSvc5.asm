@@ -4,8 +4,9 @@
 		.include "hardware.inc"
 
 		.export Svc5_IRQ
+.ifndef HD_SCSI_VFS
 		.export LABB4
-
+.endif
 		.segment "hd_driver_svc5"
 
 
@@ -45,7 +46,7 @@ LAB9B:
 		sta	WKSP_ADFS_331			; Save for error handler later
 		jmp	L9DB4				; Restore Y,X, claim call
 
-
+.ifndef HD_SCSI_VFS
 ; Check for data loss
 ; ===================
 ; IDE and MMC don't have IRQ handlers, this never happens
@@ -58,3 +59,4 @@ LABB4:		lda	WKSP_ADFS_331			; Get SCSI result from IRQ handler
 		.byte	$CA				; ERR=202
 		.byte	"Data lost, channel"
 		.byte	$00
+.endif

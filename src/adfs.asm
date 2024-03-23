@@ -49,6 +49,9 @@
 	.if .def(HD_SCSI) || .def(HD_MMC_HOG)
 		.export SCSI_WaitforReq
 	.endif
+	.ifdef HD_SCSI_VFS
+		.export SCSI_CliWaitforReq
+	.endif
 ;; TODO:
 ; - version string etc for FAST IDE
 
@@ -7993,6 +7996,8 @@ LA7E7:
 .endif
 		plp
 		rts
+
+.ifndef HD_SCSI_VFS
 ;;
 LA7EC:
 		lda	WKSP_ADFS_291			; Copy &C291-4 to &B4-7
@@ -8003,20 +8008,20 @@ LA7EC:
 		sta	$B7
 		lda	WKSP_ADFS_293
 		sta	$B6
-.ifdef ELK_100_ADFS
+  .ifdef ELK_100_ADFS
 		ldy	#$0A
 LA802:		lda	L883C,Y			; Copy 'load $' control block
 		sta	WKSP_ADFS_214+1,Y
 		dey
 		bpl	LA802
 		ldx	#$00
-.else
+  .else
 		ldx	#$0B
 LA802:		lda	L883C-1,X			; Copy 'load $' control block
 		sta	WKSP_ADFS_214,X
 		dex
 		bne	LA802
-.endif
+  .endif
 		ldy	#$03
 LA80D:		lda	WKSP_ADFS_26C,Y
 		sta	WKSP_ADFS_314,Y
@@ -8030,20 +8035,20 @@ LA81A:		inx
 
 
 LA821:
-.ifdef ELK_100_ADFS
+  .ifdef ELK_100_ADFS
 		ldy	#$0A
 LA823:		lda	L883C,Y				; Copy 'load $' control block
 		sta	WKSP_ADFS_214+1,Y
 		dey
 		bpl	LA823
 		ldx	#$00
-.else
+  .else
 		ldx	#$0B
 LA823:		lda	L883C-1,X			; Copy 'load $' control block
 		sta	WKSP_ADFS_214,X
 		dex
 		bne	LA823
-.endif
+  .endif
 
 		ldy	#$03
 LA82E:		lda	WKSP_ADFS_270,Y
@@ -8110,12 +8115,12 @@ LA8AF:		ldy	#$04
 		dey
 		ora	($B6),Y				; Merge with 'D' bit
 		bpl	LA8C7				; Not 'E' and not 'D'
-.if TARGETOS > 1
+  .if TARGETOS > 1
 CheckESC:						; LA8B8
 		bit	ZP_MOS_ESCFLAG
 		bpl	LA8BF
 		jmp	ErrorEscapeACKReloadFSM				; Jump to give 'Escape' error
-.endif
+  .endif
 ;;
 LA8BF:		jsr	L8964
 		beq	LA8AF
@@ -8172,14 +8177,14 @@ LA91A:		lda	WKSP_ADFS_23A,Y
 		sec
 		sbc	WKSP_ADFS_260
 		sta	WKSP_ADFS_261
-.ifdef USE65C12
+  .ifdef USE65C12
 		lda	#ADFS_FLAGS_WTF
 		tsb	ZP_ADFS_FLAGS
-.else
+  .else
 		lda	ZP_ADFS_FLAGS
 		ora	#ADFS_FLAGS_WTF
 		sta	ZP_ADFS_FLAGS
-.endif
+  .endif
 		lda	WKSP_ADFS_26F
 		ora	WKSP_ADFS_2A4
 		sta	WKSP_ADFS_2A4
@@ -8195,10 +8200,17 @@ LA91A:		lda	WKSP_ADFS_23A,Y
 		sta	WKSP_ADFS_317_CURDRV
 		jsr	L8F91
 		jsr	LA7EC
-.if TARGETOS > 1
+  .if TARGETOS > 1
 		jmp	CheckESC
-.else
+  .else
 		jmp	LA8BF
+  .endif
+
+.endif ; !def HD_SCSI_VFS
+
+.ifdef HD_SCSI_VFS
+VFS_L9C10:	pha
+		jmp	L8A22
 .endif
 
 .if TARGETOS > 1
@@ -8209,9 +8221,13 @@ FSC6_NEWFS:
 		ldx	WKSP_ADFS_317_CURDRV		; Get current drive
 		inx					; If &FF, no directory loaded
 		beq	LA983
+  .ifdef HD_SCSI_VFS
+		jmp	VFS_L9C10
+  .else
 		jsr	L89D8
 		lda	#$FF				; Continue into OSARGS &FF,0
 		ldy	#$00				; to ensure all files
+  .endif
 ;;
 ;; OSARGS
 ;; ======
@@ -8232,7 +8248,8 @@ LA984:		jsr	LA77F				; Check FSM
 ;;
 ;; Exit OSARGS Y=0
 ;; ---------------
-LA98C:		ldx	ZP_ADFS_C3_SAVE_X		; Restore X
+my_OSARGS_exit:
+		ldx	ZP_ADFS_C3_SAVE_X		; Restore X
 		lda	#$00				; A=0
 		tay					; Y=0
 		rts
@@ -8292,14 +8309,17 @@ _lbbcA976:
 ;;
 ;; OSARGS Y=0 - implement all calls as ENSURE (A=&FF)
 ;; --------------------------------------------------
-LA992:		ldx	#$10
+LA992:		
+
+.ifndef HD_SCSI_VFS
+		ldx	#$10
 LA994:		jsr	LAB06				; Check things
-.ifdef USE65C12
+  .ifdef USE65C12
 		stz	WKSP_ADFS_204,X
-.else
+  .else
 		lda	#0
 		sta	WKSP_ADFS_204,X
-.endif
+  .endif
 		dex
 		dex
 		dex
@@ -8307,19 +8327,22 @@ LA994:		jsr	LAB06				; Check things
 		bpl	LA994
 		inc	WKSP_ADFS_204
 		jsr	WaitEnsuring				; Wait for ensuring to complete
+.endif ; ndef HD_SCSI_VFS
+
 .if TARGETOS <= 1
-.ifdef USE65C12
+  .ifdef USE65C12
 		bra	_lbbcA976
-.else
+  .else
 		jmp	_lbbcA976
-.endif
+  .endif
 .else
-.ifdef USE65C12
-		bra	LA98C				; Exit
-.else
-		jmp	LA98C				; Exit
+  .ifdef USE65C12
+		bra	my_OSARGS_exit				; Exit
+  .else
+		jmp	my_OSARGS_exit				; Exit
+  .endif
 .endif
-.endif
+
 ;;
 ;; OSARGS Y<>0 - Info on open channel
 ;; ----------------------------------
@@ -8357,8 +8380,10 @@ LA9D0:		jsr	LB19C
 LA9DA:		dex
 		bne	LAA59				; Jump if not 1, not PTR=
 		lda	WKSP_ADFS_3AC_CH_FLAGS,Y
-		bpl	LAA16				; if not open for write/update
-LA9E2:		ldx	ZP_ADFS_C3_SAVE_X
+		bpl	LAA16				; if not open for write/update 
+LA9E2:
+.ifndef HD_SCSI_VFS
+		ldx	ZP_ADFS_C3_SAVE_X
 		lda	$00,X
 		sta	WKSP_ADFS_29A
 		lda	$01,X
@@ -8380,6 +8405,7 @@ LA9FF:		lda	$00,X
 		sta	WKSP_ADFS_35C_CH_PTR_H,Y
 		jmp	LA9D0
 ;;
+.endif ; ndef HD_SCSI_VFS
 LAA16:		ldx	ZP_ADFS_C3_SAVE_X
 		ldy	ZP_ADFS_CF_CHANNEL_OFFS
 		sec
@@ -8411,7 +8437,9 @@ LAA48:		jsr	ReloadFSMandDIR_ThenBRK
 ; OSARGS 2,Y - Read EXT
 ; ---------------------
 LAA59:		dex
+.ifndef HD_SCSI_VFS
 		bne	LAA75
+.endif
 		ldx	ZP_ADFS_C3_SAVE_X
 		lda	WKSP_ADFS_352_CH_EXT_L,Y
 		sta	$00,X
@@ -8422,6 +8450,8 @@ LAA59:		dex
 		lda	WKSP_ADFS_334_CH_EXT_H,Y
 		sta	$03,X
 LAA72:		jmp	LA9D0
+
+.ifndef HD_SCSI_VFS
 
 ; OSARGS 3,Y - Write EXT
 ; ----------------------
@@ -8477,20 +8507,33 @@ LAAD0:		dex
 .if TARGETOS <= 1
 		jmp	_lbbcA976
 .else
-		jmp	LA98C				; Exit
+		jmp	my_OSARGS_exit				; Exit
 .endif
+
+.else
+		; dummy write buffer call for VFS
+LAAB9:	
+		lda     #$00                            ; 9CCE A9 00                    ..
+        	jmp     my_OSARGS_exit                           ; 9CD0 4C 2F 9C                 L/.
+
+
+.endif ; def HD_SCSI_VFS
 
 ;;; hd_driver_bgetbput linked here
 
 
 		.segment "rom_main_5"
-
+.ifdef HD_SCSI_VFS
+	;TODO: VFS: REMOVE
+LAB03:
+LAB06:
+.else ;ndef HD_SCSI_VFS
 LAB03:		jsr	LACE6				; Check checksum
 LAB06:
 ;; TODO:HOG:remove? no IRQ?
-.if .def(HD_MMC_HOG) || ((!.def(HD_MMC_JGH)) && (!.def(HD_SCSI2)))	; TODO IDE?
+  .if .def(HD_MMC_HOG) || ((!.def(HD_MMC_JGH)) && (!.def(HD_SCSI2)))	; TODO IDE?
 		jsr	LABB4				; Check for IRQ flagging data lost
-.endif
+  .endif
 		lda	WKSP_ADFS_204,X
 		cmp	#$C0
 		bcc	LAB88				; Exit
@@ -8507,11 +8550,11 @@ LAB10:		txa
 		and	#$1E
 		ror	A
 ; TODOXDFS: I think this is wrong
-.ifdef HD_SCSI_XDFS
+  .ifdef HD_SCSI_XDFS
 		ora	#$30
-.else ; XDFS
+  .else ; XDFS
 		ora	#CHANNEL_RANGE_LO
-.endif ; XDFS
+  .endif ; XDFS
 		sta	WKSP_ADFS_2D4			; Save channel number for error message
 		lda	WKSP_ADFS_201,X
 		sta	WKSP_ADFS_2D0_ERR_SECTOR
@@ -8522,7 +8565,7 @@ LAB10:		txa
 		jsr	LB56C				; ?
 		jsr	CommandSetRetries		; Set default retries
 		stx	$C1				; TODO: optimise this away?
-.ifdef FLOPPY
+  .ifdef FLOPPY
 		lda	ZP_ADFS_FLAGS			; Get ADFS status byte
 		and	#ADFS_FLAGS_HD_PRESENT		; Is hard drive present?
 		beq	LAB50				; No hard drive, jump forward to do floppy
@@ -8533,19 +8576,26 @@ LAB50:		ldx	$C1
 		beq	RestoreChanInXrts
 		dec	ZP_ADFS_RETRY_CTDN
 		bpl	LAB50
-.endif
+  .endif
 
-.ifndef HD_MMC_HOG
+  .ifndef HD_MMC_HOG
 LAB5BJmpGenerateError:
 		jmp	GenerateError				; Generate disk error
-.endif
+  .endif
+
+.endif ; def HD_SCSI_VFS
 
 ;;; The HD_Driver for BPUT must be linked in here
 
 		.segment "rom_main_6"
+.ifdef HD_SCSI_VFS
+;TODO:VFS:REMOVE
+LAB88:
+.else ;ndef HD_SCSI_VFS
 RestoreChanInXrts:
 		ldx	$C1				; Restore X, offset to channel info
 LAB88:		rts
+.endif
 
 ;;; The HD_Driver for Svc5 must be linked in here (if required)
 
@@ -8633,7 +8683,12 @@ LAC54:		lda	WKSP_ADFS_204,X
 		ror	WKSP_ADFS_204,X
 		sec
 		rol	WKSP_ADFS_204,X
-LAC6E:		jmp	LAB03
+LAC6E:
+.ifdef HD_SCSI_VFS
+		rts			
+.else		
+		jmp	LAB03		
+.endif
 ;;
 LAC71:		dex
 		dex
@@ -8657,23 +8712,30 @@ LAC7A:		ldx	WKSP_ADFS_295
 		jsr	LB56C
 		sty	$B1
 		stx	$B0
+.ifndef HD_SCSI_VFS
 		jsr	CommandSetRetries
+.endif
 LACA8:		ldx	$B0
-.ifdef FLOPPY
+
+.ifdef HD_SCSI_VFS
+		jmp	HD_BGET_ReadSector
+LACBA:		jmp	GenerateError
+.else; ndef HD_SCSI_VFS
+  .ifdef FLOPPY
 		lda	ZP_ADFS_FLAGS			; Get ADFS status byte
 		and	#ADFS_FLAGS_HD_PRESENT		; Is hard drive present?
 		beq	LACB5
-.endif
+  .endif
 		lda	WKSP_ADFS_203,X
 		bpl	HD_BGET_ReadSector
-.ifdef FLOPPY
+  .ifdef FLOPPY
 LACB5:		jsr	ExecFloppyReadBPUTSectorIND
 		beq	LACDA
-.endif
+  .endif
 LACBA:		dec	ZP_ADFS_RETRY_CTDN		; Decrement retries
 		bpl	LACA8				; Loop to rey again
 		jmp	GenerateError			; Generate a disk error
-
+.endif ;ndef HD_SCSI_VFS
 
 ;;; HD_driver_bget linked in here
 
@@ -8891,6 +8953,15 @@ LAE5B:		lda	$B8
 		inc	$B9
 		bcs	LAE38
 
+.ifdef HD_SCSI_VFS
+		jmp	L830B
+LAE6D:	;TODO:VFS:REMOVE
+LAE68:		rts
+brkNotOpenUpdate:
+my_OSBPUT:
+LB17F:
+.else		
+
 LAE68:
 		lda	#$00
 		sta	WKSP_ADFS_2B5
@@ -8937,7 +9008,7 @@ LAECB:		bcs	LAEC8
 
 LAED0:
 
-.if TARGETOS <= 1
+  .if TARGETOS <= 1
 _lbbcAEC1:
 		sec					; AEC1 38                       8
 		lda	#$00				; AEC2 A9 00                    ..
@@ -8950,7 +9021,7 @@ _lbbcAEC1:
 		jmp	L867F				; AED4 4C 56 86
 _lbbcAED7:
 
-.endif
+  .endif
 
 
 		jsr	LADD4
@@ -8967,7 +9038,7 @@ _lbbcAED7:
 		sta	WKSP_ADFS_237 + 2
 
 
-.if TARGETOS > 1
+  .if TARGETOS > 1
 		jsr	L84E1
 		stz	WKSP_ADFS_23D
 		stz	WKSP_ADFS_23E
@@ -8991,11 +9062,11 @@ LAF1D:		lda	WKSP_ADFS_000_FSM_S0 + $FF,X
 		dey
 		bpl	LAF1D
 		txa
-.ifdef USE65C12
+    .ifdef USE65C12
 		bra	LAF2D
-.else
+    .else
 		jmp	LAF2D
-.endif
+    .endif
 ;;
 LAF2A:		dex
 		dex
@@ -9010,11 +9081,11 @@ LAF31:		lda	WKSP_ADFS_23C,X
 		cpx	WKSP_ADFS_29A
 LAF3F:		lda	WKSP_ADFS_29C
 		ldy	WKSP_ADFS_29D
-.ifdef USE65C12
+    .ifdef USE65C12
 		inc	A
-.else
+    .else
 		cmp	#$FF
-.endif
+    .endif
 		bne	LAF4E
 		iny
 		bne	LAF4E
@@ -9029,15 +9100,15 @@ LAF4E:		bcc	LAF5E
 		bne	LAF67
 LAF5E:		sty	WKSP_ADFS_23F
 		sta	WKSP_ADFS_23E
-.ifdef USE65C12
+    .ifdef USE65C12
 		stz	WKSP_ADFS_23D
-.else
+    .else
 		ldx	#0
 		stx	WKSP_ADFS_23D
-.endif
+    .endif
 
 
-.else							; TARGETOS <= 1
+  .else							; TARGETOS <= 1
 		lda	#0
 		sta	WKSP_ADFS_23D
 		lda	WKSP_ADFS_29E
@@ -9046,7 +9117,7 @@ LAF5E:		sty	WKSP_ADFS_23F
 		sta	WKSP_ADFS_23F
 		jsr	L84E1
 
-.endif	; TARGETOS <= 1
+  .endif	; TARGETOS <= 1
 
 LAF67:		jsr	L865B
 		ldy	#$12
@@ -9055,24 +9126,24 @@ LAF67:		jsr	L865B
 		sta	($B8),Y
 		sta	WKSP_ADFS_3A2,X
 		iny
-.if TARGETOS > 1
+  .if TARGETOS > 1
 		lda	WKSP_ADFS_23D
-.endif
+  .endif
 		sta	($B8),Y
 		sta	WKSP_ADFS_398,X
-.if TARGETOS > 1
+  .if TARGETOS > 1
 		lda	WKSP_ADFS_23E
-.else
+  .else
 		lda	WKSP_ADFS_29E
-.endif
+  .endif
 		iny
 		sta	($B8),Y
 		sta	WKSP_ADFS_38E,X
-.if TARGETOS > 1
+  .if TARGETOS > 1
 		lda	WKSP_ADFS_23F
-.else
+  .else
 		lda	WKSP_ADFS_29F
-.endif
+  .endif
 
 		iny
 		sta	($B8),Y
@@ -9091,14 +9162,14 @@ LAF67:		jsr	L865B
 		ora	WKSP_ADFS_317_CURDRV
 		sta	WKSP_ADFS_3B6,X
 		jsr	L8F91
-.ifdef USE65C12
+  .ifdef USE65C12
 		lda	#ADFS_FLAGS_WTF
 		trb	ZP_ADFS_FLAGS
-.else
+  .else
 		lda	ZP_ADFS_FLAGS
 		and	#ADFS_FLAGS_WTF ^ $FF
 		sta	ZP_ADFS_FLAGS
-.endif
+  .endif
 		lda	#>WKSP_ADFS_409
 		sta	WKSP_ADFS_260
 		lda	#<WKSP_ADFS_409
@@ -9125,9 +9196,6 @@ LAFD2:		sta	WKSP_ADFS_2A8,Y
 LAFE4:		lda	WKSP_ADFS_2B5
 		beq	LAFEC
 		jmp	LB0BD
-
-
-
 ;;
 LAFEC:		ldx	ZP_ADFS_CF_CHANNEL_OFFS
 		clc
@@ -9294,6 +9362,11 @@ LB14D:
 		ldy	ZP_ADFS_C2_SAVE_Y
 		ldx	ZP_ADFS_C3_SAVE_X
 LB17F:		rts
+
+
+.endif ; ndef HD_SCSI_VFS
+
+
 LB180:		ldx	ZP_ADFS_CF_CHANNEL_OFFS
 		inc	WKSP_ADFS_37A_CH_PTR_L,X
 		bne	LB17F
@@ -9386,14 +9459,29 @@ my_OSFIND:		jsr	LA77F				; Check checksums
 ;; ----
 LB231:		lda	WKSP_ADFS_332			; Handle stored from *RUN?
 		beq	LB23E				; No, do a real OPEN
+.ifdef HD_SCSI_VFS
+		stz	WKSP_ADFS_332			; Clear stored handle
+.else
 		ldy	#$00
 		sty	WKSP_ADFS_332			; Clear stored handle
+.endif
 		ldy	$B5				; Restore Y
 		rts					; Return handle from *RUN
 ;;
 ;; Open a file
 ;; -----------
-LB23E:		ldx	#$09				; Look for a spare channel
+LB23E:		
+.ifdef HD_SCSI_VFS
+		tya                                     ; A065 98                       .
+        	cmp     #$80                            ; A066 C9 80                    ..
+        	bne     VFS_LA06D			; A068 D0 03                    ..
+        	jsr     L830B                           ; A06A 20 C3 82                  ..
+VFS_LA06D:  	and     #$40                            ; A06D 29 40                    )@
+        	tay
+
+.endif
+
+		ldx	#$09				; Look for a spare channel
 LB240:		lda	WKSP_ADFS_3AC_CH_FLAGS,X	; Check channel flags
 		beq	LB260				; Found a spare channel
 		dex					; Loop to next channel
@@ -9436,8 +9524,10 @@ LB277:		lda	WKSP_ADFS_3AC_CH_FLAGS,X
 		ldy	#$19
 		lda	($B6),Y
 		cmp	WKSP_ADFS_3F2,X
-		bne	LB2AA
+		bne	LB2AA				; TODO: VFS: can be trimmed
+.ifndef HD_SCSI_VFS
 		jmp	L8D5E
+.endif
 LB2AA:		dex
 		bpl	LB277
 		ldy	#$00
@@ -9508,6 +9598,7 @@ LB336:		jsr	L89D8
 		rts
 ;;
 LB33E:		bit	WKSP_ADFS_2A0
+.ifndef HD_SCSI_VFS
 		bvc	LB35B
 		jsr	L8FE8
 		php
@@ -9577,6 +9668,8 @@ LB3CD:		lda	#$00
 		sta	WKSP_ADFS_33E_CH_EXT_MH,X
 		sta	WKSP_ADFS_334_CH_EXT_H,X
 		jmp	LB2D1
+.endif
+	; VFS falls through here
 ;;
 ;; CLOSE a channel
 ;; ===============
@@ -9625,6 +9718,7 @@ LB409:		jsr	setEXTToPTRifAtEOF
 .endif
 		tya					; Pass flags to A
 		bpl	LB435				; Jump ahead if not open for write/update
+.ifndef HD_SCSI_VFS
 		lda	WKSP_ADFS_352_CH_EXT_L,X
 		cmp	WKSP_ADFS_3A2,X
 		bne	LB442
@@ -9637,12 +9731,18 @@ LB409:		jsr	setEXTToPTRifAtEOF
 		lda	WKSP_ADFS_334_CH_EXT_H,X
 		cmp	WKSP_ADFS_384,X
 		bne	LB442				; Jump ahead with difference
+.endif
 LB435:		jsr	LAAB9				; Write buffer?
+.ifndef HD_SCSI_VFS
 		jsr	L89D8				; Do something with FSM
+.endif
 		lda	#$00
 		ldy	$C4
 		ldx	$C5
 		rts
+
+
+.ifndef HD_SCSI_VFS
 ;;
 ;; Update directory entry?
 ;; -----------------------
@@ -9691,6 +9791,8 @@ LB497:		lda	WKSP_ADFS_352_CH_EXT_L,X
 		jsr	L84E1				; Calculate something in FSM
 		jsr	L8F91
 		jmp	LB435				; Jump back to write buffer
+
+.endif ;ndef HD_SCSI_VFS
 ;;
 LB4B9:		ldx	#$09
 LB4BB:		lda	WKSP_ADFS_3AC_CH_FLAGS,X
@@ -9726,6 +9828,8 @@ LB4FF:		jsr	ReloadFSMandDIR_ThenBRK
 		.byte	"Disc changed"
 		.byte	$00
 ;;
+.ifndef HD_SCSI_VFS
+
 LB510:		lda	#$01
 		ldx	#<WKSP_ADFS_2C8			; XY=>&C2C8
 		ldy	#>WKSP_ADFS_2C8
@@ -9751,6 +9855,14 @@ LB51E:		lda	WKSP_ADFS_2C8,X			; Subtract from previous TIME
 		bcc	LB545				; <5.12s, return leaving &C2C2 unchanged
 LB542:		sty	WKSP_ADFS_2C2			; >5.11s, set &C2C2 to &xx
 LB545:		rts
+
+.else
+LB510:		rts
+	;TODO:VFS:REMOVE
+LB545:
+
+
+.endif ;ndef HD_SCSI_VFS
 
 LB546:		jsr	LB510				; Check elapsed time
 		lda	WKSP_ADFS_317_CURDRV
@@ -9899,10 +10011,13 @@ LB635:		lda	($C6),Y
 		bpl	LB635
 		lda	WKSP_ADFS_2B4
 		sta	WKSP_ADFS_2B5
+.ifndef HD_SCSI_VFS
 		cmp	#$03
 		bcs	LB64E
 		jsr	LAE6D
-LB64E:		ldy	#$09
+LB64E:		
+.endif
+		ldy	#$09
 		ldx	ZP_ADFS_CF_CHANNEL_OFFS
 		lda	WKSP_ADFS_29A
 		sta	WKSP_ADFS_37A_CH_PTR_L,X
@@ -10009,10 +10124,15 @@ LB715:		ldx	ZP_ADFS_CF_CHANNEL_OFFS
 		lda	WKSP_ADFS_3B6,X
 		adc	$CB
 		sta	WKSP_ADFS_298
+
+.ifdef HD_SCSI_VFS
+		lda	#$40
+.else
 		lda	#$02
 		cmp	WKSP_ADFS_2B4
 		lda	#$80
 		ror	A
+.endif
 		jsr	LABE7
 		lda	$C8
 		sta	WKSP_ADFS_2B6

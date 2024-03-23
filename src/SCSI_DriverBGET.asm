@@ -16,7 +16,11 @@ HD_BGET_ReadSector:
 		jsr	SCSI_WaitforReq			; Wait for hard drive Req
 		bmi	LACD5				; If SCSI is writing, finish
 		ldy	#$00
-LACCD:		lda	SCSI_DATA			; Get byte from hard drive
+LACCD:		
+.ifdef HD_SCSI_VFS
+		jsr	SCSI_CliWaitforReq
+.endif
+		lda	SCSI_DATA			; Get byte from hard drive
 		sta	($BE),Y				; Store to buffer
 		iny
 		bne	LACCD				; Loop for 256 bytes
