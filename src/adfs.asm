@@ -5055,7 +5055,7 @@ L9AC7:		.byte	>(Serv21-1)
 ServiceCallHandlerL9ACE:
 
 .ifdef HD_SCSI_VFS
-		jsr	VFS_LA6F1
+		jsr	VFS_ServiceCallsExtra
 .endif
 
 
@@ -6331,7 +6331,7 @@ L9E39:		jsr	L9E29
 		beq	L9E39
 L9E3E:		
 .ifdef HD_SCSI_VFS
-		jsr	0
+		jsr	VFS_Serv9_extra
 		ldx	#$02
 .else
 		ldx	#$03
