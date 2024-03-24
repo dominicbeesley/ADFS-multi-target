@@ -14,7 +14,8 @@
 		.export _lelkLA0D8
 .endif
 .if TARGETOS > 1
-		.export LA03A
+		.export masPrintCRLFNoSpool
+		.export masPrintChNoSpool
 .endif
 		.export LA091
 		.export LABE6
@@ -48,9 +49,6 @@
 	.endif
 	.if .def(HD_SCSI) || .def(HD_MMC_HOG)
 		.export SCSI_WaitforReq
-	.endif
-	.ifdef HD_SCSI_VFS
-		.export SCSI_CliWaitforReq
 	.endif
 ;; TODO:
 ; - version string etc for FAST IDE
@@ -688,8 +686,10 @@ L82F4:		cmp	#$40				; Floppy drive error &10 (WRPROT)?
 							;error message
 .ifdef HD_SCSI_VFS
 		pha
-.endif
+		jsr	InvalidateFSMandDIR		; Load FSM and root directory
+.else
 		jsr	L89D8				; Load FSM and root directory
+.endif
 .ifdef HD_SCSI_VFS
 		pla
 .endif
@@ -809,11 +809,10 @@ _lelk8326:
 .endif ; .def(HD_IDE)
 
 .if .def(HD_SCSI)
+.proc SCSI_WaitforReq
 .ifdef HD_SCSI_VFS
-SCSI_CliWaitforReq:
 		cli
 .endif
-.proc SCSI_WaitforReq
 		pha					; Save A
 lp:		jsr	SCSI_GetStatus			; Get SCSI status
 		and	#$20				; Check REQUEST
@@ -952,11 +951,12 @@ L8380:		iny
 		cmp	#CHANNEL_RANGE_LO
 		bcc	@sk3
 		cmp	#CHANNEL_RANGE_HI+1
-		bcs	@sk3
+		bcs	@sk4
 @sk3:		jsr	L8451				; Insert channel as hex number
 		txa
 		bpl	VFS_L9393
 		bmi	L83A2
+@sk4:
 .else
 		;TODOXDFS - this needs to subtract offset to make an ASCII number? (like VFS)
   .ifdef HD_SCSI_XDFS
@@ -2175,8 +2175,10 @@ L8AFA:		jsr	WaitEnsuring			; Wait for ensuring to finish
 .endif
 L8B00:		jsr	L8B09				; Call to load data
 		beq	L8ACE				; All ok, so exit
+.ifndef HD_SCSI_VFS
 		dec	ZP_ADFS_RETRY_CTDN		; Decrement retries
 		bpl	L8B00				; Loop to try again
+.endif
 ;;			    Fall through to try once more
 L8B09:		ldx	#<WKSP_ADFS_215_DSKOPSAV_RET			; Point to control block
 		ldy	#>WKSP_ADFS_215_DSKOPSAV_RET
@@ -2188,6 +2190,12 @@ L8B09:		ldx	#<WKSP_ADFS_215_DSKOPSAV_RET			; Point to control block
 		jsr	CheckAndPageInShadowScreen				; Check for shadow screen memory
 .endif
 		lda	WKSP_ADFS_317_CURDRV		; Get current drive
+.ifdef HD_SCSI_VFS
+		inc	A
+		beq	VFS_L8950
+		dec	A
+VFS_L8950:
+.endif
 		ora	WKSP_ADFS_21B_DSKOPSAV_SEC			; OR with drive number
 		sta	WKSP_ADFS_21B_DSKOPSAV_SEC			; Store back into control block
 		sta	WKSP_ADFS_333_LASTACCDRV
@@ -3596,7 +3604,7 @@ L92CB:		pha
 		tsx
 		lda	$0104,X
 .if TARGETOS > 1
-		jsr	LA03C
+		jsr	masPrintChNoSpool
 .else
 		jsr	OSASCI
 .endif
@@ -3625,7 +3633,7 @@ L92F1:		lda	($B6),Y				; Get access bit
 		bcc	L92FD				; Not set, step to next one
 		lda	L931D,Y				; Get access character
 .if TARGETOS > 1
-		jsr	LA03C
+		jsr	masPrintChNoSpool
 .else
 		jsr	OSWRCH
 .endif
@@ -3640,7 +3648,7 @@ L9300:		dex					; Dec. padding needed
 ;;
 L9309:		lda	#$28
 .if TARGETOS > 1
-		jsr	LA03C
+		jsr	masPrintChNoSpool
 .else
 		jsr	OSWRCH
 .endif
@@ -3649,7 +3657,7 @@ L9309:		lda	#$28
 		jsr	L9322				; Print it
 		lda	#$29
 .if TARGETOS > 1
-		jsr	LA03C
+		jsr	masPrintChNoSpool
 .else
 		jsr	OSWRCH
 .endif							; ; Print ')'
@@ -3675,7 +3683,7 @@ L9322:		pha
 		pla
 L932B:		jsr	L8462
 .if TARGETOS > 1
-		jmp	LA03C
+		jmp	masPrintChNoSpool
 .else
 		jmp	OSWRCH
 .endif
@@ -3702,7 +3710,7 @@ L9331:		jsr	LA714
 		rol	A
 		adc	#'0'				; Convert to digit
 .if TARGETOS > 1
-		jsr	LA03C
+		jsr	masPrintChNoSpool
 .else
 		jsr	OSWRCH
 .endif							; Display digit
@@ -3768,7 +3776,7 @@ L93E9:		jsr	L92E5				; Print filename, access, cycle
 		lda	#$04
 		sta	WKSP_ADFS_22B			; Reset to four columns
 .if TARGETOS > 1
-		jsr	LA03A
+		jsr	masPrintCRLFNoSpool
 .else
 		jsr	OSNEWL
 .endif							; Print newline without spooling
@@ -3791,13 +3799,13 @@ L940C:		lda	WKSP_ADFS_22B
 		bne	L9420				; POS>0, skip past
 		lda	#$0B				; POS=0, do VDU 11 to adjust print position
 .if TARGETOS > 1
-		jsr	LA03C
+		jsr	masPrintChNoSpool
 .else
 		jsr	OSWRCH
 .endif
 L9420:
 .if TARGETOS > 1
-		jsr	LA03A				; Print final newline
+		jsr	masPrintCRLFNoSpool				; Print final newline
 .else
 		jsr	OSNEWL
 .endif
@@ -3958,7 +3966,7 @@ L9507:		rts
 ; -----------------------------------
 L9508:		jsr	L92E5				; Print filename
 .if TARGETOS > 1
-		jsr	LA03C
+		jsr	masPrintChNoSpool
 .else
 		jsr	OSWRCH
 .endif							; ; Print another space
@@ -4021,7 +4029,7 @@ L953D:		dey
 		bne	L9522
 L9543:
 .if TARGETOS > 1
-		jmp	LA03A				; Print newline
+		jmp	masPrintCRLFNoSpool				; Print newline
 .else
 		jmp	OSNEWL
 .endif
@@ -4652,7 +4660,7 @@ L99CE:
 ;;
 L99DA:
   .if TARGETOS > 1
-		jsr	LA03A
+		jsr	masPrintCRLFNoSpool
   .else
 		jsr	OSNEWL
   .endif
@@ -4681,7 +4689,7 @@ L9A0F:		jsr	$FFE0
 		cmp	#' '
 		bcc	L9A19
   .if TARGETOS > 1
-		jsr	LA03C
+		jsr	masPrintChNoSpool
   .else
 		jsr	OSASCI
   .endif
@@ -4691,7 +4699,7 @@ L9A19:		and	#$DF				; Force to upper case
 		dex
 		bpl	L9A0F
   .if TARGETOS > 1
-		jsr	LA03A
+		jsr	masPrintCRLFNoSpool
 		stz	WKSP_ADFS_2D5_CUR_CHANNEL
   .else
 		jsr	OSNEWL
@@ -4897,12 +4905,12 @@ L9A7E:		rts
 .if TARGETOS > 1
 L9A7F:
   .ifdef HD_SCSI_VFS
-		jsr	0
+		jsr	myCmosRead
 		and	#$40
 		rts
   .else
-		lda	#$A1				; Read CMOS
-		ldx	#$0B				; Location 11 - ADFS settings
+		lda	#OSBYTE_A1_READ_CMOS		; Read CMOS
+		ldx	#CMOS_ADFS			; Location 11 - ADFS settings
 		jsr	OSBYTE				; Read CMOS byte
 		tya					; Transfer CMOS byte to A
 		rts
@@ -4964,7 +4972,9 @@ L9A9C:
 ;; Low service call routines address-1 low bytes
 ;; ---------------------------------------------
 L9AAC:		.byte	<(Serv0-1)			; Serv0 - L9AD5 - Null
-.if TARGETOS > 1 || .def(AUTOHAZEL)
+.ifdef HD_SCSI_VFS
+		.byte	<(VFS_Serv1-1)			; Serv1 - L9AD5 - Null
+.elseif TARGETOS > 1 || .def(AUTOHAZEL)
 		.byte	<(Serv0-1)			; Serv1 - L9AD5 - Null
 .else
 		.byte	<(Serv1-1)			; Serv1 - L9AD5 - Null
@@ -4981,7 +4991,9 @@ L9AAC:		.byte	<(Serv0-1)			; Serv0 - L9AD5 - Null
 ;; Low service call routines address-1 high bytes
 ;; ----------------------------------------------
 L9AB6:		.byte	>(Serv0-1)
-.if TARGETOS > 1 || .def(AUTOHAZEL)
+.ifdef HD_SCSI_VFS
+		.byte	>(VFS_Serv1-1)			; Serv1 - L9AD5 - Null
+.elseif TARGETOS > 1 || .def(AUTOHAZEL)
 		.byte	>(Serv0-1)
 .else
 		.byte	>(Serv1-1)
@@ -5004,11 +5016,17 @@ L9AC0:		.byte	<(Serv21-1)			; Serv21 - Serv21 - High abs
 		.byte	<(Serv22-1)			; Serv22 - Serv22 - High w/s
 		.byte	<(Serv0-1)			; Serv23 - Serv0 - Null
 		.byte	<(Serv24-1)			; Serv24 - Serv24 - Hazel count
-.ifndef AUTOHAZEL
+  .ifndef AUTOHAZEL
 		.byte	<(Serv25-1)			; Serv25 - Serv25 - FS Info
 		.byte	<(Serv26-1)			; Serv26 - Serv26 - *SHUT
+    .ifdef HD_SCSI_VFS
+		.byte	<(VFS_Serv27-1)			; Serv27 - Reset
+		.byte	<(VFS_Serv28-1)			; Serv28
+		.byte	<(VFS_Serv29-1)			; Serv29
+    .else
 		.byte	<(Serv0-1)			; Serv27 - Serv0 - Null
-.endif
+    .endif
+  .endif
 ;;
 ;; High service call routines address-1 high bytes
 ;; -----------------------------------------------
@@ -5016,16 +5034,18 @@ L9AC7:		.byte	>(Serv21-1)
 		.byte	>(Serv22-1)
 		.byte	>(Serv0-1)
 		.byte	>(Serv24-1)
-.ifndef AUTOHAZEL
+  .ifndef AUTOHAZEL
 		.byte	>(Serv25-1)
 		.byte	>(Serv26-1)
-		.byte	>(Serv0-1)
-.endif
+    .ifdef HD_SCSI_VFS
+		.byte	>(VFS_Serv27-1)			; Serv27 - Reset
+		.byte	>(VFS_Serv28-1)			; Serv28
+		.byte	>(VFS_Serv29-1)			; Serv29
+    .else
+		.byte	<(Serv0-1)			; Serv27 - Serv0 - Null
+    .endif
+  .endif
 
-.endif
-
-.ifdef HD_SCSI_VFS
-		.res	4, $FF
 .endif
 
 ;;
@@ -5113,7 +5133,9 @@ L9AE8:		pha
 ;; ------------------------
 L9AED:		cmp	#$21				; Check against the lowest value
 		bcc	Serv0				; Quit with calls <&21
-.ifdef AUTOHAZEL
+.ifdef HD_SCSI_VFS
+		cmp	#$2A
+.elseif .def(AUTOHAZEL)
 		cmp	#$26
 .else
 		cmp	#$28
@@ -5165,7 +5187,10 @@ _lbbc9AF0:
 
 
 .ifdef	HD_SCSI_VFS
-		.res	$125, $FF
+
+		; vfs_mouse_1 segment inserted here
+
+		.segment "rom_main_2A_VFS"
 .endif
 
 ;;
@@ -5284,7 +5309,9 @@ _elkL9B40:
 
 .endif	; TARGETOS = 0
 
-.ifdef USE65C12
+.ifdef HD_SCSI_VFS
+		pla					; bug?
+.elseif .def(USE65C12)
 		ply					; Get pointer back
 .else
 		pla
@@ -5915,6 +5942,7 @@ L9D1E:
 .endif
 
 .ifdef HD_SCSI_VFS
+VFS_Serv27:
         	php                                     ; 9363 08                       .
         	sei                                     ; 9364 78                       x
         	stz     $0D95                           ; 9365 9C 95 0D                 ...
@@ -6330,7 +6358,7 @@ L9E5C:		lda	tbl_commands,X
 L9E68:		lda	tbl_commands,X			; Get character from command table
 		bmi	L9E74
 .if TARGETOS > 1
-		jsr	LA03C
+		jsr	masPrintChNoSpool
 .else
 		jsr	OSASCI
 .endif
@@ -6358,7 +6386,7 @@ L9E74:		jsr	LA036
 		and	#$0F
 		jsr	L9283
 .if TARGETOS > 1
-		jsr	LA03A
+		jsr	masPrintCRLFNoSpool
 .else
 		jsr	OSNEWL
 .endif
@@ -6457,7 +6485,7 @@ L9EC7:		.byte	>(LA001-1)
 ;; ================
 starCMD:		
 .ifdef HD_SCSI_VFS
-		jsr	0
+		jsr	VFS_LB80A
 .endif
 
 		jsr	WaitEnsuring
@@ -6677,17 +6705,17 @@ LA02A:		jsr	ReloadFSMandDIR_ThenBRK
 LA036:		lda	#$20				; Print a space
 .if TARGETOS > 1
 .ifdef USE65C12
-		bra	LA03C
+		bra	masPrintChNoSpool
 .else
-		bne	LA03C
+		bne	masPrintChNoSpool
 .endif
 .else
 		jmp	OSWRCH
 .endif
 
 .if TARGETOS > 1
-LA03A:		lda	#$0D				; Print a newline
-LA03C:
+masPrintCRLFNoSpool:		lda	#$0D				; Print a newline
+masPrintChNoSpool:
 .ifdef USE65C12
 		phx					; Print a character
 		phy
@@ -7090,7 +7118,7 @@ LA270:		ldy	#$2C
 		adc	#'0'
 LA275:
 .if TARGETOS > 1
-		jsr	LA03C
+		jsr	masPrintChNoSpool
 .else
 		jsr	OSWRCH
 .endif
@@ -7100,7 +7128,7 @@ LA275:
 		bne	LA284
 LA280:		tya
 .if TARGETOS > 1
-		jsr	LA03C
+		jsr	masPrintChNoSpool
 .else
 		jsr	OSWRCH
 .endif

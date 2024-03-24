@@ -152,7 +152,11 @@ L81CA:		tax					; Save result in X
 L81D2:		lda	#$00				; A=0 - OK
 L81D4:		ldx	$B0				; Restore XY pointer
 		ldy	$B1
+.ifdef HD_SCSI_VFS
+		and	#$FF
+.else
 		and	#$7F				; Lose bit 7, set EQ from result
+.endif
 		rts					; Return with result in A
 
 ;; Not SCSI Read or Write
@@ -180,7 +184,7 @@ L81E8:		lda	($B2),Y
 ;;
 L81F4:
 .ifdef HD_SCSI_VFS
-		jsr	0
+		jsr	SCSI_WaitforReq
 .endif
 		lda	SCSI_DATA
 		sta	($B2),Y
@@ -219,9 +223,7 @@ L822B:		bvs	L8245
 		jsr	TubeStartXferSEI_406
 L8233:		
 .ifndef HD_SCSI_VFS
-		nop					; 3xNOP delay for Tube I/O
-		nop
-		nop
+		jsr	SCSI_WaitforReq
 .endif
 		lda	TUBEIO				; Read from Tube
 .ifdef HD_SCSI_VFS
@@ -241,9 +243,14 @@ L8233:
 L8245:		php
 		lda	#$07
 		jsr	TubeStartXferSEI_406
-L824B:		nop					; 3xNOP delay for Tube I/O
+L824B:		
+.ifdef HD_SCSI_VFS
+		jsr	SCSI_WaitforReq
+.else
+		nop					; 3xNOP delay for Tube I/O
 		nop
 		nop
+.endif
 		lda	SCSI_DATA			; Read SCSI data
 		sta	TUBEIO				; Write to Tube
 		iny
@@ -278,11 +285,14 @@ L8275:		jsr	SCSI_WaitforReq			; Wait for SCSI
 		lda	WKSP_ADFS_333_LASTACCDRV
 .ifdef HD_SCSI_VFS
 		cmp	#$FF
-		beq	L82A5
+		beq	VFS_L823F
 .endif
 		and	#$E0
 		ora	WKSP_ADFS_2D0_ERR_SECTOR+2	; ORA drive number with current drive
 		sta	WKSP_ADFS_2D0_ERR_SECTOR+2
+.ifdef HD_SCSI_VFS
+VFS_L823F:
+.endif
 		jsr	SCSI_WaitforReq			; Wait for SCSI
 		ldx	WKSP_ADFS_2D3_ERR_CODE		; Get returned error number
 		lda	SCSI_DATA			; Get a byte from SCSI
@@ -293,5 +303,6 @@ L8275:		jsr	SCSI_WaitforReq			; Wait for SCSI
 		bne	L82A5				; If set, jump to return &7F
 		txa
 		jmp	L81D4				; Return returned SCSI result
+
 L82A5:		lda	#$FF				; Result=&FF
 		jmp	L81D4				; Jump to return result

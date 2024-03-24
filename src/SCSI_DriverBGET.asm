@@ -18,7 +18,7 @@ HD_BGET_ReadSector:
 		ldy	#$00
 LACCD:		
 .ifdef HD_SCSI_VFS
-		jsr	SCSI_CliWaitforReq
+		jsr	SCSI_WaitforReq
 .endif
 		lda	SCSI_DATA			; Get byte from hard drive
 		sta	($BE),Y				; Store to buffer

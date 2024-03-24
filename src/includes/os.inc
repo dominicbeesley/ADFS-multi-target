@@ -20,12 +20,15 @@ OSARGS			= $FFDA
 OSBYTE_77_CLOSE			= $77
 OSBYTE_8F_ISSUE_SERV	= $8F
 OSBYTE_A1_READ_CMOS		= $A1
+OSBYTE_A2_WRITE_CMOS	= $A2
 OSBYTE_FF_RW_STARTOPT	= $FF
-CMOS_ADFS				= $0B
 
 SYSVARS_291_ILACE		= $291
 
 TUBE_CLAIM 				= $C0
+
+CMOS_ADFS				= $B
+CMOS_PER_ROM_BASE		= $14		; note: this appears to be a VFS bug, should be $30 according to https://beebwiki.mdfs.net/CMOS_configuration_RAM_allocation
 
 .if TARGETOS > 1
 CONFIG_BIT_FD_SPEED	= $01

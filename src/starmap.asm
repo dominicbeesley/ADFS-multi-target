@@ -45,7 +45,7 @@ LA0CB:		dex
 		dey
 		bpl	LA0CB
 .if TARGETOS > 1
-		jsr	LA03A
+		jsr	masPrintCRLFNoSpool
 .else
 		jsr	OSNEWL
 .endif
