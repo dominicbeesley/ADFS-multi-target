@@ -10198,11 +10198,15 @@ LB7BA:		lda	WKSP_ADFS_2B8,Y
 		sta	WKSP_ADFS_216_DSKOPSAV_MEMADDR,Y
 		dey
 		bpl	LB7BA
+.ifdef HD_SCSI_VFS
+		lda	#$08
+.else
 		lda	#$02
 		cmp	WKSP_ADFS_2B4
 		lda	#$02
 		rol	A
 		rol	A
+.endif
 		sta	WKSP_ADFS_21A_DSKOPSAV_CMD
 		ldx	ZP_ADFS_CF_CHANNEL_OFFS
 		lda	$C8
@@ -10234,7 +10238,9 @@ LB807:		lda	WKSP_ADFS_241,Y
 		iny
 		dex
 		bpl	LB807
+.ifndef HD_SCSI_VFS
 		jsr	LAAB9
+.endif
 		jsr	L8A42
 		lda	WKSP_ADFS_22F
 		sta	WKSP_ADFS_317_CURDRV
@@ -10256,10 +10262,14 @@ LB833:		ldx	ZP_ADFS_CF_CHANNEL_OFFS
 		lda	WKSP_ADFS_3B6,X
 		adc	WKSP_ADFS_29D
 		sta	WKSP_ADFS_298
+.ifdef HD_SCSI_VFS
+		lda	#$40
+.else
 		lda	#$02
 		cmp	WKSP_ADFS_2B4
 		lda	#$80
 		ror	A
+.endif
 		jsr	LABE7
 .ifdef USE65C12
 		stz	WKSP_ADFS_2B6
@@ -10414,9 +10424,15 @@ LB92B:		jsr	LB86B
 		lda	#<WKSP_ADFS_300_CSDNAME		; &B4/5=>&C300, CSDNAME
 		sta	$B4
 		lda	#>WKSP_ADFS_300_CSDNAME
-		sta	$B5
+VFS_LA5E3:	sta	$B5
 		jsr	LB8BC
+.ifdef HD_SCSI_VFS
+		lda     #$00                            ; A5E8 A9 00                    ..
+        	jsr     LB8A5                           ; A5EA 20 49 A5                  I.
+        	jmp     LB925
+.else
 		bmi	LB925
+.endif
 LB946:		asl	A
 		rol	A
 		rol	A
@@ -10432,9 +10448,13 @@ LB94F:		jsr	LB86B
 		lda	#<WKSP_ADFS_30A_LIBNAME		; &B4/5=>&C30A, LIBNAME
 		sta	$B4
 		lda	#>WKSP_ADFS_30A_LIBNAME
+.ifdef HD_SCSI_VFS
+		jmp	VFS_LA5E3
+.else
 		sta	$B5
 		jsr	LB8BC
 		bmi	LB925
+.endif
 LB96A:		jsr	LB86B
 		ldy	#$00
 		sty	WKSP_ADFS_2B5
