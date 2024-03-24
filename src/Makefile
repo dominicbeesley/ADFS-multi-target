@@ -24,6 +24,7 @@ STARMAP=		starmap
 FLOPPY_DRIVERS= 	floppy floppy_nmi_A floppy_nmi_B floppy_nmi_C floppy_nmi_D
 FLOPPY_DRIVERS_ELK= 	floppy floppy_elk floppy_nmi_A floppy_nmi_D
 TUBE_DRIVERS=		TubeCheckAddrAndClaim TubeStartXfer
+VFS_MOUSE_DRIVERS=	VFS_Mouse
 
 .PHONY: all compares comparedirs
 
@@ -42,7 +43,7 @@ dir-%:
 
 OBJS_masIDE= 		$(ADFS) $(IDE_DRIVERS) 		$(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS) 
 OBJS_masSCSI=   	$(ADFS) $(SCSI_DRIVERS) 	$(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
-OBJS_masVFS=   		$(ADFS) $(SCSI_DRIVERS_VFS) 	$(TUBE_DRIVERS) $(STARMAP) $(FLOPPY_DRIVERS)
+OBJS_masVFS=   		$(ADFS) $(SCSI_DRIVERS_VFS) 	$(TUBE_DRIVERS) $(STARMAP) $(VFS_MOUSE_DRIVERS)
 OBJS_masMMC_hog_SD= 	$(ADFS) $(MMC_DRIVERS) 		$(TUBE_DRIVERS) $(STARMAP) 
 OBJS_masMMC_hog_SDT= 	$(ADFS) $(MMC_DRIVERS) 		$(TUBE_DRIVERS) $(STARMAP)
 OBJS_masMMC_hog_SD2= 	$(ADFS) $(MMC_DRIVERS) 		$(TUBE_DRIVERS) $(STARMAP) 
@@ -84,7 +85,7 @@ LINK_masMMC_hog_SD2T=	masMMC_hog
 LINK_masMMC_hog_SD3=	masMMC_hog
 LINK_masMMC_hog_SD3T=	masMMC_hog
 LINK_masBM_XDFS=	default
-LINK_masVFS=		default
+LINK_masVFS=		masVFS
 
 .PRECIOUS: $(addsuffix /config.inc, $(addprefix $(BUILDDIR)/, $(ROMNAMES)))
 

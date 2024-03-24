@@ -101,6 +101,7 @@ SELFS_CHAR_NOMOUNT='Y'
 OSWORD_BASE=$60
 OSWORD_VFS_SPECIAL=$64
 OSWORD_END=$64
+TUBE_ID=7
 .define FSNAMESTR "VFS"
 .define FSNAMESTR_REV " sfv"
 .elseif .def(HD_SCSI_XDFS)
@@ -112,6 +113,7 @@ KEYCODE_SELFS_NOMOUNT=$44		; OSYBTE 7A KEYCODE Y
 SELFS_CHAR_NOMOUNT='Y'
 OSWORD_BASE=$60
 OSWORD_END=$63
+TUBE_ID=3
 .define FSNAMESTR "XDFS"
 .define FSNAMESTR_REV "sfdx"
 .else
@@ -124,6 +126,7 @@ SELFS_CHAR_NOMOUNT='F'
 FLAG_NOTFADFS=$FF
 OSWORD_BASE=$70
 OSWORD_END=$73
+TUBE_ID=3
 .define FSNAMESTR "ADFS"
 .define FSNAMESTR_REV "sfda"
 .endif
@@ -158,7 +161,11 @@ L8000:		.byte	$00,$00,$00			; No language entry
 		jmp	ServiceCallHandlerL9ACE		; Jump to service handler
 		.byte	$82				; Service ROM, 6502 code
 		.byte	L8017-L8000			; Offset to (C) string
+.ifdef HD_SCSI_VFS
+		.byte	1
+.else
 		.byte	VERSION & $FF			; Binary version number
+.endif
 .ifdef IDE_ELK_HOG
 		.byte   "Electron "
 .else
@@ -228,7 +235,7 @@ _ctlp:
 		sta	ZP_ADFS_FLAGS
 .endif
 L8032:
-		lda	#$C4				; ADFS Tube ID=&04, &C0=Claim
+		lda	#TUBE_CLAIM | TUBE_ID		; ADFS Tube ID=&04, &C0=Claim
 		jsr	$0406				; Claim Tube
 		bcc	L8032				; Loop until claim successful
 L8039:		rts
@@ -5021,7 +5028,6 @@ L9AC7:		.byte	>(Serv21-1)
 
 .ifdef HD_SCSI_VFS
 		.res	4, $FF
-		jsr	0
 .endif
 
 ;;
@@ -5029,6 +5035,11 @@ L9AC7:		.byte	>(Serv21-1)
 ;; ====================
 ;;
 ServiceCallHandlerL9ACE:
+
+.ifdef HD_SCSI_VFS
+		jsr	VFS_LA6F1
+.endif
+
 
 .if TARGETOS > 1 || .def(AUTOHAZEL)
 	.ifdef USE65C12
@@ -10604,28 +10615,31 @@ LBA40:		iny
 ;;;;; floppy drivers linked in here
 
 
+.ifndef HD_SCSI_VFS
 		.segment "rom_main_9"
 
 
-.ifndef FLOPPY
+  .ifndef FLOPPY
 	; TODO remove this?
 LBA57:		lda	#$FF
 		sta	WKSP_ADFS_2E4
 		rts
-.endif ; FLOPPY
+  .endif ; FLOPPY
 
-.ifdef HD_MMC_HOG
+  .ifdef HD_MMC_HOG
 ; Include MMC low-level driver and User Port driver
 ; -------------------------------------------------
               ;;.include       "MMC.asm"
               ;;.include       "MMC_UserPort.asm"
-.endif ; NOT HOG
+  .endif ; NOT HOG
+
+.endif; 
 
 
-
+.ifndef HD_SCSI_VFS
 		.segment "rom_main_10"
 
-.if TARGETOS > 1
+  .if TARGETOS > 1
 	; TODOXDFS - the A9 byte (I think this is a JGH revision number thing?) is not at end of rom, mistake?
 ;;TODO:OBJ: POST BUILD CHECK?
 ;;	.if (* < $BFFF) && (!.def(HD_XDFS))
@@ -10652,12 +10666,10 @@ LBA57:		lda	#$FF
 		brk
 		.byte	"Roger"
 		brk
-.endif
+  .endif
+.endif; ndef HD_SCSI_VFS
+
 ENDOFROM:
 
-
-;.if ENDOFROM > $C000
-;	.ERROR "OUT OF SPACE"
-;.endif
 
 

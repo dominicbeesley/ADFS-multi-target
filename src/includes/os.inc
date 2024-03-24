@@ -25,6 +25,8 @@ CMOS_ADFS				= $0B
 
 SYSVARS_291_ILACE		= $291
 
+TUBE_CLAIM 				= $C0
+
 .if TARGETOS > 1
 CONFIG_BIT_FD_SPEED	= $01
 .else
