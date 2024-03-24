@@ -113,7 +113,7 @@ KEYCODE_SELFS_NOMOUNT=$44		; OSYBTE 7A KEYCODE Y
 SELFS_CHAR_NOMOUNT='Y'
 OSWORD_BASE=$60
 OSWORD_END=$63
-TUBE_ID=3
+TUBE_ID=4
 .define FSNAMESTR "XDFS"
 .define FSNAMESTR_REV "sfdx"
 .else
@@ -126,7 +126,7 @@ SELFS_CHAR_NOMOUNT='F'
 FLAG_NOTFADFS=$FF
 OSWORD_BASE=$70
 OSWORD_END=$73
-TUBE_ID=3
+TUBE_ID=4
 .define FSNAMESTR "ADFS"
 .define FSNAMESTR_REV "sfda"
 .endif
@@ -827,7 +827,7 @@ SCSI_send_byteA:
 		jsr	SCSI_WaitforReq			; Wait until SCSI ready
 		bvs	L8349				; Wrong phase i.e. SCSI wants to do data in not out!
 							; WRONG?: SCSI not responding, drop return and return result=UNKNOWN
-.if HD_SCSI_VFS
+.ifdef HD_SCSI_VFS
 		eor	#$FF
 .endif
 		sta	SCSI_DATA
@@ -960,7 +960,7 @@ L8380:		iny
 .else
 		;TODOXDFS - this needs to subtract offset to make an ASCII number? (like VFS)
   .ifdef HD_SCSI_XDFS
-		cmp	#&30
+		cmp	#$30
   .else
 		cmp	#CHANNEL_RANGE_LO
   .endif
@@ -4901,9 +4901,7 @@ L9A7F:
 		and	#$40
 		rts
   .else
-;;
-;;
-L9A7F:		lda	#$A1				; Read CMOS
+		lda	#$A1				; Read CMOS
 		ldx	#$0B				; Location 11 - ADFS settings
 		jsr	OSBYTE				; Read CMOS byte
 		tya					; Transfer CMOS byte to A

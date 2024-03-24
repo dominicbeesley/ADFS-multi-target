@@ -178,7 +178,10 @@ L81E8:		lda	($B2),Y
 		bvc	L81E1
 .endif
 ;;
-L81F4:		jsr	0
+L81F4:
+.ifdef HD_SCSI_VFS
+		jsr	0
+.endif
 		lda	SCSI_DATA
 		sta	($B2),Y
 		iny
@@ -273,7 +276,7 @@ L8275:		jsr	SCSI_WaitforReq			; Wait for SCSI
 		dex
 		bpl	L8275				; Loop to fetch four bytes, err, sec.hi, sec.mid, sec.lo
 		lda	WKSP_ADFS_333_LASTACCDRV
-.if HD_SCSI_VFS
+.ifdef HD_SCSI_VFS
 		cmp	#$FF
 		beq	L82A5
 .endif
