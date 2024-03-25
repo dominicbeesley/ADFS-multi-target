@@ -3796,7 +3796,7 @@ L93FF:
 L940C:		lda	WKSP_ADFS_22B
 		cmp	#$04
 		beq	L9423
-		lda	#$86
+		lda	#OSBYTE_86_TXT_POS
 		jsr	OSBYTE				; Read POS/VPOS
 		txa					; Check POS
 		bne	L9420				; POS>0, skip past
@@ -4929,7 +4929,7 @@ L9A7F:
 ;; b2-b0 FDrive
 ;;
 ;;
-L9A88:		lda	#$FD
+L9A88:		lda	#OSBYTE_FD_LAST_BREAK
 		jsr	OSBYTEYFFX00				; Read BREAK type
 		txa
 		rts
@@ -5301,11 +5301,11 @@ _elkL9B23:
 		rol	ZP_ADFS_FLAGS
 		jsr	FSC6_NEWFS			; 9B1F 20 3C A9                  <.
 _lbbc9B22:
-		ldx	#$00				; 9B22 A2 00                    ..
-		lda	#$15				; 9B24 A9 15                    ..
-		jsr	OSBYTE				; 9B26 20 F4 FF                  ..
-		lda	#$8A				; 9B29 A9 8A                    ..
-		ldy	#$CA				; 9B2B A0 CA                    ..
+		ldx	#$00				; Keyboard
+		lda	#OSBYTE_15_FLUSH_BUF		
+		jsr	OSBYTE				; flush
+		lda	#OSBYTE_8A_INS_BUF
+		ldy	#$CA				; character ??? TODO: ask
 		jsr	OSBYTE
 _elkL9B40:
 
@@ -5320,7 +5320,7 @@ _elkL9B40:
 		pla
 		tay
 .endif
-		ldx	ZP_MOS_CURROM				; Get ROM number back into X
+		ldx	ZP_MOS_CURROM			; Get ROM number back into X
 .ifdef AUTOHAZEL
 		lda	$0DF0,X				; Check w/s pointer
 		bmi	L9B47				; Exit if using high workspace
@@ -5387,7 +5387,7 @@ Serv3:
 		tya
 		pha					; Save Boot flag
 .endif
-		lda	#$7A
+		lda	#OSBYTE_7A_KEY_SCAN_10
 		jsr	OSBYTE				; Scan keyboard
 		inx					; No key pressed?
 
@@ -5466,7 +5466,7 @@ L9B74:		cli					; Enable IRQs
 		pha
 .else							; TARGETOS <=1
 		ldy	#$00				; 9B71 A0 00                    ..
-		lda	#$78				; 9B73 A9 78                    .x
+		lda	#OSBYTE_78_WRITE_KEYPRESS	; 9B73 A9 78                    .x
 		jsr	OSBYTE
 
 .endif							; TARGETOS
@@ -5532,13 +5532,13 @@ L9BA9:		lda	L9CB6,Y
 		sta	$0212,Y
 		dey
 		bpl	L9BA9
-		lda	#$A8
-		jsr	OSBYTEYFFX00				; Find extended vector table
+		lda	#OSBYTE_A8_ADDR_EXTVEC
+		jsr	OSBYTEYFFX00			; Find extended vector table
 		stx	$B4
 		sty	$B5
 		ldy	#$2F
 		ldx	#$14
-L9BBF:		lda	L9CC4,X				; Initialise extended vectors
+L9BBF:		lda	tblExtVec,X			; Initialise extended vectors
 		cmp	#$FF
 		bne	L9BC8
 		lda	ZP_MOS_CURROM
@@ -5747,7 +5747,7 @@ VFS_L92CA:
         rts                                     ; 92CF 60                       `
 .endif
 
-L9C7D:		lda	#$EA
+L9C7D:		lda	#OSBYTE_EA_RW_TUBEPRESENT
 		jsr	OSBYTEYFFX00
 
 .ifdef USE65C12
@@ -5809,7 +5809,7 @@ L9CB6:		.word	$FF1B
 ;;
 ;; Extended Vector Table
 ;; =====================
-L9CC4:		.word	my_OSFILE
+tblExtVec:		.word	my_OSFILE
 		.byte 	$FF				; OSFILE
 		.word	my_OSARGS
 		.byte 	$FF				; OSARGS
@@ -5954,7 +5954,7 @@ VFS_Serv27:
         	lda     #$FF                            ; 936E A9 FF                    ..
         	sta     $0D94                           ; 9370 8D 94 0D                 ...
         	jsr     0                               ; 9373 20 28 B2                  (.
-        	lda     #$16                            ; 9376 A9 16                    ..
+        	lda     #OSBYTE_16_INCPOLL                            ; 9376 A9 16                    ..
         	sta     $0923                           ; 9378 8D 23 09                 .#.
         	jsr     OSBYTE                          ; 937B 20 F4 FF                  ..
         	lda     $FFB7                           ; 937E AD B7 FF                 ...
@@ -5970,7 +5970,7 @@ VFS_L938A:  	lda     ($A8),y                         ; 938A B1 A8               
 
         	bne     VFS_L938A                       ; 9394 D0 F4                    ..
         	stz     $0923                           ; 9396 9C 23 09                 .#.
-VFS_L9399:  	lda     #$A8                            ; 9399 A9 A8                    ..
+VFS_L9399:  	lda     #OSBYTE_A8_ADDR_EXTVEC                            ; 9399 A9 A8                    ..
         	ldx     #$00                            ; 939B A2 00                    ..
         	ldy     #$FF                            ; 939D A0 FF                    ..
         	jsr     OSBYTE                          ; 939F 20 F4 FF                  ..

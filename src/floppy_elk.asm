@@ -206,7 +206,7 @@ FloppyElkAfterNMI:
 		lda     NMI_ELK_MODE_SAVE
 		sta     ULA_CTL				; restore ULA screen mode
 		ldx     #$00
-		lda     #$73
+		lda     #OSBYTE_73_BLANK_PAL
 		jsr     OSBYTE				; un-blank palette
 		lda     NMI_ELK_SAVE_CE
 		sta     ZP_ELK_CE_NMIPTR	
