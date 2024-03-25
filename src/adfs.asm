@@ -650,7 +650,7 @@ GenerateError:						; L82BD
 ErrorEscapeACKInvalidReloadFSM:
 		jsr	InvalidateFSMandDIR		; Invalidate FSM and DIR in memory
 ErrorEscapeACKReloadFSM:
-		lda	#$7E
+		lda	#OSBYTE_7E_ESC_ACK
 		jsr	OSBYTE				; Acknowledge Escape state
 		jsr	ReloadFSMandDIR_ThenBRK		; Reload FSM and DIR, generate an error
 .else
@@ -660,7 +660,7 @@ ErrorEscapeACKInvalidReloadFSM:
 		jsr	OSBYTE				; Acknowledge Escape state
 .endif
 		jsr	InvalidateFSMandDIR		; Invalidate FSM and DIR in memory
-		jsr	ReloadFSMandDIR_ThenBRK			; Reload FSM and DIR, generate an error
+		jsr	ReloadFSMandDIR_ThenBRK		; Reload FSM and DIR, generate an error
 .endif
 		.byte	$11				; ERR=17
 		.byte	"Escape"			; REPORT="Escape"
@@ -952,7 +952,7 @@ L8380:		iny
 		bcc	@sk3
 		cmp	#CHANNEL_RANGE_HI+1
 		bcs	@sk4
-@sk3:		jsr	L8451				; Insert channel as hex number
+@sk3:		jsr	HexNumberError100Y		; Insert channel as hex number
 		txa
 		bpl	VFS_L9393
 		bmi	L83A2
@@ -965,7 +965,7 @@ L8380:		iny
 		cmp	#CHANNEL_RANGE_LO
   .endif
 		bcs	L839B				; &30+, jump to check if channel number
-L8395:		jsr	L8451				; Insert disk error as hex number
+L8395:		jsr	HexNumberError100Y		; Insert disk error as hex number
 		jmp	L83A2
 L839B:		
   .ifdef HD_SCSI_XDFS
@@ -976,10 +976,10 @@ L839B:
 		bcs	L8395				; &3A+, not a channel number, jump back
 .endif
 
-		jsr	L846D				; Insert number in decimal
+		jsr	DecNumberError100Y		; Insert number in decimal
 L83A2:		ldx	#$04
 L83A4:		iny
-		lda	L8440,X				; Insert ' at :'
+		lda	strr_at,X			; Insert ' at :'
 		sta	$0100,Y
 		dex
 		bpl	L83A4
@@ -988,7 +988,7 @@ L83A4:		iny
 		rol	A
 		rol	A
 		rol	A
-		jsr	L8462				; Convert to digit (ORA #&48 would do here)
+		jsr	HexDigit			; Convert to digit (ORA #&48 would do here)
 		iny
 		sta	$0100,Y				; Insert into error block
 		lda	#$2F
@@ -999,7 +999,7 @@ L83A4:		iny
 		ldx	#$02
 		bne	L83CE
 L83CB:		lda	WKSP_ADFS_2D0_ERR_SECTOR,X	; Get sector
-L83CE:		jsr	L8451				; Store in error block in hex
+L83CE:		jsr	HexNumberError100Y				; Store in error block in hex
 		dex
 		bpl	L83CB				; Loop for 2+3 bytes
 VFS_L9393:	iny
@@ -1010,13 +1010,13 @@ GenerateErrorSkNoSuff:
 		beq	L840F				; Random access not being used, generate the error
 		ldx	#$0B
 		dey					; Step back to overwrite terminator
-L83E2:		lda	L8445,X				; Insert ' on channel '
+L83E2:		lda	strr_OnChannel,X		; Insert ' on channel '
 		iny
 		sta	$0100,Y
 		dex
 		bpl	L83E2
-		lda	WKSP_ADFS_2D5_CUR_CHANNEL			; Get channel
-		jsr	L846D				; Insert channel number in decimal
+		lda	WKSP_ADFS_2D5_CUR_CHANNEL	; Get channel
+		jsr	DecNumberError100Y		; Insert channel number in decimal
 .ifdef USE65C12
 		phy					; Save offset into error block
 .else
@@ -1031,8 +1031,8 @@ L83E2:		lda	L8445,X				; Insert ' on channel '
 		sta	WKSP_ADFS_2D8
 .endif
 
-		jsr	L84C4				; OSBYTE &C6, read Exec and Spool handles
-		cpx	WKSP_ADFS_2D5_CUR_CHANNEL			; Error while using Exec channel?
+		jsr	OSBYTEYFFX00			; OSBYTE &C6, read Exec and Spool handles
+		cpx	WKSP_ADFS_2D5_CUR_CHANNEL	; Error while using Exec channel?
 		php
 .ifdef HD_MMC_HOG ; TODO - definite HOG bug?!
 		ldx	#$BD
@@ -1068,7 +1068,7 @@ L8417:		lda	#$00
 		bne	L843D				; No, execute the error
 .if TARGETOS > 1
 		dec	A
-		jsr	L84C4				; OSBYTE &C6, read Exec and Spool handles
+		jsr	OSBYTEYFFX00			; OSBYTE &C6, read Exec and Spool handles
 .ifdef USE65C12
 		phy					; Save Spool handle
 .else
@@ -1092,24 +1092,25 @@ L8417:		lda	#$00
 		jsr	InvalidateFSMandDIR
 L843D:		jmp	$0100
 
-L8440:		.byte	": ta "
-L8445:		.byte	" lennahc no "
+strr_at:	.byte	": ta "
+strr_OnChannel:	.byte	" lennahc no "
 
 ; Insert hex number into error block
 ; ----------------------------------
-L8451:		pha
+HexNumberError100Y:		
+		pha
 		lsr	A
 		lsr	A
 		lsr	A
 		lsr	A
-		jsr	L845A
+		jsr	@nyb
 		pla
-L845A:		jsr	L8462
+@nyb:		jsr	HexDigit
 		iny
 		sta	$0100,Y
 		rts
 ;;
-L8462:		and	#$0F
+HexDigit:	and	#$0F
 		ora	#'0'
 		cmp	#$3A
 		bcc	L846C
@@ -1118,34 +1119,36 @@ L846C:		rts
 
 ; Insert decimal number into error block
 ; --------------------------------------
-L846D:		bit	L8483				; Set V
+DecNumberError100Y:
+		bit	@lpDigit			; Set V
 		ldx	#100				; 100's
-		jsr	L847D
+		jsr	@digit
 		ldx	#10				; 10's
-		jsr	L847D
+		jsr	@digit
 		clv
 		ldx	#1				; units
-L847D:		php
+@digit:		php					; save V flag above
 		stx	$B3
 		ldx	#'0'-1
 		sec
-L8483:		inx
+@lpDigit:	inx					; careful moving this - it us used to set V above
 		sbc	$B3
-		bcs	L8483
+		bcs	@lpDigit
 		adc	$B3
 		plp
 		pha
 		txa
-		bvc	L8494
+		bvc	@sknotleading0			; if V set then this is leading zeroes
 		cmp	#'0'
-		beq	L8498
-		clv
-L8494:		iny
+		beq	@coldone			; we got a '0' - exit, leave V set
+		clv					; clear V we've got a non-zero digit
+@sknotleading0:	iny
 		sta	$0100,Y
-L8498:		pla
+@coldone:	pla
 		rts
 ;;
-InvalidateFSMandDIR:		ldx	#$0C
+InvalidateFSMandDIR:		
+		ldx	#$0C
 		lda	#$FF
 L849E:		sta	WKSP_ADFS_22C_CSD - 1,X
 		sta	WKSP_ADFS_314 - 1,X
@@ -1176,8 +1179,8 @@ strSpoolAbbrev:
 
 ; OSBYTE READ
 ; -----------
-L84C4:		ldy	#$FF
-L84C6:		ldx	#$00
+OSBYTEYFFX00:	ldy	#$FF
+OSBYTEX00:	ldx	#$00
 		jmp	OSBYTE				; Osbyte A,&00,&FF
 
 ; Close Spool or Exec if ADFS channel
@@ -3681,7 +3684,7 @@ L9322:		pha
 		lsr	A
 		jsr	L932B
 		pla
-L932B:		jsr	L8462
+L932B:		jsr	HexDigit
 .if TARGETOS > 1
 		jmp	masPrintChNoSpool
 .else
@@ -4927,7 +4930,7 @@ L9A7F:
 ;;
 ;;
 L9A88:		lda	#$FD
-		jsr	L84C4				; Read BREAK type
+		jsr	OSBYTEYFFX00				; Read BREAK type
 		txa
 		rts
 
@@ -5530,7 +5533,7 @@ L9BA9:		lda	L9CB6,Y
 		dey
 		bpl	L9BA9
 		lda	#$A8
-		jsr	L84C4				; Find extended vector table
+		jsr	OSBYTEYFFX00				; Find extended vector table
 		stx	$B4
 		sty	$B5
 		ldy	#$2F
@@ -5745,7 +5748,7 @@ VFS_L92CA:
 .endif
 
 L9C7D:		lda	#$EA
-		jsr	L84C4
+		jsr	OSBYTEYFFX00
 
 .ifdef USE65C12
 		lda	#ADFS_FLAGS_TUBE_PRESENT
@@ -6731,9 +6734,9 @@ masPrintChNoSpool:
 		pha
 .endif
 
-		lda	#$C7
+		lda	#OSBYTE_C7_RW_SPOOL
 		ldy	#$00				; Do OSBYTE &C7,0,0
-		jsr	L84C6				; Set SPOOL handle to 0, returning X=SPOOL, Y=Escape/Break flags
+		jsr	OSBYTEX00			; Set SPOOL handle to 0, returning X=SPOOL, Y=Escape/Break flags
 
 ;TODOXDFS: I think this is maybe wrong?
 .ifdef HD_SCSI_XDFS
@@ -6747,13 +6750,13 @@ masPrintChNoSpool:
 		cpx	#CHANNEL_RANGE_HI+1
 		bcs	LA053				; Not an ADFS handle
 .endif
-							;This looks like we need a LDY #0 here as if *FX200,<>0, Y will be <>0
-		jsr	OSBYTE				; Restore SPOOL handle, we can safely SPOOL to ourself
+							; This looks like we need a LDY #0 here as if *FX200,<>0, Y will be <>0
+		jsr	OSBYTE				; Restore SPOOL handle, we can safely SPOOL to ourselves
 		ldx	#$00				; Don't need to restore again
 LA053:		pla
 		pha
-		jsr	$FFE3				; Write the character without SPOOLing
-		lda	#$C7
+		jsr	OSASCI				; Write the character without SPOOLing
+		lda	#OSBYTE_C7_RW_SPOOL
 		ldy	#$FF				; Preserve handle if already restored
 		jsr	OSBYTE				; Restore SPOOL handle with OSBYTE &C7,handle or &00,&FF
 .ifdef USE65C12
