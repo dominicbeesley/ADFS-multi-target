@@ -656,7 +656,7 @@ ErrorEscapeACKReloadFSM:
 .else
 ErrorEscapeACKInvalidReloadFSM:
 .ifndef ELK_100_ADFS
-		lda	#$7E
+		lda	#OSBYTE_7E_ESC_ACK
 		jsr	OSBYTE				; Acknowledge Escape state
 .endif
 		jsr	InvalidateFSMandDIR		; Invalidate FSM and DIR in memory
@@ -1023,7 +1023,7 @@ L83E2:		lda	strr_OnChannel,X		; Insert ' on channel '
 		tya
 		pha
 .endif
-		lda	#$C6
+		lda	#OSBYTE_C6_RW_EXEC
 
 .if TARGETOS > 1
 		sta	WKSP_ADFS_2D9
@@ -5045,7 +5045,7 @@ L9AC7:		.byte	>(Serv21-1)
 		.byte	>(VFS_Serv28-1)			; Serv28
 		.byte	>(VFS_Serv29-1)			; Serv29
     .else
-		.byte	<(Serv0-1)			; Serv27 - Serv0 - Null
+		.byte	>(Serv0-1)			; Serv27 - Serv0 - Null
     .endif
   .endif
 
@@ -7167,20 +7167,20 @@ starCOMPACT:		jsr	LA50D
 		lda	($B4),Y				; Check first character of filename
 		cmp	#$21
 		bcs	LA2EB
-		lda	#$84
-		jsr	OSBYTE
+		lda	#OSBYTE_84_HIMEM		
+		jsr	OSBYTE				; read himem
 		txa
-		bne	LA2DB
+		bne	brkBadCompact			; why?
 		tya
-		bmi	LA2DB
-		sta	WKSP_ADFS_260
+		bmi	brkBadCompact
+		sta	WKSP_ADFS_260			; store HIMEM page
 		lda	#$80
 		sec
-		sbc	WKSP_ADFS_260
-		sta	WKSP_ADFS_261
+		sbc	WKSP_ADFS_260			
+		sta	WKSP_ADFS_261			; store number of pages above HIMEM
 		jmp	LA377
 ;;
-LA2DB:		jsr	ReloadFSMandDIR_ThenBRK
+brkBadCompact:	jsr	ReloadFSMandDIR_ThenBRK
 		.byte	$94				; ERR=148
 		.byte	"Bad compact"
 LA2EA:		.byte	$00				; Null string used in *MOUNT
@@ -7194,7 +7194,7 @@ LA2EB:		sta	WKSP_ADFS_215_DSKOPSAV_RET
 		cmp	#$20				; space
 		beq	LA2FF
 		cmp	#$2C				; comma
-		bne	LA2DB
+		bne	brkBadCompact
 LA2FF:		iny
 		lda	($B4),Y				; Get current character
 		cmp	#$20				; space
@@ -7214,11 +7214,11 @@ LA31F:		iny
 		lda	($B4),Y				; Get current character
 		cmp	#$20				; space
 		beq	LA31F
-		bcs	LA2DB
+		bcs	brkBadCompact
 		ldx	#$03
 LA32A:		lda	WKSP_ADFS_215_DSKOPSAV_RET,X
 		cmp	#$30
-		bcc	LA2DB
+		bcc	brkBadCompact
 		cmp	#$3A
 		bcs	LA33D
 		sec
@@ -7227,21 +7227,21 @@ LA32A:		lda	WKSP_ADFS_215_DSKOPSAV_RET,X
 		bpl	LA34C
 LA33D:		and	#$5F
 		cmp	#$41
-		bcc	LA2DB
+		bcc	brkBadCompact
 		cmp	#$47
-		bcs	LA2DB
+		bcs	brkBadCompact
 		sbc	#$36
 		sta	WKSP_ADFS_215_DSKOPSAV_RET,X
 LA34C:		dex
 		bpl	LA32A
 		inx
 		jsr	LA389
-		bmi	LA2DB
+		bmi	brkBadCompact
 		sta	WKSP_ADFS_260
 		ldx	#$02
 		jsr	LA389
 		bpl	LA362
-LA35F:		jmp	LA2DB
+LA35F:		jmp	brkBadCompact
 ;;
 LA362:		beq	LA35F
 		sta	WKSP_ADFS_261
@@ -7250,7 +7250,7 @@ LA362:		beq	LA35F
 		lda	$0DF0,X
 		cmp	WKSP_ADFS_260
 		bcc	_lbbcA334
-		jmp	LA2DB
+		jmp	brkBadCompact
 .endif
 _lbbcA334:
 		clc
@@ -7259,7 +7259,7 @@ _lbbcA334:
 		bpl	LA377
 		cmp	#$80
 		beq	LA377
-		jmp	LA2DB
+		jmp	brkBadCompact
 ;;
 LA377:		jsr	starCLOSE
 		jsr	WaitEnsuring
@@ -8208,10 +8208,10 @@ LA91A:		lda	WKSP_ADFS_23A,Y
 		sta	WKSP_ADFS_2A5,Y
 		dey
 		bpl	LA91A
-		lda	#$83
+		lda	#OSBYTE_83_OSHWM
 		jsr	OSBYTE				; Read bottom of memory
 		sty	WKSP_ADFS_260
-		lda	#$84
+		lda	#OSBYTE_84_HIMEM
 		jsr	OSBYTE				; Read top of memory
 		tya
 		sec
