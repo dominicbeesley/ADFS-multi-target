@@ -222,8 +222,12 @@ L822B:		bvs	L8245
 		lda	#$06
 		jsr	TubeStartXferSEI_406
 L8233:		
-.ifndef HD_SCSI_VFS
+.ifdef HD_SCSI_VFS
 		jsr	SCSI_WaitforReq
+.else
+		nop
+		nop
+		nop
 .endif
 		lda	TUBEIO				; Read from Tube
 .ifdef HD_SCSI_VFS
