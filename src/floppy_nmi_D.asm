@@ -414,8 +414,8 @@ LBF89:		lda	#$63				; Floppy error &23 (Volume error)
 .else
 LBF75:		ldx	$B0
 		ldy	$B1
-		lda	#$76
-		jsr	$FFF1
+		lda	#OSWORD_76_QRY
+		jsr	OSWORD
 		jmp	FloppyErrorA0or2E3
 	.ifndef IDE_HOG_TMP
 		.byte	0,0,0,0,0,0,0

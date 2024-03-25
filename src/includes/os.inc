@@ -9,11 +9,54 @@ NMI=$0D00
 ZP_MOS_CURROM		= $F4
 ZP_MOS_ESCFLAG 		= $FF
 
+USERV					:=	$0200	; User vector, called by *LINE, *CODE, OSWORD >=&E0
+BRKV					:=	$0202	; The BRK vector
+IRQ1V					:=	$0204	; Main interrupt vector
+IRQ2V					:=	$0206	; Secondary interrupt vector
+CLIV					:=	$0208	; Command Line Interpreter vector
+BYTEV					:=	$020A	; OSBYTE (*FX) calls
+WORDV					:=	$020C	; OSWORD calls
+WRCHV					:=	$020E	; Send character to current output stream
+RDCHV					:=	$0210	; Wait for a character from current input stream
+
+FSVECS_BASE				:=	FILEV
+FILEV					:=	$0212	; Operate on a whole file, eg loading/saving/delete/etc
+ARGSV					:=	$0214	; Read/Write arguments on an open file
+BGETV					:=	$0216	; Read a byte from an open file
+BPUTV					:=	$0218	; Write a byte to an open file
+GBPBV					:=	$021A	; Read/Write block of data from/to open file or device
+FINDV					:=	$021C	; Open or close a file
+FSCV					:=	$021E	; Various filing system control calls
+FSVECS_LEN				:=	$0220-FILEV
+EVNTV					:=	$0220	; Event handler
+UPTV					:=	$0222	; User Print vector
+NETV					:=	$0224	; Network Print vector
+VDUV					:=	$0226	; Unrecognised VDU commands
+KEYV					:=	$0228	; Read the keyboard
+INSV					:=	$022A	; Insert characters into a buffer
+REMV					:=	$022C	; Remove characters from a buffer
+CNPV					:=	$022E	; Count or Purge a buffer
+
+
+sysvar_BREAK_LAST_TYPE	:= $028D	; fx253	  &FD	Last BREAK type
+
+
+EXTVEC_ENTER_FILEV			:=	$FF1B	; Operate on a whole file, eg loading/saving/delete/etc
+EXTVEC_ENTER_ARGSV			:=	$FF1E	; Read/Write arguments on an open file
+EXTVEC_ENTER_BGETV			:=	$FF21	; Read a byte from an open file
+EXTVEC_ENTER_BPUTV			:=	$FF24	; Write a byte to an open file
+EXTVEC_ENTER_GBPBV			:=	$FF27	; Read/Write block of data from/to open file or device
+EXTVEC_ENTER_FINDV			:=	$FF2A	; Open or close a file
+EXTVEC_ENTER_FSCV			:=	$FF2D	; Various filing system control calls
+
 ;; OS CALLS
+OSDEFVEC_LEN	= $FFB6
+OSDEFVEC_PTR	= $FFB7
 OSASCI			= $FFE3
 OSNEWL			= $FFE7
 OSWRCH			= $FFEE
 OSARGS			= $FFDA
+OSWORD			= $FFF1
 OSBYTE			= $FFF4
 OSCLI			= $FFF7
 
@@ -37,6 +80,9 @@ OSBYTE_C7_RW_SPOOL		= $C7
 OSBYTE_FD_LAST_BREAK	= $FD
 OSBYTE_EA_RW_TUBEPRESENT= $EA
 OSBYTE_FF_RW_STARTOPT	= $FF
+
+OSWORD_01_TIME			= $01
+OSWORD_76_QRY			= $76		; MDFS.net says RAMFS sector - used in floppy_nmi_D
 
 SYSVARS_291_ILACE		= $291
 

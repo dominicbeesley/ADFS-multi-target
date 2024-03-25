@@ -344,7 +344,7 @@ X807E:		rts
   .if (TARGETOS > 0 && (!.def(IDE_DC))) || .def(IDE_ELK_HOG)
     .ifdef PRESERVE_CONTEXT
 ReadBreak:
-		lda	$028D
+		lda	sysvar_BREAK_LAST_TYPE
 		and	#$01
 		rts
     .endif
@@ -391,14 +391,14 @@ starMOUNTck:
        		jmp	L9B4A
 .elseif .def(HD_MMC_JGH)
 ReadBreak:
-		lda	$028D
+		lda	sysvar_BREAK_LAST_TYPE
 		and	#$01
 		rts
 WaitForData:
 		pha
 L8076:
 		pla
-		lda	$FC47
+		lda	$FC47		;; TODO: check is this a bug?
 		pha
 		and	#$08
 		beq	L8076
@@ -4757,7 +4757,7 @@ starDESTROY = $BEEF
 
 .endif ; ndef HD_SCSI_VFS
 
-L9A4C:		jmp	($021E)
+jmpIndFSCV:	jmp	(FSCV)
 ;;
 ;;
 ;; Default context
@@ -5244,7 +5244,7 @@ L9B0A:
 .if .def(PRESERVE_CONTEXT) && (TARGETOS > 0) && (!.def(IDE_DC))
 		jsr	ReadBreak
 .else
-		lda	$028D				; TODO Ask JGH : should this not be ReadBreak?
+		lda	sysvar_BREAK_LAST_TYPE		; TODO Ask JGH : should this not be ReadBreak?
 .endif ; TARGETOS
 .endif ; TARGETOS
 
@@ -5404,7 +5404,7 @@ Serv3:
 .if ((.def(HD_IDE) && (!.def(IDE_DC))) || .def(HD_MMC_JGH) || .def(HD_MMC_HOG)) && (TARGETOS > 0) && .def(PRESERVE_CONTEXT); TODO should this not be readbreak for Elk too?
 		jsr	ReadBreak
 .else
-		lda	$028D				; 9B50 AD 8D 02                 ...
+		lda	sysvar_BREAK_LAST_TYPE		; 9B50 AD 8D 02                 ...
 .endif
 		beq	L9B74
 		ldx	#KEYCODE_SELFS_NOMOUNT+1
@@ -5495,7 +5495,7 @@ L9B94:
 		php
 .endif
 		lda	#$06
-		jsr	L9A4C				; Tell current FS new FS taking over
+		jsr	jmpIndFSCV				; Tell current FS new FS taking over
 .if TARGETOS <= 1
 		lda	#OSBYTE_8F_ISSUE_SERV
 		ldx	#SERVICE_0A_CLAIM_ABS_WKSP
@@ -5527,9 +5527,9 @@ VFS_L91B2:	sta	WKSP_VFS_93A_ILACE_SAVE		; save interlace flag?
 		jsr	L9A7F				; Get ADFS CMOS byte
 		sta	WKSP_ADFS_2D8			; Store in workspace
 .endif
-		ldy	#$0D				; Initialise vectors
+		ldy	#FSVECS_LEN-1			; Initialise vectors
 L9BA9:		lda	L9CB6,Y
-		sta	$0212,Y
+		sta	FSVECS_BASE,Y
 		dey
 		bpl	L9BA9
 		lda	#OSBYTE_A8_ADDR_EXTVEC
@@ -5799,13 +5799,13 @@ L9CAE:		.byte	":0.LIB*", $0D
 ;;
 ;; Vector Table
 ;; ============
-L9CB6:		.word	$FF1B
-		.word	$FF1E
-		.word	$FF21
-		.word	$FF24
-		.word	$FF27
-		.word	$FF2A
-		.word	$FF2D
+L9CB6:		.word	EXTVEC_ENTER_FILEV
+		.word	EXTVEC_ENTER_ARGSV
+		.word	EXTVEC_ENTER_BGETV
+		.word	EXTVEC_ENTER_BPUTV
+		.word	EXTVEC_ENTER_GBPBV
+		.word	EXTVEC_ENTER_FINDV
+		.word	EXTVEC_ENTER_FSCV
 ;;
 ;; Extended Vector Table
 ;; =====================
@@ -5957,13 +5957,13 @@ VFS_Serv27:
         	lda     #OSBYTE_16_INCPOLL                            ; 9376 A9 16                    ..
         	sta     $0923                           ; 9378 8D 23 09                 .#.
         	jsr     OSBYTE                          ; 937B 20 F4 FF                  ..
-        	lda     $FFB7                           ; 937E AD B7 FF                 ...
+        	lda     OSDEFVEC_PTR                    ; 937E AD B7 FF                 ...
         	sta     $A8                             ; 9381 85 A8                    ..
-        	lda     $FFB8                           ; 9383 AD B8 FF                 ...
+        	lda     OSDEFVEC_PTR                    ; 9383 AD B8 FF                 ...
         	sta     $A9                             ; 9386 85 A9                    ..
         	ldy     #$05                            ; 9388 A0 05                    ..
 VFS_L938A:  	lda     ($A8),y                         ; 938A B1 A8                    ..
-        	cmp     $0200,y                         ; 938C D9 00 02                 ...
+        	cmp     USERV,y                         ; 938C D9 00 02                 ...
         	bne     VFS_L9399                       ; 938F D0 08                    ..
         	dey                                     ; 9391 88                       .
         	cpy	#$03
@@ -5978,14 +5978,14 @@ VFS_L9399:  	lda     #OSBYTE_A8_ADDR_EXTVEC                            ; 9399 A9
         	sty     $A9                             ; 93A4 84 A9                    ..
         	stx     $091B                           ; 93A6 8E 1B 09                 ...
         	sty     $091C                           ; 93A9 8C 1C 09                 ...
-        	lda     $020A                           ; 93AC AD 0A 02                 ...
+        	lda     BYTEV                           ; 93AC AD 0A 02                 ...
         	sta     $0D97                           ; 93AF 8D 97 0D                 ...
-        	lda     $020B                           ; 93B2 AD 0B 02                 ...
+        	lda     BYTEV+1                         ; 93B2 AD 0B 02                 ...
         	sta     $0D98                           ; 93B5 8D 98 0D                 ...
         	ldy     #$0F                            ; 93B8 A0 0F                    ..
-        	sty     $020A                           ; 93BA 8C 0A 02                 ...
+        	sty     BYTEV                           ; 93BA 8C 0A 02                 ...
         	ldx     #$FF                            ; 93BD A2 FF                    ..
-        	stx     $020B                           ; 93BF 8E 0B 02                 ...
+        	stx     BYTEV+1                         ; 93BF 8E 0B 02                 ...
         	lda     ($A8),y                         ; 93C2 B1 A8                    ..
         	sta     $091D                           ; 93C4 8D 1D 09                 ...
         	lda     #$B6                            ; 93C7 A9 B6                    ..
@@ -6002,9 +6002,9 @@ VFS_L9399:  	lda     #OSBYTE_A8_ADDR_EXTVEC                            ; 9399 A9
         	sta     ($A8),y                         ; 93DD 91 A8                    ..
         	lda     $0923                           ; 93DF AD 23 09                 .#.
         	bne     VFS_L9420                       ; 93E2 D0 3C                    .<
-        	lda     $0204                           ; 93E4 AD 04 02                 ...
+        	lda     IRQ1V                           ; 93E4 AD 04 02                 ...
         	sta     $0D9D                           ; 93E7 8D 9D 0D                 ...
-        	lda     $0205                           ; 93EA AD 05 02                 ...
+        	lda     IRQ1V+1                         ; 93EA AD 05 02                 ...
         	sta     $0D9E                           ; 93ED 8D 9E 0D                 ...
         	lda     #$20                            ; 93F0 A9 20                    . 
         	sta     $0D99                           ; 93F2 8D 99 0D                 ...
@@ -6015,9 +6015,9 @@ VFS_L9399:  	lda     #OSBYTE_A8_ADDR_EXTVEC                            ; 9399 A9
         	lda     #$40                            ; 93FF A9 40                    .@
         	sta     $0D9C                           ; 9401 8D 9C 0D                 ...
         	lda     #$99                            ; 9404 A9 99                    ..
-        	sta     $0204                           ; 9406 8D 04 02                 ...
+        	sta     IRQ1V                           ; 9406 8D 04 02                 ...
         	lda     #$0D                            ; 9409 A9 0D                    ..
-        	sta     $0205                           ; 940B 8D 05 02                 ...
+        	sta     IRQ1V+1                         ; 940B 8D 05 02                 ...
         	lda     #$4F                            ; 940E A9 4F                    .O
         	sta     ($A8),y                         ; 9410 91 A8                    ..
         	iny                                     ; 9412 C8                       .
@@ -7320,7 +7320,7 @@ LA3B5:		jsr	LA4B1
 		lda	#$0B				; Otherwise, pass on to libfs
 		ldx	$C0
 		ldy	$C1
-		jmp	L9A4C				; Pass on to FSC to call libfs
+		jmp	jmpIndFSCV				; Pass on to FSC to call libfs
 .endif
 ;;
 LA3CB:		jsr	ReloadFSMandDIR_ThenBRK				; Generate error
@@ -9870,10 +9870,10 @@ LB4FF:		jsr	ReloadFSMandDIR_ThenBRK
 ;;
 .ifndef HD_SCSI_VFS
 
-LB510:		lda	#$01
+LB510:		lda	#OSWORD_01_TIME
 		ldx	#<WKSP_ADFS_2C8			; XY=>&C2C8
 		ldy	#>WKSP_ADFS_2C8
-		jsr	$FFF1				; Read TIME to &C2C8 in workspace
+		jsr	OSWORD				; Read TIME to &C2C8 in workspace
 		ldx	#$00
 		ldy	#$04
 		sec
