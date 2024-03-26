@@ -40,6 +40,7 @@ CNPV					:=	$022E	; Count or Purge a buffer
 
 sysvar_BREAK_LAST_TYPE	:= $028D	; fx253	  &FD	Last BREAK type
 
+SYSVARS_DF0_PWSKPTAB	:= $DF0
 
 EXTVEC_ENTER_FILEV			:=	$FF1B	; Operate on a whole file, eg loading/saving/delete/etc
 EXTVEC_ENTER_ARGSV			:=	$FF1E	; Read/Write arguments on an open file
@@ -72,11 +73,13 @@ OSBYTE_86_TXT_POS		= $86
 OSBYTE_87_SCRCHAR_MODE	= $87
 OSBYTE_8A_INS_BUF		= $8A
 OSBYTE_8F_ISSUE_SERV	= $8F
+OSBYTE_99_INS_BUF_CKESC = $99
 OSBYTE_A1_READ_CMOS		= $A1
 OSBYTE_A2_WRITE_CMOS	= $A2
 OSBYTE_A8_ADDR_EXTVEC	= $A8
 OSBYTE_C6_RW_EXEC		= $C6
 OSBYTE_C7_RW_SPOOL		= $C7
+OSBYTE_DB_RW_TAB_CODE	= $DB
 OSBYTE_FD_LAST_BREAK	= $FD
 OSBYTE_EA_RW_TUBEPRESENT= $EA
 OSBYTE_FF_RW_STARTOPT	= $FF
@@ -112,3 +115,48 @@ SERVICE_15_100Hz_POLL		= $15
 SYSVARS_ELK_291_TIME_A		= $291
 SYSVARS_ELK_296_TIME_B		= $296
 .endif
+
+;***********************************************************************
+;* User VIA                                                            *
+;***********************************************************************
+sheila_USRVIA_orb			:= $FE60
+sheila_USRVIA_ora			:= $FE61
+sheila_USRVIA_ddrb			:= $FE62
+sheila_USRVIA_ddra			:= $FE63
+sheila_USRVIA_t1cl			:= $FE64
+sheila_USRVIA_t1ch			:= $FE65
+sheila_USRVIA_t1ll			:= $FE66
+sheila_USRVIA_t1lh			:= $FE67
+sheila_USRVIA_t2cl			:= $FE68
+sheila_USRVIA_t2ch			:= $FE69
+sheila_USRVIA_sr			:= $FE6A
+sheila_USRVIA_acr			:= $FE6B
+sheila_USRVIA_pcr			:= $FE6C
+sheila_USRVIA_ifr			:= $FE6D
+sheila_USRVIA_ier			:= $FE6E
+sheila_USRVIA_ora_nh		:= $FE6F
+
+;***********************************************************************
+;*  VIA constants                                                      *
+;***********************************************************************
+
+VIA_IFR_BIT_ANY				:= $80
+VIA_IFR_BIT_T1				:= $40
+VIA_IFR_BIT_T2				:= $20
+VIA_IFR_BIT_CB1				:= $10
+VIA_IFR_BIT_CB2				:= $08
+VIA_IFR_BIT_SR				:= $04
+VIA_IFR_BIT_CA1				:= $02
+VIA_IFR_BIT_CA2				:= $01
+
+VIA_ACR_SHIFTMODE_0			:= $00
+VIA_ACR_SHIFTMODE_1			:= $04
+VIA_ACR_SHIFTMODE_2			:= $08
+VIA_ACR_SHIFTMODE_3			:= $0C
+VIA_ACR_SHIFTMODE_4			:= $10
+VIA_ACR_SHIFTMODE_5			:= $14
+VIA_ACR_SHIFTMODE_6			:= $18
+VIA_ACR_SHIFTMODE_7			:= $1C
+
+VIA_ACR_T1_MASK				:= $C0
+VIA_ACR_T1_CONT				:= $40

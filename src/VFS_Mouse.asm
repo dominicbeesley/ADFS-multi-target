@@ -7,13 +7,13 @@
 
 		.export LBA57
 		.export VFS_ServiceCallsExtra
-		.export VFS_LB80A
+		.export VFS_FSC3_STARCMD
 		.export VFS_Serv9_extra
 
 
 		.segment "vfs_mouse"
 LBA57:
 VFS_ServiceCallsExtra:
-VFS_LB80A:
+VFS_FSC3_STARCMD:
 VFS_Serv9_extra:
 

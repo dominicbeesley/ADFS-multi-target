@@ -1196,8 +1196,8 @@ OSCLIatX:						; L84D3
 		ldy	#>strExecAbbrev			; Point to *Spool or *Exec
 		jmp	OSCLI				; Jump to close via MOS
 ;;
-L84D8:		.byte	$0D, "SEY"
-L84DC:		.byte	$00, "Hugo"
+strr_YES:	.byte	$0D, "SEY"
+str_Hugo:	.byte	$00, "Hugo"
 
 .ifdef HD_SCSI_VFS
 L84E1:		
@@ -4123,7 +4123,7 @@ L95EC:		sta	WKSP_ADFS_A00_RND_BUFFER + $00,X; Use random access buffers to creat
 		inx
 		bne	L95EC
 		ldx	#$04
-L9600:		lda	L84DC,X				; Copy 'Hugo' string into directory
+L9600:		lda	str_Hugo,X				; Copy 'Hugo' string into directory
 		sta	WKSP_ADFS_900_RND_BUFFER + $00,X
 		sta	WKSP_ADFS_D00_RND_BUFFER + $FA,X
 		lda	WKSP_ADFS_314,X
@@ -4697,7 +4697,7 @@ L9A0F:		jsr	$FFE0
 		jsr	OSASCI
   .endif
 L9A19:		and	#$DF				; Force to upper case
-		cmp	L84D8,X				; Compare with 'YES'
+		cmp	strr_YES,X			; Compare with 'YES'
 		bne	L99DA
 		dex
 		bpl	L9A0F
@@ -6488,7 +6488,7 @@ L9EC7:		.byte	>(LA001-1)
 ;; ================
 starCMD:		
 .ifdef HD_SCSI_VFS
-		jsr	VFS_LB80A
+		jsr	VFS_FSC3_STARCMD
 .endif
 
 		jsr	WaitEnsuring
@@ -7870,7 +7870,7 @@ LA71C:		cmp	WKSP_ADFS_400_DIR_BUFFER,X	; Check "Hugo" string at start of dir
 		cmp	WKSP_ADFS_800_DIR_BUFFER + $FA,X; Check "Hugo" string at end of dir
 		bne	LA72F				; Jump to give broken dir error
 		inx					; Move to next char
-		lda	L84DC,X				; Get byte from "Hugo" string
+		lda	str_Hugo,X				; Get byte from "Hugo" string
 .ifdef ELK_100_ADFS
 		dey
 		bpl	LA71C
