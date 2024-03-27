@@ -50,6 +50,11 @@
 	.if .def(HD_SCSI) || .def(HD_MMC_HOG)
 		.export SCSI_WaitforReq
 	.endif
+
+	.ifdef HD_SCSI_VFS
+		.export SCSI_WaitforReq_noCLI
+	.endif
+	
 ;; TODO:
 ; - version string etc for FAST IDE
 
@@ -95,13 +100,14 @@ CHANNEL_RANGE_HI=$59
 CHANNEL_RANGE_LO=$50
 KEYCODE_SELFS_MOUNT=$10			; OSBYTE 7A KEYCODE Q
 KEYCODE_SELFS_NOMOUNT=$56		; OSYBTE 7A KEYCODE L
-SELFS_CHAR_NOMOUNT='Y'
+SELFS_CHAR_NOMOUNT='L'
 OSWORD_BASE=$60
 OSWORD_VFS_SPECIAL=$64
 OSWORD_END=$64
 TUBE_ID=7
 .define FSNAMESTR "VFS"
-.define FSNAMESTR_REV " sfv"
+.define FSNAMESTR_REV "sfv"
+FSNAMELEN=3
 .elseif .def(HD_SCSI_XDFS)
 ADFS_FS_NO=10
 CHANNEL_RANGE_HI=$59
@@ -114,6 +120,7 @@ OSWORD_END=$63
 TUBE_ID=4
 .define FSNAMESTR "XDFS"
 .define FSNAMESTR_REV "sfdx"
+FSNAMELEN=4
 .else
 ADFS_FS_NO=8
 CHANNEL_RANGE_HI=$39
@@ -127,6 +134,7 @@ OSWORD_END=$73
 TUBE_ID=4
 .define FSNAMESTR "ADFS"
 .define FSNAMESTR_REV "sfda"
+FSNAMELEN=4
 .endif
 
 
@@ -245,7 +253,7 @@ L8039:		rts
 TubeRelease:						; L803A
 		bit	ZP_ADFS_FLAGS
 		bvc	L8047				; Tube not being used
-		lda	#$84				; ADFS Tube ID=&04, &80=Release
+		lda	#TUBE_RELEASE | TUBE_ID		; ADFS Tube ID=&04, &80=Release
 		jsr	$0406				; Release Tube
 .ifdef USE65C12
 		lda	#ADFS_FLAGS_TUBE_INUSE
@@ -813,6 +821,7 @@ _lelk8326:
 .ifdef HD_SCSI_VFS
 		cli
 .endif
+::SCSI_WaitforReq_noCLI:
 		pha					; Save A
 lp:		jsr	SCSI_GetStatus			; Get SCSI status
 		and	#$20				; Check REQUEST
@@ -5506,12 +5515,12 @@ L9B94:
 .ifdef HD_SCSI_VFS
 		php
 		sei
-		jsr	0
+		jsr	swap7PWSP_373_N933
 		lda	SYSVARS_291_ILACE		; get interlace flag?
 		beq	VFS_L91B2
-		jmp	0
+		jmp	swapP373N933brkTurnIlaceOn
 VFS_L91B2:	sta	WKSP_VFS_93A_ILACE_SAVE		; save interlace flag?
-		jsr	0
+		jsr	swap7PWSP_373_N933
 		plp
 		stz	WKSP_ADFS_22F
 .else
@@ -5616,9 +5625,9 @@ L9C1A:		lda	WKSP_ADFS_314,Y
 		sta	WKSP_ADFS_22C_CSD,Y
 		dey
 		bpl	L9C1A
-		jsr	L89D8				; Get FSM and root from :0 if context<>-1
 
 .ifdef HD_SCSI_VFS
+		jsr	L9C7D
         lda     WKSP_ADFS_22F                   ; 922B AD 2F C2                 ./.
         cmp     #$FF                            ; 922E C9 FF                    ..
         bne     L9240                           ; 9230 D0 0E                    ..
@@ -5630,18 +5639,23 @@ L9C1A:		lda	WKSP_ADFS_314,Y
 L9240:  plp                                     ; 9240 28                       (
         bcs     VFS_L9248                       ; 9241 B0 05                    ..
         lda     #$1B                            ; 9243 A9 1B                    ..
-        jsr     0	                        ; 9245 20 93 AB                  ..
+        jsr     SCSI_Command_AXY_CkErr          ; 9245 20 93 AB                  ..
 VFS_L9248:  
 	pla                                     ; 9248 68                       h
         cmp     #$56                            ; 9249 C9 56                    .V
         bne     @QQ                           	; 924B D0 03                    ..
         jsr     InvalidateFSMandDIR             ; 924D 20 59 84                  Y.
-@QQ:	jsr	L89D8
+@QQ:
 .endif
+		jsr	L89D8				; Get FSM and root from :0 if context<>-1
 
 		ldx	WKSP_ADFS_317_CURDRV			; Get current drive
 		inx					; If &FF, no directory loaded
+.ifdef HD_SCSI_VFS
+		beq	L92AA
+.else
 		beq	L9C7D				; No drive (eg *fadfs), jump ahead
+.endif
 		jsr	LB4CD
 .ifdef PRESERVE_CONTEXT
 		lda	WKSP_ADFS_31B			; Lib not unset, jump ahead
@@ -5729,7 +5743,7 @@ L9C7A:		jsr	L89D8
 
 .ifdef HD_SCSI_VFS
 	; TODO: this must appear elsewhere? It does after L9C8B
-L92AA:  jsr     0                           	; 92AA 20 D0 92                  ..
+L92AA:  jsr     L9C7D                         	; 92AA 20 D0 92                  ..
         pla                                     ; 92AD 68                       h
         pha                                     ; 92AE 48                       H
         bne     VFS_L92CA                       ; 92AF D0 19                    ..
@@ -5737,7 +5751,7 @@ L92AA:  jsr     0                           	; 92AA 20 D0 92                  ..
         inx                                     ; 92B4 E8                       .
         bne     L92BD                           ; 92B5 D0 06                    ..
         stx     WKSP_ADFS_26F                   ; 92B7 8E 6F C2                 .o.
-        jsr     0                               ; 92BA 20 67 98                  g.
+        jsr     LA1A1                           ; 92BA 20 67 98                  g.
         ;TODO: below is special place in FSM for VFS?
 L92BD:  ldy     WKSP_ADFS_100_FSM_S1+$FD        ; 92BD AC FD C1                 ...
         beq     VFS_L92CA                       ; 92C0 F0 08                    ..
@@ -5834,9 +5848,9 @@ tblExtVec:		.word	my_OSFILE
 ;;
 ;; Serv21 - Claim High Absolute Workspace
 ;; ======================================
-Serv21:		cpy	#$CE				; ADFS needs up to &CE00-1
+Serv21:		cpy	#$CE+.def(HD_SCSI_VFS)		; ADFS needs up to &CE00-1
 		bcs	L9CDF				; Exit if Y>&CE
-		ldy	#$CE				; ADFS needs up to &CE00-1
+		ldy	#$CE+.def(HD_SCSI_VFS)		; ADFS needs up to &CE00-1
 L9CDF:		rts
 ;;
 ;; Serv22 - Claim High Private Workspace
@@ -5885,7 +5899,12 @@ Serv24:		dey					; ADFS needs one page
 ;;
 ;; Serv25 - Return filing system information
 ;; =========================================
-Serv25:		ldx	#FSINFOLEN-1
+Serv25:		
+.ifdef HD_SCSI_VFS
+		ldx	#$15		; TODO: bug?
+.else
+		ldx	#FSINFOLEN-1
+.endif
 L9CEC:		lda	FSINFO,X				; Copy information
 		sta	($F2),Y
 		iny
@@ -5901,7 +5920,7 @@ L9CF7:		ldx	ZP_MOS_CURROM				; Get ROM number back to X
 FSINFO:		.byte	ADFS_FS_NO			; Filing system number
 		.byte	CHANNEL_RANGE_HI		; Highest handle used
 		.byte	CHANNEL_RANGE_LO		; Lowest handle used
-		.byte	"    "
+		.res	8-FSNAMELEN, $20
 str_SFDA:
 		.byte	FSNAMESTR_REV			; "adfs" filing system name
 FSINFOLEN=*-FSINFO
@@ -5957,13 +5976,13 @@ VFS_Serv27:
         	stz     $0D92                           ; 936B 9C 92 0D                 ...
         	lda     #$FF                            ; 936E A9 FF                    ..
         	sta     $0D94                           ; 9370 8D 94 0D                 ...
-        	jsr     0                               ; 9373 20 28 B2                  (.
-        	lda     #OSBYTE_16_INCPOLL                            ; 9376 A9 16                    ..
+        	jsr     PreserveZpAndPage9              ; 9373 20 28 B2                  (.
+        	lda     #OSBYTE_16_INCPOLL              ; 9376 A9 16                    ..
         	sta     $0923                           ; 9378 8D 23 09                 .#.
         	jsr     OSBYTE                          ; 937B 20 F4 FF                  ..
         	lda     OSDEFVEC_PTR                    ; 937E AD B7 FF                 ...
         	sta     $A8                             ; 9381 85 A8                    ..
-        	lda     OSDEFVEC_PTR                    ; 9383 AD B8 FF                 ...
+        	lda     OSDEFVEC_PTR+1                  ; 9383 AD B8 FF                 ...
         	sta     $A9                             ; 9386 85 A9                    ..
         	ldy     #$05                            ; 9388 A0 05                    ..
 VFS_L938A:  	lda     ($A8),y                         ; 938A B1 A8                    ..
@@ -6030,10 +6049,10 @@ VFS_L9399:  	lda     #OSBYTE_A8_ADDR_EXTVEC                            ; 9399 A9
         	iny                                     ; 9417 C8                       .
         	lda     $F4                             ; 9418 A5 F4                    ..
         	sta     ($A8),y                         ; 941A 91 A8                    ..
-        	jsr     0                               ; 941C 20 E3 B1                  ..
+        	jsr     RestoreZpAndPage9               ; 941C 20 E3 B1                  ..
         	plp                                     ; 941F 28                       (
 VFS_L9420:  	lda     #$27                            ; 9420 A9 27                    .'
-        	jmp     0	                        ; 9422 4C 37 93                 L7.
+        	jmp     L9CF7	                        ; 9422 4C 37 93                 L7.
 .endif
 
 
@@ -6058,7 +6077,7 @@ Serv4:
 		lda	#KEYCODE_SELFS_NOMOUNT		; Change flags to indicate '*fadfs'
 		pha
 		iny					; Point to next character
-L9D34:		ldx	#$03				; 'adfs' is 3+1 characters
+L9D34:		ldx	#FSNAMELEN-1			; 'adfs' is 3+1 characters
 L9D36:		lda	($F2),Y				; Get character
 		iny					; Move to next
 		cmp	#$2E				; Is it '.'?
@@ -6147,14 +6166,13 @@ L9D76:		lda	$EF				; Get OSWORD number
 	ldx     #$00                            ; 947F A2 00                    ..
         ldy     #$CE                            ; 9481 A0 CE                    ..
         lda     #$C8                            ; 9483 A9 C8                    ..
-        jsr     0	                        ; 9485 20 93 AB                  ..
+        jsr     SCSI_Command_AXY_CkErr          ; 9485 20 93 AB                  ..
         ldy     #$0F                            ; 9488 A0 0F                    ..
 L948A:  lda     $CE00,y                         ; 948A B9 00 CE                 ...
         sta     ($F0),y                         ; 948D 91 F0                    ..
         dey                                     ; 948F 88                       .
         bpl     L948A                           ; 9490 10 F8                    ..
-        bmi     skOSW_VFS                           ; 9492 30 3C                    0<
-
+        bmi     L9DB4                           ; 9492 30 3C                    0<
 skOSW_VFS:	
 .endif
 		cmp	#OSWORD_BASE+2			; Is it &72?
@@ -6192,8 +6210,12 @@ L9D86:		lda	($BA),Y
 ;;   &C223 14  Length3
 ;;   &C224 15
 ;;
-		lda	WKSP_ADFS_21A_DSKOPSAV_CMD			; Get command
+		lda	WKSP_ADFS_21A_DSKOPSAV_CMD	; Get command
+.ifdef HD_SCSI_VFS
+		and	#$1D				; Mask out bits 1,5,6,7
+.else
 		and	#$FD				; Mask out bit 1
+.endif
 		cmp	#$08				; Is it &08 or &0A, Read or Write?
 		beq	L9DA8				; Jump forward with Read and Write
 ;;
@@ -6203,7 +6225,11 @@ L9D97:		ldx	#<WKSP_ADFS_215_DSKOPSAV_RET
 		beq	L9DA3				; EQ, drive=&FF, nothing mounted
 		dec	WKSP_ADFS_317_CURDRV		; Restore current drive
 L9DA3:		jsr	CommandExecXY
+.if .def(HD_SCSI_VFS)
+		bra	L9DB0				; Jump to exit
+.else
 		bpl	L9DB0				; Jump to exit
+.endif
 ;;
 L9DA8:		lda	WKSP_ADFS_21E_DSKOPSAV_SECCNT			; Get Sector Count
 		bne	L9D97				; If not zero jump back to use it
@@ -6339,10 +6365,8 @@ L9E39:		jsr	L9E29
 L9E3E:		
 .ifdef HD_SCSI_VFS
 		jsr	VFS_Serv9_extra
-		ldx	#$02
-.else
-		ldx	#$03
 .endif
+		ldx	#FSNAMELEN-1
 L9E40:		lda	($F2),Y
 		cmp	#$2E
 		beq	L9E57
@@ -6946,7 +6970,7 @@ LA13F:		sty	WKSP_ADFS_26F
 LA150:		rts
 
 .ifdef HD_SCSI_VFS
-VFS_L9801:	jmp	0
+VFS_L9801:	jmp	L8760
 .endif
 
 
@@ -6975,7 +6999,7 @@ LA16F:		dex
 		sta	WKSP_ADFS_316
 		ldx	#$00
 		jsr	LA189
-.ifdef USE65C12
+.if .def(USE65C12) && (!.def(HD_SCSI_VFS))
 		bra	LA1B9
 .else
 		bmi	LA1B9
@@ -8998,12 +9022,13 @@ LAE5B:		lda	$B8
 		bcs	LAE38
 
 .ifdef HD_SCSI_VFS
+my_OSBPUT:
 		jmp	L830B
 LAE6D:	;TODO:VFS:REMOVE
-LAE68:		rts
-brkNotOpenUpdate:
-my_OSBPUT:
+LAE68:
 LB17F:
+		rts
+brkNotOpenUpdate:
 .else		
 
 LAE68:
@@ -9775,11 +9800,11 @@ LB409:		jsr	setEXTToPTRifAtEOF
 		lda	WKSP_ADFS_334_CH_EXT_H,X
 		cmp	WKSP_ADFS_384,X
 		bne	LB442				; Jump ahead with difference
-.endif
 LB435:		jsr	LAAB9				; Write buffer?
-.ifndef HD_SCSI_VFS
-		jsr	L89D8				; Do something with FSM
+.else
+LB435:
 .endif
+		jsr	L89D8				; Do something with FSM
 		lda	#$00
 		ldy	$C4
 		ldx	$C5
@@ -9900,10 +9925,10 @@ LB51E:		lda	WKSP_ADFS_2C8,X			; Subtract from previous TIME
 LB542:		sty	WKSP_ADFS_2C2			; >5.11s, set &C2C2 to &xx
 LB545:		rts
 
-.else
+.else ; def HD_SCSI_VFS
+LB545:
 LB510:		rts
 	;TODO:VFS:REMOVE
-LB545:
 
 
 .endif ;ndef HD_SCSI_VFS
@@ -10028,7 +10053,11 @@ LB5F0:		tay
 		lda	WKSP_ADFS_2B4
 		cmp	#$03
 		bcs	LB614
+.ifdef HD_SCSI_VFS
+		jmp	L830B
+.else
 		jmp	brkNotOpenUpdate
+.endif
 ;;
 LB614:		lda	WKSP_ADFS_2B4
 		and	#$01

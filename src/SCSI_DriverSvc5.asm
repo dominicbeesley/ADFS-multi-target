@@ -41,7 +41,11 @@ LAB9B:
 		rol	ZP_ADFS_FLAGS
 .endif
 		lda	SCSI_DATA
+.ifdef HD_SCSI_VFS
+		jsr	SCSI_WaitforReq_noCLI
+.else
 		jsr	SCSI_WaitforReq
+.endif
 		ora	SCSI_DATA			; Get SCSI result
 		sta	WKSP_ADFS_331			; Save for error handler later
 		jmp	L9DB4				; Restore Y,X, claim call

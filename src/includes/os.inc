@@ -91,6 +91,7 @@ OSWORD_76_QRY			= $76		; MDFS.net says RAMFS sector - used in floppy_nmi_D
 
 SYSVARS_291_ILACE		= $291
 
+TUBE_RELEASE			= $80
 TUBE_CLAIM 				= $C0
 
 CMOS_ADFS				= $B

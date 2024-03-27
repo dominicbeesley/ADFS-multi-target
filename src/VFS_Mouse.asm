@@ -8,6 +8,11 @@
 		.export VFS_ServiceCallsExtra
 		.export VFS_FSC3_STARCMD
 		.export VFS_Serv9_extra
+		.export SCSI_Command_AXY_CkErr
+		.export PreserveZpAndPage9
+		.export RestoreZpAndPage9
+		.export swap7PWSP_373_N933
+		.export swapP373N933brkTurnIlaceOn
 
 
 		.segment "vfs_mouse"
@@ -360,7 +365,7 @@ SCSI_Command_AXY_res:
 
 LAB92rts:
          rts
-
+SCSI_Command_AXY_CkErr:
          jsr     SCSI_Command_AXY
          beq     LAB92rts
          jmp     GenerateError
