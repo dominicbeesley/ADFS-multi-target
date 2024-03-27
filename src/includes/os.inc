@@ -53,6 +53,8 @@ EXTVEC_ENTER_FSCV			:=	$FF2D	; Various filing system control calls
 ;; OS CALLS
 OSDEFVEC_LEN	= $FFB6
 OSDEFVEC_PTR	= $FFB7
+GSINIT			= $FFC2
+GSREAD			= $FFC5
 OSASCI			= $FFE3
 OSNEWL			= $FFE7
 OSWRCH			= $FFEE

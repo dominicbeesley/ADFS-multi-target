@@ -5550,10 +5550,14 @@ L9BC8:		sta	($B4),Y
 		ldx	#SERVICE_0F_FS_VECS_CHANGED
 		ldy	#$FF
 		jsr	OSBYTE				; Claim Vectors
+.ifndef HD_SCSI_VFS
 		jsr	LBA57				; Set a flag
+.endif
 		jsr	CheckWkspChecksum		; Check workspace checksum
 
-.ifndef HD_SCSI_VFS
+.ifdef HD_SCSI_VFS
+		jsr	VFS_L9851
+.else ; ndef HD_SCSI_VFS
   .ifdef USE65C12
 		stz	WKSP_ADFS_208
 		stz	WKSP_ADFS_20C
