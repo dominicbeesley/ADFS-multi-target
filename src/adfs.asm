@@ -144,18 +144,23 @@ FSNAMELEN=4
 		.error	"Cannot build for multiple device drivers or no HD_xx"
 .endif
 
+.ifdef ELK_MINCE_COMPACT
+VERSION=$130
+.else
 VERSION=VERBASE + (.def(PRESERVE_CONTEXT) | .def(X_IDE_HOG)) * 1 + .def(HD_IDE) * 2 + (.def(HD_MMC_JGH) | .def(HD_MMC_HOG)) * 6  + .def(HD_SCSI2) * 4
 ; Version number x.yz
 ;		  1.0z = Electron
 ;		  1.3z = BBC B/B+
 ;		  1.5z = Master
 ;	      z=%abcd
-;		  |||+---preserve context on break and various bugfixes
-;		  |00----SCSI drivers
-;		  |01----IDE drivers
-;		  |10----reserved
-;		  |11----User port MMC drivers
-;		  +------reserved
+;		 |||+---preserve context on break and various bugfixes
+;		 |00----SCSI drivers
+;		 |01----IDE drivers
+;		 |10----reserved
+;		 |11----User port MMC drivers
+;		 +------reserved
+.endif
+;;;;; NOTE: currently the ELK_MINCE_COMPACT forces version 1.30
 
 ; ROM HEADER
 ; ==========
@@ -184,6 +189,9 @@ L8000:		.byte	$00,$00,$00			; No language entry
 .endif
 		.byte	((VERSION & $F0) >> 4)+'0'
 		.byte	(VERSION & $0F)+'0'
+.ifdef ELK_MINCE_COMPACT		
+		.byte	'E'
+.endif
 L8017:		.byte	$00				; Copyright string
 .ifdef AUTOHAZEL
 		.byte    "(C)2024 Dossy-AH",0
@@ -6313,6 +6321,9 @@ L9DF6:		jsr	L92A8
 .elseif .def(IDE_HOG_TMP)
 		.byte	$0D, "Acorn ADFS 1.33.005"
 		.byte	$8D
+.elseif .def(ELK_MINCE_COMPACT)
+		.byte	$0D, "Advanced DFS 1.30E"
+		.byte	$8D
 .else
 		.byte	$0D, "Advanced DFS "		; Help string
 		.byte	(VERSION >> 8)+'0'		; Version string
@@ -6586,7 +6597,12 @@ tbl_commands:
 .if TARGETOS <= 1
 	.byte	"CLOSE",    >(starCLOSE-1)	, <(starCLOSE-1)	, $00
 .endif
+.ifdef ELK_MINCE_COMPACT
+	; patched *COMPACT has no arguments
+	.byte	"COMPACT",  >(starCOMPACT-1)	, <(starCOMPACT-1)	, $00
+.else
 	.byte	"COMPACT",  >(starCOMPACT-1)	, <(starCOMPACT-1)	, $50
+.endif
 	.byte	"COPY",     >(starCOPY-1)	, <(starCOPY-1)		, $13
 ;; TODO: put back for SCSI2
 .if (TARGETOS <= 1) && (!(.def(HD_SCSI2)))
@@ -7190,11 +7206,15 @@ LA2AB:		sta	WKSP_ADFS_800_DIR_BUFFER + $D9,Y
 		bne	LA29D
 		jmp	L8F91
 ;;
-starCOMPACT:		jsr	LA50D
+starCOMPACT:	jsr	LA50D
 		ldy	#$00				; Y=0 needed for later
 		lda	($B4),Y				; Check first character of filename
 		cmp	#$21
+	.ifdef ELK_MINCE_COMPACT
+		bcs	brkBadCompact			; TODO: Suggest this should be bad command
+	.else
 		bcs	LA2EB
+	.endif
 		lda	#OSBYTE_84_HIMEM		
 		jsr	OSBYTE				; read himem
 		txa
@@ -7213,6 +7233,8 @@ brkBadCompact:	jsr	ReloadFSMandDIR_ThenBRK
 		.byte	"Bad compact"
 LA2EA:		.byte	$00				; Null string used in *MOUNT
 ;;
+
+	.ifndef ELK_MINCE_COMPACT
 LA2EB:		sta	WKSP_ADFS_215_DSKOPSAV_RET
 		iny
 		lda	($B4),Y
@@ -7289,7 +7311,39 @@ _lbbcA334:
 		beq	LA377
 		jmp	brkBadCompact
 ;;
-LA377:		jsr	starCLOSE
+.else	;ELK_MINCE_COMPACT
+
+set_cursor_state:
+        	pha
+        	tya
+        	pha
+        	lda     #23
+        	jsr     OSWRCH
+        	lda     #1
+        	jsr     OSWRCH
+        	tya
+        	jsr     OSWRCH
+        	ldy     #8
+        	lda     #0
+set_cursor_state_zeros:
+        	jsr     OSWRCH
+        	dey
+        	bne     set_cursor_state_zeros
+        	pla
+        	tay
+        	pla
+        	rts
+.endif
+
+
+
+LA377:		
+	.ifdef ELK_MINCE_COMPACT
+		ldy	#0
+		jsr	set_cursor_state
+	.endif
+
+		jsr	starCLOSE
 		jsr	WaitEnsuring
 .ifdef USE65C12
 		lda	#ADFS_FLAGS_WTF
@@ -7308,6 +7362,11 @@ LA377:		jsr	starCLOSE
 		and	#ADFS_FLAGS_WTF ^ $FF
 		sta	ZP_ADFS_FLAGS
 .endif
+
+	.ifdef ELK_MINCE_COMPACT
+		ldy	#1
+		jsr	set_cursor_state
+	.endif	
 		rts
 
 .endif ; !.def HD_SCSI_VFS
@@ -10674,6 +10733,19 @@ LBA40:		iny
 		plp
 		jmp	TubeRelease
 
+
+;;;;TODO
+.if .def(IDE_ELK_HOG)
+		.byte	$2E
+		.byte	$0D
+		.res	$6D, $0
+.elseif .def(ELK_100_FLOPPY) && (!.def(SCSI_ELK_HOG))
+		brk
+.elseif (TARGETOS <= 1) 
+		.byte	$2E
+		.byte	$0D
+.endif
+
 ;;;;; floppy drivers linked in here
 
 
@@ -10724,7 +10796,7 @@ LBA57:		lda	#$FF
 	.else
 		.byte	$D
 	.endif
-.elseif (!.def(X_IDE_HOG))
+.elseif (!.def(X_IDE_HOG)) && (!.def(ELK_MINCE_COMPACT))
 		brk
 		.byte	"Roger"
 		brk

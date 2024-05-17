@@ -29,17 +29,6 @@
 ;; Pass SCSI command to floppy controller
 ;; --------------------------------------
 
-;;;;TODO
-.if .def(IDE_ELK_HOG)
-		.byte	$2E
-		.byte	$0D
-		.res	$6D, $0
-.elseif .def(ELK_100_FLOPPY) && (!.def(SCSI_ELK_HOG))
-		brk
-.elseif (TARGETOS <= 1) 
-		.byte	$2E
-		.byte	$0D
-.endif
 DoFloppySCSICommandIND:					; LBA4B
 		jmp	DoFloppySCSICommand		; Do a SCSI action with floppy drive
 ExecFloppyPartialSectorBufIND:

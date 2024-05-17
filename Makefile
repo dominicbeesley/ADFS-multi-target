@@ -23,6 +23,7 @@ ROMNAMES= 	masIDE \
 		bbcIDE_hog_JGH_133r23 \
 		bbcIDE_hog_DC \
 		elkSCSI_hog \
+		elkSCSI_mince \
 		elkIDE_hog
 
 
@@ -45,6 +46,8 @@ $(BUILDDIR)/adfsroms.ssd:
 	#dfs tool from https://github.com/dominicbeesley/dfs-0.4	
 	dfs form -80 $@
 	dfs title $@ "ADFS_DOB"
+	dfs add -l 0xFFFF8000 -e 0xFFFF8000 -f "ELKM100" $@ $(BUILDDIR)/elkSCSI_mince.rom
+	dfs add -l 0xFFFF8000 -e 0xFFFF8000 -f "ELKH100" $@ $(BUILDDIR)/elkSCSI_hog.rom
 	dfs add -l 0xFFFF8000 -e 0xFFFF8000 -f "ADFS100" $@ $(BUILDDIR)/elkSCSI.rom
 	dfs add -l 0xFFFF8000 -e 0xFFFF8000 -f "ADFS103" $@ $(BUILDDIR)/elkIDE.rom
 #	dfs add -l 0xFFFF8000 -e 0xFFFF8000 -f "ADFS107" $@ elkMMC.rom
@@ -95,6 +98,7 @@ COMPARES=	compares/org/masIDE.da.s \
 	compares/new/Hoglet13x/JGH133.da.s \
 	compares/new/Hoglet13x/ELK100.da.s \
 	compares/new/Hoglet13x/ELK103.da.s \
+	compares/new/Hoglet13x/ELK130E.da.s 
 
 
 compares: roms comparedirs $(COMPARES)
@@ -172,6 +176,8 @@ compares/new/Hoglet13x/DC133.da.s:compares/new/bbcIDE_hog_DC.da.s
 compares/new/Hoglet13x/ELK100.da.s:compares/new/elkSCSI_hog.da.s
 	cp $< $@
 compares/new/Hoglet13x/ELK103.da.s:compares/new/elkIDE_hog.da.s
+	cp $< $@
+compares/new/Hoglet13x/ELK130E.da.s:compares/new/elkSCSI_mince.da.s
 	cp $< $@
 
 
