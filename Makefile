@@ -3,6 +3,7 @@ BUILDDIR=build
 
 
 ROMNAMES= 	masIDE \
+		masIDE_ukwebb \
 		masMMC_hog_SD \
 		masMMC_hog_SDT \
 		masMMC_hog_SD2 \
@@ -58,6 +59,7 @@ $(BUILDDIR)/adfsroms.ssd:
 	dfs add -l 0xFFFF8000 -e 0xFFFF8000 -f "ADFS134" $@ $(BUILDDIR)/bbcSCS2.rom
 	dfs add -l 0xFFFF8000 -e 0xFFFF8000 -f "ADFS150" $@ $(BUILDDIR)/masSCSI.rom
 	dfs add -l 0xFFFF8000 -e 0xFFFF8000 -f "ADFS153" $@ $(BUILDDIR)/masIDE.rom
+	dfs add -l 0xFFFF8000 -e 0xFFFF8000 -f "ADFSU53" $@ $(BUILDDIR)/masIDE_ukwebb.rom
 
 	dfs add -l 0xFFFF8000 -e 0xFFFF8000 -f "ADFS13F" $@ $(BUILDDIR)/bbcIDEF.rom
 
@@ -75,6 +77,7 @@ COMPARES=	compares/org/masIDE.da.s \
 	compares/org/elkIDE.da.s \
 	compares/org/elkSCSI.da.s \
 	compares/new/masIDE.da.s \
+	compares/new/masIDE_ukwebb.da.s \
 	compares/new/Hoglet15x/SD.da.s \
 	compares/new/Hoglet15x/SDT.da.s \
 	compares/new/Hoglet15x/SD2.da.s \

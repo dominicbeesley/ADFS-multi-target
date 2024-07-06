@@ -43,7 +43,7 @@ FDCDS1 				= $02
   SYSVIA=$FE40		; Sys via
 .if .def(HD_SCSI_XDFS)
   	HDDBASE=$FC44		; Hard drive controller
-.elseif .def(HD_SCSI_VFS)
+.elseif .def(HD_SCSI_VFS) || .def(HD_IDE_UKWEBB)
   	HDDBASE=$FE80		; VFS controller
 
 .else
