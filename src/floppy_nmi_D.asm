@@ -38,13 +38,20 @@ LBD6E:		lda	WKSP_ADFS_2E2
 		sta	$A5
 		lda	WKSP_ADFS_216_DSKOPSAV_MEMADDR+1
 		sta	$A6
+.ifdef ELK_PRES_SPACESAVE_2
+		ldy	#$00				; reuse Y=0 below
+		sty	$A3
+.else
 		lda	#$00
 		sta	$A3
+.endif
 		lda	WKSP_ADFS_2E2			; Point &A3/4 to where partial sector loaded
 		sta	$A4
 		bit	ZP_ADFS_FLAGS
 		bvc	LBDAB
+.ifndef ELK_PRES_SPACESAVE_2
 		ldy	#$00
+.endif
 LBD99:		lda	($A3),Y
 		ldx	#$07
 LBD9D:		dex
@@ -89,8 +96,13 @@ LBDBA:		jsr	LBAFA
 		sta	NMIVARS_SECTOR			; Sector b0-b7+count
 		bcc	LBDD7
 		inc	NMIVARS_SECTOR_COUNT		; NMIVARS_SECTOR/8=sector after last sector
-LBDD7:		lda	NMIVARS_SECTOR_COUNT
+LBDD7:
+.ifdef ELK_PRES_SPACESAVE_2
+		ldx	NMIVARS_SECTOR_COUNT
+.else
+		lda	NMIVARS_SECTOR_COUNT
 		tax
+.endif
 		lda	NMIVARS_SECTOR
 		ldy	#$FF
 		jsr	XA_DIV16_TO_YA			; Convert to Y=track, A=sector
@@ -359,7 +371,8 @@ LBF30:		sta	NMIVARS_SIDE			; Store drive control byte
 		bpl	LBF5D
 		bmi	LBF5A
 ;;
-LBF50:		lda	WKSP_ADFS_2E6
+LBF50:
+		lda	WKSP_ADFS_2E6
 		sta	$A3
 		bit	WKSP_ADFS_2E4
 		bvc	LBF5D
@@ -490,15 +503,51 @@ DR1:		sta	WKSP_ADFS_2E6
 		sta	WKSP_ADFS_2E4			; Clear b6
 ;;
 NOT_DR1:	lda	$A0				; Get error
+.ifdef ELK_PRES_SPACESAVE_2
+		sta	$A7
+.else
 		sta	WKSP_ADFS_2E3_ERR_NO		; Store in error block
+.endif
 		jsr	LBC0E				; Release NMI
 DRVNOTACC:	jsr	TubeRelease			; Release Tube, restore screen
 		ldx	$B0
+.ifdef ELK_PRES_SPACESAVE_2
+		lda	$A7				; Get error
+.else
 		lda	WKSP_ADFS_2E3_ERR_NO		; Get error
+.endif
 		beq	NOERR				; If zero, jump to return Ok
+.ifdef ELK_PRES
+ .if .def(ELK_PRES_SPACESAVE_2) || .def(ELK_PRES_E00_126)
+		tax
+		and	#$07
+		php
+		txa
+		plp
+		bne	LBFEF_pres
+ .endif
+ .ifdef ELK_PRES_SPACESAVE_2
+		bit	$A7
+ .else
+		bit	WKSP_ADFS_2E3_ERR_NO
+ .endif
+		bvs	LBFED_pres
+		ora	#$40
+		and	#$58
+		bne	LBFEF_pres
+LBFED_pres:	lda	#$40
+LBFEF_pres:
+ .ifdef ELK_PRES_E00
+		sta	WKSP_ADFS_2E3_ERR_NO
+ .else ; ELK_PRES_E00
+		ldy	#$FF
+		sty	WKSP_ADFS_2E4
+ .endif
+.else ; not ELK_PRES
 		ora	#$40				; Set bit 6 to flag FDC error
 		ldy	#$FF
 		sty	WKSP_ADFS_2E4
+.endif ; ELK_PRES
 NOERR:		ldy	$B1
 		and	#$7F				; Remove bit 7 and set EQ
 		rts					; Return with A=error, EQ=Ok

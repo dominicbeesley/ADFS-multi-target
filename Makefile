@@ -24,7 +24,15 @@ ROMNAMES= 	masIDE \
 		bbcIDE_hog_DC \
 		elkSCSI_hog \
 		elkSCSI_mince \
-		elkIDE_hog
+		elkIDE_hog \
+		elkPRES110 \
+		elkPRES113 \
+		elkPRES115 \
+		elkPRESE120 \
+		elkPRESE126 \
+		elkPRESE330 \
+		elkPRESE331 \
+		elkPRES_AQRINIT
 
 
 ROMS=$(addsuffix .rom, $(addprefix $(BUILDDIR)/, $(ROMNAMES)))
@@ -38,6 +46,9 @@ roms: $(ROMS)
 .PHONY: FORCE
 
 $(BUILDDIR)/%.rom: FORCE
+	make -C src ROMNAME=${*}
+
+$(BUILDDIR)/%.rom-A $(BUILDDIR)/%.rom-B: FORCE
 	make -C src ROMNAME=${*}
 
 ssd: roms $(BUILDDIR)/adfsroms.ssd
@@ -98,7 +109,27 @@ COMPARES=	compares/org/masIDE.da.s \
 	compares/new/Hoglet13x/JGH133.da.s \
 	compares/new/Hoglet13x/ELK100.da.s \
 	compares/new/Hoglet13x/ELK103.da.s \
-	compares/new/Hoglet13x/ELK130E.da.s 
+	compares/new/Hoglet13x/ELK130E.da.s  \
+	compares/org/PRES/elkPRES110.da.s \
+	compares/org/PRES/elkPRES113.da.s \
+	compares/org/PRES/elkPRES115.da.s \
+	compares/org/PRES/elkPRESE120a.da.s \
+	compares/org/PRES/elkPRESE120b.da.s \
+	compares/org/PRES/elkPRESE126a.da.s \
+	compares/org/PRES/elkPRESE126b.da.s \
+	compares/org/PRES/elkPRESE330b.da.s \
+	compares/org/PRES/elkPRESE331a.da.s \
+	compares/org/PRES/elkPRESE331b.da.s \
+	compares/new/PRES/elkPRES110.da.s \
+	compares/new/PRES/elkPRES113.da.s \
+	compares/new/PRES/elkPRES115.da.s \
+	compares/new/PRES/elkPRESE120a.da.s \
+	compares/new/PRES/elkPRESE120b.da.s \
+	compares/new/PRES/elkPRESE126a.da.s \
+	compares/new/PRES/elkPRESE126b.da.s \
+	compares/new/PRES/elkPRESE330b.da.s \
+	compares/new/PRES/elkPRESE331a.da.s \
+	compares/new/PRES/elkPRESE331b.da.s
 
 
 compares: roms comparedirs $(COMPARES)
@@ -108,9 +139,11 @@ comparedirs:
 	-mkdir -p compares/org
 	-mkdir -p compares/org/Hoglet15x
 	-mkdir -p compares/org/Hoglet13x
+	-mkdir -p compares/org/PRES
 	-mkdir -p compares/new
 	-mkdir -p compares/new/Hoglet15x
 	-mkdir -p compares/new/Hoglet13x
+	-mkdir -p compares/new/PRES
 
 compares/org/Hoglet13x/%.da.s: orgroms/Hoglet13x/%.rom
 	$(DA65)  --comments 4 --start-addr 0x8000 $< >$@
@@ -137,6 +170,49 @@ compares/org/elkSCSI.da.s: orgroms/ADFS100
 	$(DA65) --comments 4 --start-addr 0x8000 $< >$@
 	sed -i 1,4d $@
 compares/org/elkIDE.da.s: orgroms/ADFS103
+	$(DA65) --comments 4 --start-addr 0x8000 $< >$@
+	sed -i 1,4d $@
+
+compares/org/PRES/elkPRES110.da.s: orgroms/PRES/ADFS110
+	$(DA65) --comments 4 --start-addr 0x8000 $< >$@
+	sed -i 1,4d $@
+compares/org/PRES/elkPRES113.da.s: orgroms/PRES/ADFS113
+	$(DA65) --comments 4 --start-addr 0x8000 $< >$@
+	sed -i 1,4d $@
+compares/org/PRES/elkPRES115.da.s: orgroms/PRES/ADFS115
+	$(DA65) --comments 4 --start-addr 0x8000 $< >$@
+	sed -i 1,4d $@
+compares/org/PRES/elkPRESE120a.da.s: orgroms/PRES/120/RomA
+	$(DA65) --comments 4 --start-addr 0x8000 $< >$@
+	sed -i 1,4d $@
+compares/org/PRES/elkPRESE120b.da.s: orgroms/PRES/120/RomB
+	$(DA65) --comments 4 --start-addr 0x8000 $< >$@
+	sed -i 1,4d $@
+compares/org/PRES/elkPRESE126a.da.s: orgroms/PRES/126/RomA
+	$(DA65) --comments 4 --start-addr 0x8000 $< >$@
+	sed -i 1,4d $@
+compares/org/PRES/elkPRESE126b.da.s: orgroms/PRES/126/RomB
+	$(DA65) --comments 4 --start-addr 0x8000 $< >$@
+	sed -i 1,4d $@
+# there is no original 3.30 rom A for now
+compares/org/PRES/elkPRESE330b.da.s: orgroms/PRES/330/RomB
+	$(DA65) --comments 4 --start-addr 0x8000 $< >$@
+	sed -i 1,4d $@
+compares/org/PRES/elkPRESE331a.da.s: orgroms/PRES/331/RomA
+	$(DA65) --comments 4 --start-addr 0x8000 $< >$@
+	sed -i 1,4d $@
+compares/org/PRES/elkPRESE331b.da.s: orgroms/PRES/331/RomB
+	$(DA65) --comments 4 --start-addr 0x8000 $< >$@
+	sed -i 1,4d $@
+
+
+compares/new/PRES/elkPRES%.da.s: $(BUILDDIR)/elkPRES%.rom
+	$(DA65) --comments 4 --start-addr 0x8000 $< >$@
+	sed -i 1,4d $@
+compares/new/PRES/elkPRES%a.da.s: $(BUILDDIR)/elkPRES%.rom-A
+	$(DA65) --comments 4 --start-addr 0x8000 $< >$@
+	sed -i 1,4d $@
+compares/new/PRES/elkPRES%b.da.s: $(BUILDDIR)/elkPRES%.rom-B
 	$(DA65) --comments 4 --start-addr 0x8000 $< >$@
 	sed -i 1,4d $@
 

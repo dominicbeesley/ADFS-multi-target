@@ -38,6 +38,7 @@ ExecFloppyWriteBPUTSectorIND:
 ExecFloppyReadBPUTSectorIND:
 		jmp	ExecFloppyReadBPUTSector
 
+
 LBA57:		lda	#$FF
 		sta	WKSP_ADFS_2E4
 
@@ -172,11 +173,16 @@ LBAF1:		jsr	LBAFA
 ;;
 LBAFA:		jsr	LBD46
 		ldx	#$00
+LBC0E_pres:	jsr	LBB3B
+		inx
+.ifdef ELK_PRES_SPACESAVE
+		cpx	#$03
+		bcc	LBC0E_pres
+.else
 		jsr	LBB3B
 		inx
 		jsr	LBB3B
-		inx
-		jsr	LBB3B
+.endif
 		cmp	$A3
 .ifndef ELK_100_FLOPPY
 		beq	LBB26
@@ -262,12 +268,17 @@ ExecFloppyPartialSectorBuf:		sta	WKSP_ADFS_2E2			; Store where to load partial s
 		jmp	FloppyErrorA0or2E3				; Jump to restore and return disk result
 ;;
 LBB72:
+.ifdef ELK_PRES_SPACESAVE_2
+		lda	#0
+		sta	$A7
+.else ; ELK_PRES_SPACESAVE_2
 .ifdef USE65C12
 		stz	WKSP_ADFS_2E3_ERR_NO
-.else
+.else ; USE65C12
 		lda	#0
 		sta	WKSP_ADFS_2E3_ERR_NO
-.endif
+.endif ; USE65C12
+.endif ; ELK_PRES
 		ldy	#$01				; Point to address
 		lda	($B0),Y
 		sta	$B2
@@ -297,7 +308,11 @@ LBB98:		ldy	#$05
 		cmp	#$0B
 		beq	LBBB0				; Jump with Seek
 		lda	#$67				; Floppy error &27 'Unsupported command'
+.ifdef ELK_PRES_SPACESAVE_2 
+		sta	$A7
+.else
 		sta	WKSP_ADFS_2E3_ERR_NO			; Store result in control block
+.endif
 		jmp	FloppyErrorA0or2E3				; Jump to return with result=&67
 							;(&C2E0 AND &20)=0 so result in &A0 will not be copied to &C2E3
 ;
@@ -337,8 +352,12 @@ LBBBE:		jsr	LBC01				; Claim NMIs
 		sta	$A1
 		lda	ZP_ADFS_FLAGS
 		sta	NMIVARS_FLAGS_SAVE
+.ifdef ELK_PRES_SPACESAVE_2
+		jmp	CopyCodeToNMISpace
+.else
 		jsr	CopyCodeToNMISpace		; Copy NMI code to NMI space
 		rts					; Don't optimise out to JMP
+.endif
 
 ; Set disk stepping speed from configuration
 ; ------------------------------------------
@@ -370,11 +389,15 @@ FloppyGetStepRate:
 		pha
 		and	#$02
 .else
+.ifdef ELK_PRES_SPACESAVE_2
+		lda	OSVARS_STARTOPT
+.else
 		lda	#OSBYTE_FF_RW_STARTOPT
 		ldx	#0
 		tay
 		jsr	OSBYTE				; Read ADFS CMOS byte
 		txa
+.endif
 .ifdef ELK_100_FLOPPY
 		eor 	#$FF				; invert options
 		ror 	a
@@ -410,19 +433,35 @@ LBC00:		rts
 ; Claim NMI space
 ; ---------------
 LBC01:
+.ifdef ELK_PRES_SPACESAVE_2
+		ldx	#SERVICE_0C_CLAIM_NMI
+		ldy	#$FF
+		jsr	LBD13_pres
+		sty	WKSP_ADFS_2E1
+		rts
+
+LBC0E:		ldy	WKSP_ADFS_2E1
+		ldx	#SERVICE_0B_RELEASE_NMI
+
+LBD13_pres:	lda	#OSBYTE_8F_ISSUE_SERV
+		jmp	OSBYTE
+
+.else
 		lda	#OSBYTE_8F_ISSUE_SERV
 		ldx	#SERVICE_0C_CLAIM_NMI
 		ldy	#$FF
 		jsr	OSBYTE				; Claim NMI space
 		sty	WKSP_ADFS_2E1			; Store previous owner's ID
 		rts
+.endif
 
 ;; Release NMI space
 ;; -----------------
+.ifndef ELK_PRES_SPACESAVE_2
 LBC0E:		ldy	WKSP_ADFS_2E1			; Get previous owner's ID
 		lda	#OSBYTE_8F_ISSUE_SERV
 		ldx	#SERVICE_0B_RELEASE_NMI
 		jmp	OSBYTE				; Release NMI
-
+.endif
 
 

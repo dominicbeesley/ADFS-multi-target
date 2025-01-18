@@ -140,10 +140,11 @@ FSNAMELEN=4
 
 ; Sanity check
 ; ------------
-.if (.def(HD_SCSI) + .def(HD_SCSI2) + .def(HD_IDE) + .def(HD_MMC_JGH) + .def(HD_MMC_HOG)) <> 1
-		.error	"Cannot build for multiple device drivers or no HD_xx"
+.if (.def(HD_SCSI) + .def(HD_SCSI2) + .def(HD_IDE) + .def(HD_MMC_JGH) + .def(HD_MMC_HOG) + .def(NO_HD)) <> 1
+		.error	"Cannot build for multiple device drivers or no HD_xx and no PRES"
 .endif
 
+.ifndef VERSION
 .ifdef ELK_MINCE_COMPACT
 VERSION=$130
 .else
@@ -161,6 +162,7 @@ VERSION=VERBASE + (.def(PRESERVE_CONTEXT) | .def(X_IDE_HOG)) * 1 + .def(HD_IDE) 
 ;		 +------reserved
 .endif
 ;;;;; NOTE: currently the ELK_MINCE_COMPACT forces version 1.30
+.endif ; VERSION
 
 ; ROM HEADER
 ; ==========
@@ -179,6 +181,11 @@ L8000:		.byte	$00,$00,$00			; No language entry
 .endif
 .ifdef IDE_ELK_HOG
 		.byte   "Electron "
+.elseif .def(ELK_PRES)
+		.byte   "PRES "
+.ifdef ELK_PRES_E00
+		.byte	"E00 "
+.endif
 .else
 		.byte   "Acorn "
 .endif
@@ -229,6 +236,10 @@ L8017:		.byte	$00				; Copyright string
 
 		.segment "rom_main_1"
 
+.if .def(ELK_PRES) && (!.def(ELK_PRES_E00))
+		nop
+.endif
+
 ; Claim Tube if present
 ; ---------------------
 TUBE_CLAIM_IF_PRESENT:
@@ -269,9 +280,14 @@ TubeRelease:						; L803A
 .else
 		php
 		sei
+.ifdef ELK_PRES_SPACESAVE
+		lda	#ADFS_FLAGS_TUBE_INUSE
+		jsr	clear_ADFS_ZPflag
+.else
 		lda	ZP_ADFS_FLAGS
 		and	#ADFS_FLAGS_TUBE_INUSE ^ $FF
 		sta	ZP_ADFS_FLAGS
+.endif
 		plp
 .endif
 L8047:
@@ -280,6 +296,9 @@ L8047:
 		beq	L804F				; Exit if screen unchanged
 		sta	$FE34				; Restore screen setting
 L804F:		stz	WKSP_ADFS_2D7_SHADOW_SAVE	; Clear screen flag
+.endif
+.ifdef ELK_PRES
+L8098rts:
 .endif
 		rts
 
@@ -458,7 +477,7 @@ L8091:		jsr	SCSI_GetStatus			; Get SCSI status
 .endif ; HD SCSI
 
 
-.if (!.def(IDE_HOG_TMP)) && (!.def(IDE_ELK_HOG))
+.if (!.def(IDE_HOG_TMP)) && (!.def(IDE_ELK_HOG)) && (!.def(ELK_PRES))
 L8098rts:	rts
 .endif
 
@@ -509,36 +528,51 @@ L809F:		jmp	ErrorEscapeACKInvalidReloadFSM				; Jump to 'Escape' error
 ;;   &C2D4 Channel number if &C2D3.b7=1
 ;;
 CommandExecXY:						; L80A2
+.ifndef NO_HD
 		jsr	WaitEnsuring			; Wait for ensuring to complete
+.endif
 		stx	$B0
 		sty	$B1				; &B0/1=>control block
 .ifndef HD_SCSI_VFS
 		jsr	CheckDirLoaded			; Check if directory loaded
+		; If NO_HD is set, next two instructions are redundant
+		; PRES includes them anyway...
 		ldy	#$05
 		lda	($B0),Y				; Get Command
+.ifndef NO_HD
 		cmp	#$2F				; Verify?
 		beq	CommandExecSkStartExec		; Jump directly to do it
 		cmp	#$1B				; Park?
 		beq	CommandExecSkStartExec		; Jump directly to do it
+.endif
 		jsr	CommandSetRetries		; Set number of retries
 		bpl	L80D7				; Jump into middle of retry loop (always?!?)
+
+.ifdef ELK_PRES_SPACESAVE
+L806Erts:
+		rts
+.endif
 ;;
 ;; This loop tries to access a drive. If the action returns 'Not ready' it
 ;; retries a number of times, allowing interuption by an Escape event.
 ;;
 CommandExecRetryLp:
 		jsr	CommandExecSkStartExec		; Do the specified command
-  .if (((.def(HD_IDE) && (!.def(IDE_DC))) || (.def(HD_MMC_JGH) )) && (TARGETOS > 0)) || .def(IDE_ELK_HOG)			; TODO : rationalise
+  .if (((.def(HD_IDE) && (!.def(IDE_DC))) || (.def(HD_MMC_JGH) )) && (TARGETOS > 0)) || .def(IDE_ELK_HOG) || .def(ELK_PRES_E00) 			; TODO : rationalise
 		beq	L809Erts			; Exit if ok
+  .elseif .def(ELK_PRES_SPACESAVE)
+		beq	L806Erts			; Exit if ok
   .else
 		beq	L8098rts			; Exit if ok
   .endif
+  .if (!.def(ELK_PRES_SPACESAVE_2)) && (!.def(ELK_PRES_E00_126))
   .ifdef HD_SCSI2 ; TODO: bodge - sort out error numbers!
 		cmp	#$08				; Not ready?
   .else
 		cmp	#$04				; Not ready?
   .endif
 		bne	L80D7				; Skip past if result<>Not ready
+  .endif ; !ELK_PRES_SPACESAVE_2 && !ELK_PRES_E00_126
 ;;			    If Drive not ready, pause a bit
   .ifdef HD_SCSI2
 		ldy	#$01				; Loop 25*256*256 times
@@ -546,7 +580,18 @@ CommandExecRetryLp:
 		ldy	#$19				; Loop 25*256*256 times
   .endif
 L80C8:		bit	ZP_MOS_ESCFLAG			; Escape pressed?
+  .ifdef ELK_PRES_SPACESAVE
+		bpl	L807D
+		jmp	ErrorEscapeACKInvalidReloadFSM
+L807D:
+  .else
 		bmi	L809F				; Abort with Escape error (shouldn't this return Abort?)
+  .endif
+  .if .def(ELK_PRES_SPACESAVE_2) || .def(ELK_PRES_E00_126)
+		; comparison from above is moved here
+		cmp	#$04				; Not ready?
+		bne	L80D7				; Skip past if result<>Not ready
+  .endif
 		sec
 		sbc	#$01
 		bne	L80C8				; Loop 256 times with A
@@ -581,8 +626,12 @@ CommandExecSkStartExec:
 
 ;;TODO:OBJ; Move to Floppy?
 .ifdef FLOPPY
+.ifdef ELK_PRES_SPACESAVE
+		jsr	pres_isHD_present
+.else
 		lda	ZP_ADFS_FLAGS			; Get ADFS I/O status
 		and	#ADFS_FLAGS_HD_PRESENT		; Hard drive present?
+.endif
 		bne	HD_Command			; Jump when hard drive present
 ;;
 ;; Access a floppy drive
@@ -695,18 +744,29 @@ L82DC:
 		.byte	$CD				; ERR=205
 		.byte	"Drive not ready"
 		.byte	$00
+.ifdef ELK_PRES
+
+;;; TubeStartXferSEI_0406 goes in here
+
+		.segment "rom_main_2A_pres"
+.endif
 ;;
 L82F4:		cmp	#$40				; Floppy drive error &10 (WRPROT)?
-		beq	L830B				; Jump to report "Disk protected"
+		beq	L830B				; Jump to report "Disc protected"
 							;All other results, give generic
 							;error message
-.ifdef HD_SCSI_VFS
+.ifdef ELK_PRES_E00
+		jsr	L89D8
+.endif
+
+L81E9_pres:
+.if .def(HD_SCSI_VFS) || .def(ELK_PRES)
 		pha
 		jsr	InvalidateFSMandDIR		; Load FSM and root directory
 .else
 		jsr	L89D8				; Load FSM and root directory
 .endif
-.ifdef HD_SCSI_VFS
+.if .def(HD_SCSI_VFS) || .def(ELK_PRES)
 		pla
 .endif
 		tax
@@ -881,11 +941,15 @@ L834E:		ldx	WKSP_ADFS_22F
 		ldx	WKSP_ADFS_22E
 		inx
 		bne	L8365
+.ifdef ELK_PRES_SPACESAVE
+		jsr	copy_context_2
+.else
 		ldy	#$02
 L835C:		lda	WKSP_ADFS_314,Y
 		sta	WKSP_ADFS_22C_CSD,Y
 		dey
 		bpl	L835C
+.endif
 L8365:		lda	WKSP_ADFS_317_CURDRV
 		sta	WKSP_ADFS_22F
 
@@ -894,7 +958,9 @@ L8365:		lda	WKSP_ADFS_317_CURDRV
 ReloadFSMandDIR_ThenBRK:
 		jsr	L89D8				; Reload FSM and DIR if needed
 .ifndef TRIM_REDUNDANT
-.ifdef USE65C12
+.ifdef ELK_PRES_SPACESAVE
+		jsr	clear_ADFS_inconsistent
+.elseif .def(USE65C12)
 		lda	#ADFS_FLAGS_FSM_INCONSISTENT	; Clear 'FSM inconsistant' flag
 		trb	ZP_ADFS_FLAGS			; This gets done anyway in a bit
 .else
@@ -919,7 +985,9 @@ GenerateErrorSuffX:					; L8374
 		sta	$B3
 .endif
 
-.ifdef USE65C12
+.ifdef ELK_PRES_SPACESAVE
+		jsr	clear_ADFS_inconsistent
+.elseif .def(USE65C12)
 		lda	#ADFS_FLAGS_FSM_INCONSISTENT
 		trb	ZP_ADFS_FLAGS			; Clear 'FSM inconsistent' flag
 .else
@@ -1193,6 +1261,12 @@ strSpoolAbbrev:
 ;;.if (>strExecAbbrev) <> (>strSpoolAbbrev)
 ;;		.error	"Exec/Spool table run over page boundary"
 ;;.endif
+
+;;;
+.ifdef ELK_PRES_E00
+		.segment "rom_main_2B_presE00"
+.endif
+;;;
 
 ; OSBYTE READ
 ; -----------
@@ -1772,8 +1846,12 @@ L8847:		cmp	#'0'
 
 L885A:		pha
 .if.def (FLOPPY) || .def(VFS_FLOPPY_VESTIGE)		; TODO: check this out, VFS does this but no floppy drivers
+.ifdef ELK_PRES_SPACESAVE
+		jsr	pres_isHD_present
+.else
 		lda	ZP_ADFS_FLAGS
 		and	#ADFS_FLAGS_HD_PRESENT		; Hard drive present?
+.endif
 		bne	L8865
 		pla					; No hard drive, reduce drive
 		and	#$03				; number to 0-3
@@ -1785,7 +1863,30 @@ L8865:		pla
 		ror	A
 		ror	A
 		ror	A
+.ifdef ELK_PRES
+		pha
+		and	#$40
+		bne	L8733_pres			; Not found
+		pla
+		pha
+.ifdef ELK_PRES_SPACESAVE
+		jsr	pres_isHD_present
+.else
+		lda	ZP_ADFS_FLAGS
+		and	#ADFS_FLAGS_HD_PRESENT
+.endif
+		beq	L8731_pres			; No HD present -> OK
+		pla
+		cmp	#$20
+		beq	L8733_pres			; Not found
 		rts
+L8731_pres:	pla
+		rts
+L8733_pres:	pla
+		jmp	L82B4				; Jump to give 'Not found' error
+.else ; ELK_PRES
+		rts
+.endif
 ;;
 L886D:		jmp	L8760
 
@@ -1825,7 +1926,10 @@ L88AA:		sta	WKSP_ADFS_317_CURDRV		; Store in current drive
 
 
 L88AD:
-.ifdef USE65C12
+.ifdef ELK_PRES_SPACESAVE
+		lda	#ADFS_FLAGS_FSM_INCONSISTENT
+		jsr	set_ADFS_flags
+.elseif .def(USE65C12)
 		lda	#ADFS_FLAGS_FSM_INCONSISTENT
 		tsb	ZP_ADFS_FLAGS			; Set 'FSM inconsistant' flag
 .else
@@ -1833,10 +1937,16 @@ L88AD:
 		ora	#ADFS_FLAGS_FSM_INCONSISTENT
 		sta	ZP_ADFS_FLAGS
 .endif
+.ifdef ELK_PRES_SPACESAVE
+		jsr	LA6F8_pres
+.else
 		ldx	#<L8831				; Point to 'load FSM' control block
 		ldy	#>L8831
 		jsr	L82AE				; Load FSM
-.ifdef USE65C12
+.endif
+.ifdef ELK_PRES_SPACESAVE
+		jsr	clear_ADFS_inconsistent
+.elseif .def(USE65C12)
 		lda	#ADFS_FLAGS_FSM_INCONSISTENT
 		trb	ZP_ADFS_FLAGS			; Clear 'FSM inconsistant' flag
 .else
@@ -1846,11 +1956,15 @@ L88AD:
 .endif
 		lda	WKSP_ADFS_22E
 		bpl	L88CC
+.ifdef ELK_PRES_SPACESAVE
+		jsr	copy_context_2
+.else ; ELK_PRES_SPACESAVE
 		ldy	#$02
 L88C3:		lda	WKSP_ADFS_314,Y
 		sta	WKSP_ADFS_22C_CSD,Y
 		dey
 		bpl	L88C3
+.endif ; ELK_PRES_SPACESAVE
 L88CC:		ldy	#>L883C				; Point to 'load root' control block
 		ldx	#<L883C
 		jsr	L82AE				; Load '$'
@@ -1999,11 +2113,15 @@ L89A3:		lda	WKSP_ADFS_22E
 		cmp	#$FF
 .endif
 		bne	L89B4
+.ifdef ELK_PRES_SPACESAVE
+		jsr	copy_context_2
+.else ; ELK_PRES_SPACESAVE
 		ldy	#$02
 L89AB:		lda	WKSP_ADFS_314,Y
 		sta	WKSP_ADFS_22C_CSD,Y
 		dey
 		bpl	L89AB
+.endif ; ELK_PRES_SPACESAVE
 L89B4:
 		ldx	#$0A
 L89B6:		lda	L883C,X				; Get byte from 'load $' control block
@@ -2034,9 +2152,13 @@ L89D8:		pha
 		lda	#$FF
 		sta	WKSP_ADFS_22F
 .endif		
+.ifdef ELK_PRES_SPACESAVE
+		jsr	LA6F8_pres
+.else
 		ldx	#<L8831				; Point to 'load FSM' control block
 		ldy	#>L8831
 		jsr	L82AE				; Load FSM
+.endif
 
 .ifdef HD_SCSI_VFS
 L89EF:		ldx	WKSP_ADFS_22E
@@ -2189,7 +2311,10 @@ L8AE6:		lda	WKSP_ADFS_220_DSKOPSAV_XLEN+1			; Get Length1
 		inc	WKSP_ADFS_216_DSKOPSAV_MEMADDR+2			; Increment Addr2
 		bne	L8AFA
 		inc	WKSP_ADFS_216_DSKOPSAV_MEMADDR+3			; Increment Addr3
-L8AFA:		jsr	WaitEnsuring			; Wait for ensuring to finish
+L8AFA:
+.ifndef NO_HD
+		jsr	WaitEnsuring			; Wait for ensuring to finish
+.endif
 .ifndef HD_SCSI_VFS
 		jsr	CommandSetRetries		; Initialise retries
 .endif
@@ -2198,9 +2323,14 @@ L8B00:		jsr	L8B09				; Call to load data
 .ifndef HD_SCSI_VFS
 		dec	ZP_ADFS_RETRY_CTDN		; Decrement retries
 		bpl	L8B00				; Loop to try again
-.endif
+.endif ; !HD_SCSI_VFS
 ;;			    Fall through to try once more
-L8B09:		ldx	#<WKSP_ADFS_215_DSKOPSAV_RET			; Point to control block
+L8B09:
+.ifdef ELK_PRES
+		ldx	#$08				; Command &08 - Read
+		stx	WKSP_ADFS_21A_DSKOPSAV_CMD
+.endif
+		ldx	#<WKSP_ADFS_215_DSKOPSAV_RET			; Point to control block
 		ldy	#>WKSP_ADFS_215_DSKOPSAV_RET
 		stx	$B0
 		sty	$B1
@@ -2220,8 +2350,12 @@ VFS_L8950:
 		sta	WKSP_ADFS_21B_DSKOPSAV_SEC			; Store back into control block
 		sta	WKSP_ADFS_333_LASTACCDRV
 .ifdef FLOPPY
+.ifdef ELK_PRES_SPACESAVE
+		jsr	pres_isHD_present
+.else
 		lda	ZP_ADFS_FLAGS			; Get ADFS status byte
 		and	#ADFS_FLAGS_HD_PRESENT		; Hard drive present?
+.endif
 		bne	HD_CommandPartialSector		; Jump ahead if so
 FloppyPartialSector:
 		lda	WKSP_ADFS_21B_DSKOPSAV_SEC
@@ -2279,6 +2413,22 @@ HD_CommandPartialSector:
 L8B6E:		jsr	TUBE_CLAIM_IF_PRESENT		; Claim Tube
 L8B71:		lda	WKSP_ADFS_21E_DSKOPSAV_SECCNT	; Get byte count (in Sector Count)
 		tax					; Pass to X
+.ifdef ELK_PRES_AQR
+		lda	WKSP_ADFS_21B_DSKOPSAV_SEC	; little endian vs big endian
+		sta	WKSP_ADFS_AQR_SECTOR+2
+		lda	WKSP_ADFS_21B_DSKOPSAV_SEC+1
+		sta	WKSP_ADFS_AQR_SECTOR+1
+		lda	WKSP_ADFS_21B_DSKOPSAV_SEC+2
+		sta	WKSP_ADFS_AQR_SECTOR
+.ifdef ELK_PRES_E00
+		lda	#$08				; Not sure why? TOM
+.endif
+		jsr	LB7DB_pres			; set up AQR variables and access code
+		bit	ZP_ADFS_FLAGS
+		bvc	L8A74_pres			; Bit 6/$40 - TUBE not in use
+		txa					; OK, TUBE is in use
+		pha
+.else ; ELK_PRES_AQR
 		lda	#$01
 		sta	WKSP_ADFS_21E_DSKOPSAV_SECCNT	; Set Sector Count to 1
 .ifndef HD_SCSI_VFS
@@ -2326,6 +2476,7 @@ L8B81:		lda	WKSP_ADFS_21A_DSKOPSAV_CMD,Y
 		txa
 		pha
 .endif
+.endif ; ELK_PRES
 		ldx	#<WKSP_ADFS_227_TUBE_XFER
 		ldy	#>WKSP_ADFS_227_TUBE_XFER
 		lda	#$01
@@ -2368,19 +2519,23 @@ PartError:
 		jsr	SCSI_WaitforReq			; Wait for drive ready
 		bmi	L8BBB				; Jump ahead if switch to command (i.e. status byte ready...)
 .endif
-.if .def(HD_SCSI)
 L8BA2:
+.ifdef ELK_PRES_AQR
+		jsr	SCSI_WaitForReq
+.elseif .def(HD_SCSI)
   .if .def(HD_SCSI_VFS)
   		jsr	SCSI_WaitforReq
   .endif
 		lda	SCSI_DATA			; Get byte from hard drive
-.endif
-.ifdef HD_IDE
-L8BA2:
+.elseif .def(HD_IDE)
 		lda	IDE_DATA			; Get byte from hard drive
 .endif
 
 		cpx	#$00				; No more bytes left?
+.ifdef ELK_PRES
+		beq	L8BBB				; Jump to CommandDone
+		jsr	TubeDelay2
+.else ; ELK_PRES
 		beq	L8BB8				; Jump to ignore extra bytes
 		bit	ZP_ADFS_FLAGS			; Tube or I/O?
 		bvc	L8BB5				; Jump to read to I/O memory
@@ -2389,13 +2544,16 @@ L8BA2:
 .else
 		jsr	TubeDelay2			; Pause a bit
 .endif
+.endif ; ELK_pres
 .ifdef ELK_103_TUBE
 		sbc	$EDED				; TODO: Reinstate tube code for AP5?
 .else
 		sta	TUBEIO				; Send to Tube
 .endif ; TARGETOS = 0
+.ifndef ELK_PRES
 		bvs	L8BB7				; Jump ahead to loop back
 L8BB5:		sta	($B2),Y				; Store byte to I/O
+.endif
 L8BB7:		dex					; Decrement byte count
 L8BB8:		iny					; Next byte to fetch
 		bne	L8BA2				; Loop for all 256 bytes
@@ -2415,6 +2573,14 @@ HD_CommandPartialSector:
 .endif
 		jmp	SCSI2_CommandPartialSector
 .endif ; not SCSI2
+
+;;
+.ifdef ELK_PRES_AQR
+; Copy from AQR to buffer pointed to by &B2/B3. Number of bytes to copy in X.
+L8A74_pres:	lda	#$B2				; ZP ptr to buffer
+		jsr	LB912_pres			; Copy from AQR to buffer, number of bytes to copy in X
+		jmp	CommandDone
+.endif
 
 ;;
 L8BBE:		jsr	L8870
@@ -2598,12 +2764,16 @@ L8C91:		lda	($B6),Y
 ;;
 L8CB3:
 .if (!.def(TRIM_REDUNDANT)) || .def(HD_MMC_HOG)
+.ifdef ELK_PRES_SPACESAVE
+		jsr	L8F3A_pres
+.else
 		ldy	#$00				; Copy filename address again
 		lda	($B8),Y
 		sta	$B4
 		iny
 		lda	($B8),Y
 		sta	$B5
+.endif
 .endif
 		jsr	L8FE8				; Search for object
 		bne	L8CD1
@@ -2623,12 +2793,16 @@ L8CD1:		jmp	L89D5
 .ifndef HD_SCSI_VFS
 ;;
 L8CD4:
+.ifdef ELK_PRES_SPACESAVE
+		jsr	L8F3A_pres
+.else
 		ldy	#$00				; Copy filename pointer to &B4/5
 		lda	($B8),Y				; Control+0
 		sta	$B4
 		iny
 		lda	($B8),Y				; Control+1
 		sta	$B5
+.endif
 L8CDE:		jsr	L8DC8
 		jsr	L8FE8
 		beq	L8CEC
@@ -3062,7 +3236,9 @@ L8F99:		lda	L883C,X				; Copy control block to load '$'
 		ldx	#<L907A				; Point to 'save FSM' control block
 		ldy	#>L907A
 		jsr	L82AE				; Save FSM
-  .ifdef USE65C12
+  .ifdef ELK_PRES_SPACESAVE
+		jsr	clear_ADFS_inconsistent
+  .elseif .def(USE65C12)
 		lda	#ADFS_FLAGS_FSM_INCONSISTENT
 		trb	ZP_ADFS_FLAGS			; Set 'FSM loaded' flag
   .else
@@ -3200,6 +3376,27 @@ L907A:		.byte	$01				; Result=&01, Disk not formatted
 		.byte	$00
 		.byte	$02				; Number=&02
 		.byte	$00				; &00=use sector count
+
+.ifdef ELK_PRES_SPACESAVE
+; Copy filename pointer from control block pointed to by &B8/B9 into &B4/5
+L8F3A_pres:	ldy	#$00
+		lda	($B8),y				; Control+0
+		sta	$B4
+		iny
+		lda	($B8),y				; Control+1
+		sta	$B5
+		rts
+.endif
+
+.ifdef ELK_PRES
+;; here instead of further down
+L9426:		.byte	<L942A, <L942E, <L9432, <L9436
+L942A:		.byte	"Off "
+L942E:		.byte	"Load"
+L9432:		.byte	"Run "
+L9436:		.byte	"Exec"
+.endif
+
 ;;
 ;; OSFILE &01-&03 - Write Info
 ;; ===========================
@@ -3332,27 +3529,44 @@ L910A:		jsr	L8BF0
 ;; A leftover from BBC '*DELETE', Master enters via OSFILE
 ;;TODO: put back for SCSI2
 .if (( (!.def(TRIM_REDUNDANT)) || (TARGETOS < 3)) && (!.def(HD_SCSI2))) || .def(HD_MMC_HOG)
+.ifdef ELK_PRES_E00
+.segment "starREMOVE"
+starREMOVE_module:
+.else
 starREMOVE:
+.endif
 		jsr	LA50D				; Skip spaces, etc
 		lda	$B4				; &C240/1 = filename pointer in &B4/5
 		sta	WKSP_ADFS_240
 		lda	$B5
 		sta	WKSP_ADFS_241
+.ifdef ELK_PRES_SPACESAVE
+		jsr	L94F2_pres
+.else
 		lda	#<WKSP_ADFS_240			; &B8/9=>&C240, workspace control block
 		sta	$B8
 		lda	#>WKSP_ADFS_240
 		sta	$B9				; Fall through into Delete
 .endif
+.endif
 
 ;; OSFILE &06 - Delete
 ;; ===================
-L9127:		jsr	L8CD4
-		beq	L9131
+L9127_module:
+.ifndef ELK_PRES_E00
+L9127:
+.endif
+		jsr	L8CD4
+		beq	L9131_module
 		lda	#$00
 		jmp	L89D8
 
 ;;
-L9131:		jsr	L8D1B
+L9131_module:
+.ifndef ELK_PRES_E00
+L9131:
+.endif
+		jsr	L8D1B
 		ldy	#$03
 		lda	($B6),Y				; Check 'D' bit
 		bpl	L9177				; Jump if not a directory
@@ -3400,7 +3614,7 @@ L918E:		lda	($B6),Y
 		bpl	L918E
 		ldy	#$03
 		lda	($B6),Y				; Get 'D' bit
-		bpl	L921B				; Not a directory
+		bpl	L921B_module			; Not a directory
 		ldx	WKSP_ADFS_22F			; Get object drive
 		cpx	#$FF
 		beq	L91A9				; Drive=&FF
@@ -3433,11 +3647,11 @@ L91D5:		lda	WKSP_ADFS_234,X			; Get object sector
 ;;
 L91F9:		lda	WKSP_ADFS_317_CURDRV			; Get current drive
 		cmp	WKSP_ADFS_31F			; Compare with Previous drive
-		bne	L921B				; Different drive
+		bne	L921B_module			; Different drive
 		ldx	#$02
 L9203:		lda	WKSP_ADFS_234,X			; Get object sector
 		cmp	WKSP_ADFS_31C,X			; Compare with Previous Directory sector
-		bne	L921B				; No match, jump to exit
+		bne	L921B_module			; No match, jump to exit
 		dex
 		bpl	L9203
 		lda	#$02
@@ -3445,7 +3659,11 @@ L9203:		lda	WKSP_ADFS_234,X			; Get object sector
 		lda	#$00
 		sta	WKSP_ADFS_31D
 		sta	WKSP_ADFS_31E
-L921B:		ldy	#$04
+L921B_module:
+.ifndef ELK_PRES_E00
+L921B:
+.endif
+		ldy	#$04
 		lda	($B6),Y				; Check 'E' bit
 		bmi	L9224				; Jump if 'E' set
 		jsr	L8C70
@@ -3480,6 +3698,10 @@ L921B	= $B00B
 ;; ======
 ;; A=function, XY=>control block
 ;; -----------------------------
+.ifdef ELK_PRES_E00
+		.segment "rom_main_2C_presE00"
+.endif
+
 my_OSFILE:
 		stx	$B8				; Store pointer to control block
 		sty	$B9
@@ -3526,12 +3748,16 @@ my_OSFILE:
 		tya
 		pha
 .endif
+.ifdef ELK_PRES_SPACESAVE
+		jsr	L8F3A_pres
+.else
 		ldy	#$00				; Get filename address
 		lda	($B8),Y
 		sta	$B4
 		iny
 		lda	($B8),Y
 		sta	$B5				; &B4/5=>filename
+.endif
 		pla					; Get function to A
 L9270:		rts					; Jump to subroutine
 
@@ -3832,11 +4058,14 @@ L9420:
 
 L9423:		jmp	L89D8
 
+.ifndef ELK_PRES
+;; This is further up in PRES builds
 L9426:		.byte	<L942A, <L942E, <L9432, <L9436
 L942A:		.byte	"Off "
 L942E:		.byte	"Load"
 L9432:		.byte	"Run "
 L9436:		.byte	"Exec"
+.endif
 ;;TODO:OBJ: POST BUILD CHECK?
 ;;.if >L942A <> >L9436
 ;;							;TODO reinstate this!!!
@@ -3845,13 +4074,22 @@ L9436:		.byte	"Exec"
 ;;
 ;; FSC 9 - *EX
 ;; =============
+.ifdef ELK_PRES_E00
+.segment "starEX"
+starEX_module:
+.else
 starEX:
+.endif
 		jsr	L9478
 L943D:		jsr	L9331				; Print catalogue header
 L9440:
 		ldy	#$00
 		lda	($B6),Y				; Check first byte of directory entry
+.ifndef ELK_PRES_E00
 		beq	L9423				; &00 - end of directory
+.else
+		beq	L9423_local
+.endif
 L9446:		jsr	L9508				; Print info for this entry
 		clc					; Step to next entry
 		lda	$B6				; &B6/7=&B6/7+26
@@ -3863,6 +4101,10 @@ L9446:		jsr	L9508				; Print info for this entry
 		bra	L9440
 .else
 		bcs	L9440
+.endif
+
+.ifdef ELK_PRES_E00
+		.segment "rom_main_2D_presE00"
 .endif
 
 L9456:		ldy	#$00				; Point to first character, prepare Y=0 for later
@@ -3905,11 +4147,15 @@ L9499:		jsr	L9456
 L949E:		ldy	WKSP_ADFS_22E
 		iny
 		bne	L94AF
+.ifdef ELK_PRES_SPACESAVE
+		jsr	copy_context_2
+.else ; ELK_PRES_SPACESAVE
 		ldy	#$02
 L94A6:		lda	WKSP_ADFS_314,Y
 		sta	WKSP_ADFS_22C_CSD,Y
 		dey
 		bpl	L94A6
+.endif ; ELK_PRES_SPACESAVE
 L94AF:
 		ldx	#$0A
 L94B1:		lda	L883C,X
@@ -4078,7 +4324,13 @@ L9563:		lda	WKSP_ADFS_22C_CSD,Y
 .ifndef HD_SCSI_VFS
 
 ;;
-starCDIR:		lda	#$FF
+.ifdef ELK_PRES_E00
+.segment "starCDIR"
+starCDIR_module:
+.else
+starCDIR:
+.endif
+		lda	#$FF
 		ldy	#$00
 		jsr	my_OSARGS
 		ldx	#$0F
@@ -4090,21 +4342,36 @@ L9580:		lda	L9639,X				; Copy an OSFILE control block to workspace
 		sta	WKSP_ADFS_240
 		lda	$B5
 		sta	WKSP_ADFS_241
+.ifdef ELK_PRES_SPACESAVE
+		jsr	L94F2_pres
+.else
 		lda	#<WKSP_ADFS_240			; &B8/9=>&C240
 		sta	$B8
 		lda	#>WKSP_ADFS_240
 		sta	$B9
+.endif
 		jsr	L8DFE
 		ldy	#$09
 		lda	WKSP_ADFS_237
 		ora	WKSP_ADFS_237 + 1
 		ora	WKSP_ADFS_237 + 2
 		beq	L95BE
+
+.ifdef ELK_PRES_E00
+		jmp	L95AB
+
+; Error message stays in main ROM
+.segment "rom_main_2E_presE00"
+.endif
+
 L95AB:		jsr	ReloadFSMandDIR_ThenBRK
 		.byte	$C4				; ERR=196
 		.byte	"Already exists"
 		.byte	$00
 
+.ifdef ELK_PRES_E00
+.segment "starCDIR"
+.endif
 
 L95BE:		lda	($B4),Y				; Get filename character
 		and	#$7F
@@ -4182,6 +4449,19 @@ L9639:		.byte	$00				; Load=&00000000
 		.word	$FFFF
 		.word	WKSP_ADFS_E00_END		; End=&FFFFCE00
 		.word	$FFFF
+;;
+.ifdef ELK_PRES_SPACESAVE
+L94F2_pres:
+		lda	#<WKSP_ADFS_240			; &B8/9=>&C240, workspace control block
+		sta	$B8
+		lda	#>WKSP_ADFS_240
+		sta	$B9
+		rts
+.endif
+;;
+.ifdef ELK_PRES_E00
+		.segment "rom_main_2G_presE00"
+.endif
 ;;
 L9649:		lda	WKSP_ADFS_22F
 		cmp	WKSP_ADFS_317_CURDRV
@@ -4334,6 +4614,10 @@ L978A:		lda	#>WKSP_ADFS_400_DIR_BUFFER	; page of dir buffer
 		lda	#$05
 		sta	WKSP_ADFS_21E_DSKOPSAV_SECCNT
 		jmp	L82AE
+
+.ifdef ELK_PRES_E00
+		.segment "rom_library_1"
+.endif
 
 L97AE:
 		lda	#$00
@@ -4558,7 +4842,13 @@ L9941:		.byte	13
 ;;
 ;; *ACCESS
 ;; =======
-starACCESS:		jsr	L8FE8				; Search for object
+.ifdef ELK_PRES_E00
+.segment "starACCESS"
+starACCESS_module:
+.else
+starACCESS:
+.endif
+		jsr	L8FE8				; Search for object
 		beq	L9956				; Jump forward if found
 		jmp	L8BD3				; Jump to 'Not found'/'Bad name'
 ;;
@@ -4678,6 +4968,9 @@ L99CE:
   .endif
 
 ;;
+.ifdef ELK_PRES_E00
+.segment "starDESTROY"
+.endif
 L99DA:
   .if TARGETOS > 1
 		jsr	masPrintCRLFNoSpool
@@ -4689,14 +4982,23 @@ L99DA:
 		.byte	"Aborted"
 		.byte	$00
 ;;
-starDESTROY:		lda	$B4				; Save filename pointer
+.ifdef ELK_PRES_E00
+starDESTROY_module:
+.else
+starDESTROY:
+.endif
+		lda	$B4				; Save filename pointer
 		pha
 		lda	$B5
 		pha
+.ifdef ELK_PRES_SPACESAVE
+		jsr	L94F2_pres
+.else
 		lda	#<WKSP_ADFS_240			; &B8/9=>&C240
 		sta	$B8
 		lda	#>WKSP_ADFS_240
 		sta	$B9
+.endif
 		jsr	starINFO
 		pla
 		sta	$B5
@@ -4773,6 +5075,10 @@ starCDIR = $BEEF
 starDESTROY = $BEEF
 
 .endif ; ndef HD_SCSI_VFS
+
+.ifdef ELK_PRES_E00
+		.segment "rom_main_2H_presE00"
+.endif
 
 jmpIndFSCV:	jmp	(FSCV)
 ;;
@@ -4953,6 +5259,11 @@ L9A88:		lda	#OSBYTE_FD_LAST_BREAK
 
 .endif
 
+.ifdef ELK_PRES_E00
+		.segment "rom_main_2F_presE00"
+.endif
+
+
 ;;
 ;; Boot command offset bytes
 ;; -------------------------
@@ -4978,6 +5289,9 @@ L9A9C:
 ;;		.error	"Boot strings run over page boundary"
 ;;.endif
 
+.ifdef ELK_PRES_E00
+		.segment "rom_main_2I_presE00"
+.endif
 
 ;;
 ;;
@@ -5104,12 +5418,27 @@ _hazOk:
 		pha
 		cmp	#$01
 		bne	_lbbc9AB0
-		lda	$0DF0,X
+.ifdef ELK_PRES_E00
+		sta	$FCDC				; ABR slots 0/2 unlock
+		sta	$FCDE				; ABR slots 1/3 unlock
+.ifndef ELK_PRES_E00_126
+		lda	#$00
+		sta	$CE
+.endif
+.ifdef ELK_PRES_E00_330
+		sta	$FCD8				; AP6/7 unlock low bank
+		sta	$FCDA				; AP6/7 unlock high bank
+.endif
+_lbbc9AB0:	lda	$0DF0,X
+		cmp	#$FF				; anything other than &FF?
+.else ; !ELK_PRES_E00
+		lda	$0DF0,X				; switch off &40 flag/bit6
 		and	#$BF
 		sta	$0DF0,X
 _lbbc9AB0:
 		lda	$0DF0,X
-		cmp	#$40
+		cmp	#$40				; bit 6 and bit 7 clear?
+.endif
 		bcc	_lbbc9AB9
 		pla
 Serv0:
@@ -5182,15 +5511,43 @@ L9AED:		cmp	#$21				; Check against the lowest value
 ;; on this call.
 ;;
 Serv1:
+.ifdef ELK_PRES
+ .ifndef ELK_PRES_E00
+		txa
+		pha
+		tya
+		pha
+		lda	#$5A			; Check if E00 ADFS active
+		sta	$100			; OSBYTE A=&5A/X=255
+		ldx	#$FF			; If present and initialized, E00 ADFS
+		jsr	OSBYTE			; will put &00 at &100 (bottom of stack)
+		pla
+		tay
+		pla
+		tax
+		lda	$100
+		beq	L9998_pres		; -> E00 ADFS active - disable ourselves
+ .endif ; !ELK_PRES_E00
+		lda	#$FF			; reset AQR pointers
+		sta	WKSP_ADFS_AQR_ROM1
+		sta	WKSP_ADFS_AQR_ROM2
+.endif  ; ELK_PRES
 .ifdef FLOPPY
 		jsr	floppy_check_present_bbc
 .endif
 		inx
 		bpl	Serv1
 		bcc	_lbbc9AE6
+L9998_pres:
+.ifndef NO_HD
 		jsr	HD_InitDetectBoot
 		beq	_lbbc9AE6
+.endif
+.ifdef ELK_PRES
+		lda	#$FF				; Disabled
+.else
 		lda	#$40
+.endif
 		ldx	ZP_MOS_CURROM
 		sta	$0DF0,X
 		lda	#$01
@@ -5198,10 +5555,17 @@ Serv1:
 _lbbc9AE6:
 		lda	#$01
 		ldx	$F4
+.ifdef ELK_PRES_E00
+		pha
+		lda	#$BF				; BF = E00 enabled
+		sta	$0DF0,X
+		pla
+.else
 		cpy	#$1C
 		bcs	_lbbc9AF0
 		ldy	#$1C
 _lbbc9AF0:
+.endif
 		rts
 .endif
 
@@ -5240,6 +5604,18 @@ L9B0A:
 		pha
 .endif
 
+.elseif .def(ELK_PRES_E00) ; TARGET_OS > 1 || AUTOHAZEL
+		lda	$0DF0,X				; Check status
+		cmp	#$FF
+		beq	L9B9D_presE00			; E00 Disabled?
+		tya
+		pha
+		lda	#$FF
+		sta	WKSP_ADFS_CUR_E00_MODULE
+		lda	#$BF				; E00 ADFS active flag
+		sta	$0DF0,X
+		pla
+		pha
 .else
 							;new BBC
 		tya
@@ -5292,14 +5668,14 @@ L9B38:		jsr	StoreWkspChecksumBA_Y		; Set workspace checksum
 _lbbc9B10:
 
 L9B3B:
-.ifdef ELK_100_ADFS
+.if .def(ELK_100_ADFS) && (!.def(ELK_PRES))
 		jsr	CalcWkspChecksum
-.else
+.elseif (!.def(ELK_PRES_SPACESAVE))
 		jsr	CheckWkspChecksum		; Check workspace checksum
 .endif
 ;;
 
-.ifdef ELK_100_ADFS
+.if .def(ELK_100_ADFS) && (!.def(ELK_PRES))
 		cmp     ($BA),y                         ; 9B19 D1 BA                    ..
         	beq     _elkL9B23                       ; 9B1B F0 06                    ..
         	tya                                     ; 9B1D 98                       .
@@ -5337,6 +5713,7 @@ _elkL9B40:
 		pla
 		tay
 .endif
+L9B9D_presE00:
 		ldx	ZP_MOS_CURROM			; Get ROM number back into X
 .ifdef AUTOHAZEL
 		lda	$0DF0,X				; Check w/s pointer
@@ -5351,7 +5728,9 @@ _elkL9B40:
 L9B47:
   		tay
 .else
+.ifndef ELK_PRES_E00
 		iny					; Claim one page of low workspace
+.endif
 L9B47:
 .endif
 		lda	#$02				; Restore A to &02
@@ -5404,6 +5783,12 @@ Serv3:
 		tya
 		pha					; Save Boot flag
 .endif
+.if .def(ELK_PRES_E00_126) && (!.def(ELK_PRES_E00_330))
+		lda	#OSBYTE_5A_ROMSTAT		; OSBYTE A=&5A, X=250
+		ldx	#$FA				; Check for presence of E00 ADFS
+		jsr	OSBYTE
+.endif
+
 		lda	#OSBYTE_7A_KEY_SCAN_10
 		jsr	OSBYTE				; Scan keyboard
 		inx					; No key pressed?
@@ -5414,10 +5799,21 @@ Serv3:
 		beq	L9B74				; Yes, jump to select FS
 		dex
 ;;
-.else	; TARGETOS = 1
+.else	; TARGETOS <= 1
 		bne	_lbbc9B57			; 9B49 D0 0C                    ..
+.ifndef NO_HD
 		jsr	HD_InitDetectBoot		; 9B4B 20 63 9A                  c.
 		beq	L9B74				; 9B4E F0 1E                    ..
+.endif
+.ifdef ELK_PRES_AQR
+		; Check for AQR already set up
+		lda	SYSVARS_DF0_PWSKPTAB + 2
+		cmp	#$42
+		beq	L9B74				; AQR set up for use in slots 2/3
+		lda	SYSVARS_DF0_PWSKPTAB
+		cmp	#$42
+		beq	L9B74				; AQR set up for use in slots 0/1
+.endif
 .if ((.def(HD_IDE) && (!.def(IDE_DC))) || .def(HD_MMC_JGH) || .def(HD_MMC_HOG)) && (TARGETOS > 0) && .def(PRESERVE_CONTEXT); TODO should this not be readbreak for Elk too?
 		jsr	ReadBreak
 .else
@@ -5439,6 +5835,16 @@ _lbbc9B57:
 		beq	L9B74				; Yes
 		cpx	#KEYCODE_SELFS_NOMOUNT			; 'F' pressed?
 		beq	L9B72				; Yes, jump to select FS
+.ifdef ELK_PRES
+		inx
+.ifdef ELK_PRES_SPACESAVE
+		jsr	L9DCB_pres
+.else
+		lda	#OSBYTE_78_WRITE_KEYPRESS
+		ldy	#$00
+		jsr	OSBYTE
+.endif
+.endif
 		pla
 		tay					; Restore Boot flag
 		ldx	ZP_MOS_CURROM				; Restore ROM number
@@ -5482,13 +5888,22 @@ L9B74:		cli					; Enable IRQs
 		lda	#KEYCODE_SELFS_NOMOUNT			; ...change key pressed to 'fadfs'
 		pha
 .else							; TARGETOS <=1
+.ifdef ELK_PRES_SPACESAVE
+		jsr	L9DCB_pres
+.else
 		ldy	#$00				; 9B71 A0 00                    ..
 		lda	#OSBYTE_78_WRITE_KEYPRESS	; 9B73 A9 78                    .x
 		jsr	OSBYTE
+.endif
 
 .endif							; TARGETOS
 L9B85:		jsr	L92A8				; Print FS banner
-.ifdef IDE_ELK_HOG
+.ifdef ELK_PRES
+		.byte	"PRES "
+.ifdef ELK_PRES_E00
+		.byte	"E00 "
+.endif
+.elseif .def(IDE_ELK_HOG)
 		.byte   "Electron "
 .else
 		.byte	"Acorn "
@@ -5513,12 +5928,12 @@ L9B94:
 .endif
 		lda	#$06
 		jsr	jmpIndFSCV				; Tell current FS new FS taking over
-.if TARGETOS <= 1
+.if TARGETOS <= 1 && (!.def(ELK_PRES_E00))
 		lda	#OSBYTE_8F_ISSUE_SERV
 		ldx	#SERVICE_0A_CLAIM_ABS_WKSP
 		ldy	#$FF
 		jsr	OSBYTE
-.endif
+.endif ; TARGETOS <= 1 and not ELK_PRES_E00
 
 .ifdef HD_SCSI_VFS
 		php
@@ -5531,10 +5946,10 @@ VFS_L91B2:	sta	WKSP_VFS_93A_ILACE_SAVE		; save interlace flag?
 		jsr	swap7PWSP_373_N933
 		plp
 		stz	WKSP_ADFS_22F
-.else
+.else ; HD_SCSI_VFS
 		lda	#$10
 		sta	WKSP_ADFS_200
-.endif
+.endif ; HD_SCSI_VFS
 .if TARGETOS > 1
 		stz	WKSP_ADFS_2D7_SHADOW_SAVE
   .ifdef HD_MMC_HOG	; TODO REMOVE?
@@ -5543,7 +5958,7 @@ VFS_L91B2:	sta	WKSP_VFS_93A_ILACE_SAVE		; save interlace flag?
   .endif
 		jsr	L9A7F				; Get ADFS CMOS byte
 		sta	WKSP_ADFS_2D8			; Store in workspace
-.endif
+.endif ; TARGETOS > 1
 		ldy	#FSVECS_LEN-1			; Initialise vectors
 L9BA9:		lda	L9CB6,Y
 		sta	FSVECS_BASE,Y
@@ -5603,6 +6018,7 @@ L9BF0:		lda	($BA),Y
 		and	#ADFS_FLAGS_OPT1
 		sta	ZP_ADFS_FLAGS			; Put into &CD
 		jsr	LA7D4				; Check some settings
+.ifndef NO_HD
 		jsr	HD_InitDetect			; Check if hard drive hardware present
 		bne	L9C10				; No hard drive, jump forward
 
@@ -5614,21 +6030,73 @@ L9BF0:		lda	($BA),Y
 		ora	#ADFS_FLAGS_HD_PRESENT
 		sta	ZP_ADFS_FLAGS
 .endif
+.endif ; NO_HD
+
+.ifdef ELK_PRES_E00
+.segment "rom_main_2J_presE00"
+.endif
+
 L9C10:
 .ifndef HD_SCSI_VFS
-  .if TARGETOS <= 1
+  .ifdef ELK_PRES_AQR
+		; Check for AQR already setup
+		lda	SYSVARS_DF0_PWSKPTAB + 2	; slot 2/3
+		cmp	#$42
+		beq	L9AD1
+		lda	SYSVARS_DF0_PWSKPTAB		; slot 0/1
+		cmp	#$42
+		bne	L9AF3
+		lda	#$00				; found in slot 0/1
+		sta	WKSP_ADFS_AQR_ROM1
+		beq	L9AE9				; branch always taken
+		; AQR found and setup in slot 2/3
+L9AD1:		and	#$0F
+		sta	WKSP_ADFS_AQR_ROM1
+		lda	SYSVARS_DF0_PWSKPTAB		; check slot 0/1 for second AQR
+		cmp	#$42
+		bne	L9AE9				; -> slot 2/3 only
+		lda	#$00				; found in slot 0/1
+		sta	WKSP_ADFS_AQR_ROM2
+		lda	#$20				; AQR size 32 pages
+		sta	WKSP_ADFS_AQR_NUMPAGES
+		bne	L9AEE				; branch always taken
+		; single AQR only
+L9AE9:		lda	#$10				; AQR size 16 pages
+		sta	WKSP_ADFS_AQR_NUMPAGES
+L9AEE:		; We have AQR drive, set HD present flag
+.ifdef ELK_PRES_SPACESAVE
+		lda	#ADFS_FLAGS_HD_PRESENT
+		jsr	set_ADFS_flags
+.else
+		lda	ZP_ADFS_FLAGS
+		ora	#ADFS_FLAGS_HD_PRESENT
+		sta	ZP_ADFS_FLAGS
+.endif
+L9AF3:
+.endif ; ELK_PRES_AQR
+
+.if .def(ELK_PRES) && (!.def(ELK_PRES_E00))
+		ldy	#$FF
+		tya
+		sta	($BA),y
+  .elseif TARGETOS <= 1 ; ELK_PRES but not ELK_PRES_E00
 		dey
 		tya
 		sta	($BA),Y
-  .endif
+  .endif ; ELK_PRES but not ELK_PRES_E00
 
 		pla					; Get selection flag from stack
 		cmp	#KEYCODE_SELFS_NOMOUNT			; '*fadfs'/F-Break type of selection?
 		bne	L9C18				; No, jump to keep context
 		jsr	InvalidateFSMandDIR		; Set context to &FFFFFFFF when *fadfs
-.endif
+.endif ; not HD_SCSI_VFS
 
-L9C18:		ldy	#$03				; Copy current context to backup context
+L9C18:
+.ifdef ELK_PRES_SPACESAVE
+		jsr	copy_context
+.else
+		ldy	#$03				; Copy current context to backup context
+
 L9C1A:		lda	WKSP_ADFS_314,Y
 		sta	WKSP_ADFS_22C_CSD,Y
 		dey
@@ -5655,6 +6123,7 @@ VFS_L9248:
         jsr     InvalidateFSMandDIR             ; 924D 20 59 84                  Y.
 @QQ:
 .endif
+.endif ; ELK_PRES_SPACESAVE
 		jsr	L89D8				; Get FSM and root from :0 if context<>-1
 
 		ldx	WKSP_ADFS_317_CURDRV			; Get current drive
@@ -6325,7 +6794,14 @@ L9DF6:		jsr	L92A8
 		.byte	$0D, "Advanced DFS 1.30E"
 		.byte	$8D
 .else
-		.byte	$0D, "Advanced DFS "		; Help string
+		.byte	$0D				; Help string
+.ifdef ELK_PRES
+		.byte	"PRES "
+.ifdef ELK_PRES_E00
+		.byte	"E00 "
+.endif
+.endif
+		.byte	"Advanced DFS "
 		.byte	(VERSION >> 8)+'0'		; Version string
 		.byte	"."
 		.byte	((VERSION & $F0) >> 4)+'0'
@@ -6333,7 +6809,15 @@ L9DF6:		jsr	L92A8
 		.byte	$8D
 .endif 
 		rts
+
+;; Service call 9 handler
+.ifdef ELK_PRES_E00
+.segment "rom_Serv9"
+Serv9_module:
+.else
 Serv9:
+.endif
+
 
 		tya
 		pha
@@ -6449,6 +6933,9 @@ L9E74:		jsr	LA036
 ;;
 ;; Low byte of address of help strings
 ;; -----------------------------------
+.ifdef ELK_PRES_E00
+.segment "rom_main_2O_presE00"
+.endif
 L9E95:		.byte	<L9FFB
 		.byte	<L9FB1
 		.byte	<L9FBD
@@ -6458,6 +6945,9 @@ L9E95:		.byte	<L9FFB
 		.byte	<L9FE7
 		.byte	<L9FF4
 
+.ifdef ELK_PRES_E00
+.segment "rom_main_2K_presE00"
+.endif
 ;;
 ;;
 ;; FSC - Filing System Control
@@ -6466,6 +6956,9 @@ my_FSCV:		stx	$B4				; Store X and Y in &B4/5
 		sty	$B5
 .if TARGETOS > 1
 		sta	WKSP_ADFS_2D6			; Store function
+.endif
+.ifdef ELK_PRES_E00_331
+		jsr	unlockABRetc_direct
 .endif
 		tax
 		bmi	L9EBA				; Function<0 - exit
@@ -6530,7 +7023,9 @@ starCMD:
 		jsr	VFS_FSC3_STARCMD
 .endif
 
+.ifndef NO_HD
 		jsr	WaitEnsuring
+.endif
 		lda	#<WKSP_ADFS_2A2			; &B8/9=>&C2A2
 		sta	$B8
 		lda	#>WKSP_ADFS_2A2
@@ -6585,12 +7080,40 @@ L9F24:		lda	tbl_commands+0,X		; Get command address
 		pha
 		rts					; Jump indirectly to routine
 
+.ifdef ELK_PRES_SPACESAVE
+L9DCB_pres:	ldy	#$00
+		lda	#OSBYTE_78_WRITE_KEYPRESS
+		jmp	OSBYTE
+.endif
+
+; The next set of strings must not straddle a page boundary because
+; code indexes into it with the MSB constant. See code at L9283
+.ifdef ELK_PRES_E00_126
+L9FB1:		.byte	"<List Spec>"
+		.byte	$00
+L9FBD:		.byte	"<Ob Spec>"
+		.byte	$00
+L9FC7:		.byte	"<*Ob Spec*>"
+		.byte	$00
+L9FD3:		.byte	"(<Drive>)"
+		.byte	$00
+L9FDD:		.byte	"<SP> <LP>"
+		.byte	$00
+L9FE7:		.byte	"(L)(W)(R)(E)"
+		.byte	$00
+L9FF4:		.byte	"<Title>"
+L9FFB:		.byte	$00
+.endif
+
 .ifndef HD_SCSI_VFS
 
 ;;
 ;;     Command	    Addr-1Hi    Addr-1Lo   Help
 tbl_commands:
 	.byte	"ACCESS",   >(starACCESS-1)	, <(starACCESS-1)	, $16
+.if .def(ELK_PRES_E00_126) && .def(ELK_PRES_AQR)
+	.byte	"AQR",      >(starAQR-1)        , <(starAQR-1)          , $00
+.endif
 	.byte	"BACK",     >(starBACK-1)	, <(starBACK-1)		, $00
 	.byte	"BYE",      >(starBYE-1)	, <(starBYE-1)		, $00
 	.byte	"CDIR",     >(starCDIR-1)	, <(starCDIR-1)		, $20
@@ -6640,6 +7163,7 @@ cmdLE:
 
 ; The next set of strings must not straddle a page boundary because
 ; code indexes into it with the MSB constant. See code at L9283
+.ifndef ELK_PRES_E00_126
 L9FB1:		.byte	"<List Spec>"
 		.byte	$00
 L9FBD:		.byte	"<Ob Spec>"
@@ -6654,6 +7178,7 @@ L9FE7:		.byte	"(L)(W)(R)(E)"
 		.byte	$00
 L9FF4:		.byte	"<Title>"
 L9FFB:		.byte	$00
+.endif
 
 
 .ifdef HD_SCSI_VFS
@@ -6718,13 +7243,22 @@ LA00F:
 
 		tya
 		beq	LA00F
+.ifdef ELK_PRES_SPACESAVE
+		lda	#ADFS_FLAGS_OPT1
+		jsr	set_ADFS_flags
+		jmp	L89D8
+LA00F:
+		lda	#ADFS_FLAGS_OPT1
+		jsr	clear_ADFS_ZPflag
+.else ; !ELK_PRES_SPACESAVE
 		lda	ZP_ADFS_FLAGS			; 9FE7 A5 CD                    ..
 		ora	#ADFS_FLAGS_OPT1		; 9FE9 09 04                    ..
 		bne	_lbbc9FF1
 LA00F:		lda	ZP_ADFS_FLAGS			; 9FED A5 CD                    ..
 		and	#ADFS_FLAGS_OPT1 ^ $FF
 _lbbc9FF1:		sta	ZP_ADFS_FLAGS		; 9FF1 85 CD                    ..
-.endif
+.endif ; ELK_PRES_SPACESAVE
+.endif ; TARGETOS
 LA013:		jmp	L89D8
 
 LA016:
@@ -6819,7 +7353,13 @@ LA053:		pla
 		rts
 .endif
 ;;
-starFREE:		jsr	LA1EA
+.ifdef ELK_PRES_E00
+.segment "starFREE"
+starFREE_module:
+.else
+starFREE:
+.endif
+		jsr	LA1EA
 		jsr	LA206
 		jsr	L92A8
 		.byte	"Free", $8D
@@ -6845,6 +7385,9 @@ LA091:		rts
 ;;
 ;; FSC 8 - OSCLI being processed
 ;; =============================
+.ifdef ELK_PRES_E00
+LA031_presE00:	rts
+.endif
 LA0DC:
 .ifndef HD_SCSI_VFS
   .if TARGETOS > 1
@@ -6852,10 +7395,18 @@ LA0DC:
   .else
 		ldx	WKSP_ADFS_2D8
   .endif
+.ifdef ELK_PRES_E00
+		bne	LA031_presE00
+.else
 		bne	LA091				; Exit
+.endif
 		ldx	WKSP_ADFS_100_FSM_S1 + $FE	; Get FSM size
 		cpx	#$E1
+.ifdef ELK_PRES_E00
+		bcc	LA031_presE00
+.else
 		bcc	LA091				; If FSM not filling up, exit
+.endif
 		jsr	L92A8				; Print message
 		.byte	"Compaction recommended", $8D
 .endif
@@ -6882,14 +7433,23 @@ starBYE:
 ;; ====
 starDELETE:
 		jsr	starREMOVE
+.ifdef ELK_PRES_E00
+		bne	LA031_presE00
+.else
 		bne	LA091
+.endif
 		jmp	L8BE2
   .endif
 ;;
 ;;
 ;; *BYE
 ;; ====
+.ifdef ELK_PRES_E00
+.segment "starBYE"
+starBYE_module:
+.else
 starBYE:
+.endif
   .if .def(HD_MMC_JGH)	; think HOG should do this?
 		ldx	WKSP_ADFS_317_CURDRV			; Get current drive
 		inx
@@ -6924,7 +7484,11 @@ _lelkLA0D8:	php                                     ; A0D8 08                   
 		lda	WKSP_ADFS_317_CURDRV			; Get current drive
 		pha					; Save current drive
       .ifdef ELK_100_ADFS
+.ifdef ELK_PRES_E00
+		jsr	starCLOSE_from_module
+.else
 		jsr	starCLOSE
+.endif
 
       .else
 		tax
@@ -6935,9 +7499,12 @@ _lelkLA0D8:	php                                     ; A0D8 08                   
 LA10E:		lda	#$60
 		sta	WKSP_ADFS_317_CURDRV			; Set drive to 3
 
-LA113:		ldx	#<LA12A
+LA113:
+.ifndef NO_HD
+		ldx	#<LA12A
 		ldy	#>LA12A				; Point to control block
 		jsr	CommandExecXY				; Do command &1B - park heads
+.endif
 		lda	WKSP_ADFS_317_CURDRV			; Get current drive
 		sec
     .endif ;!.def X_IDE_OLD
@@ -6952,6 +7519,7 @@ LA113:		ldx	#<LA12A
 
 ;;TODO:HOG:remove this safely?
 .if (!(.def(HD_MMC_JGH))) || .def(HD_MMC_HOG)
+.ifndef NO_HD
 LA12A:		.byte	$00				; Result=&00, Ok
 		.word	WKSP_ADFS_900_RND_BUFFER	; Address=&FFFFC900, dummy address
 		.word	$FFFF
@@ -6962,7 +7530,11 @@ LA12A:		.byte	$00				; Result=&00, Ok
 		.byte	$00				; &00=Park
 		.byte	$00				; &00=use sector count
 .endif
+.endif
 ;;
+.ifdef ELK_PRES_E00
+.segment "rom_library_6"
+.endif
 LA135:		jsr	LA50D
 		ldy	WKSP_ADFS_317_CURDRV
 		iny
@@ -6991,7 +7563,13 @@ VFS_L9801:	jmp	L8760
 
 
 ;;
-starDISMOUNT:		jsr	LA135
+.ifdef ELK_PRES_E00
+.segment "starDISMOUNT"
+starDISMOUNT_module:
+.else
+starDISMOUNT:
+.endif
+		jsr	LA135
 		ldx	#$09
 LA156:		lda	WKSP_ADFS_3AC_CH_FLAGS,X
 		beq	LA16F
@@ -7004,7 +7582,11 @@ LA156:		lda	WKSP_ADFS_3AC_CH_FLAGS,X
 		adc	#CHANNEL_RANGE_LO
 		tay
 		lda	#$00
+.ifdef ELK_PRES_E00
+		jsr	my_OSFIND_from_mod15
+.else
 		jsr	my_OSFIND
+.endif
 LA16F:		dex
 		bpl	LA156
 		lda	WKSP_ADFS_317_CURDRV
@@ -7014,14 +7596,24 @@ LA16F:		dex
 		sta	WKSP_ADFS_317_CURDRV
 		sta	WKSP_ADFS_316
 		ldx	#$00
+.ifdef ELK_PRES_E00
+		jsr	LA189_module
+.else
 		jsr	LA189
+.endif
 .if .def(USE65C12) && (!.def(HD_SCSI_VFS))
 		bra	LA1B9
 .else
 		bmi	LA1B9
 .endif
 ;;
-LA189:		ldy	#$09
+.ifdef ELK_PRES_E00
+LA189_module:
+.else
+LA189:
+.endif
+
+		ldy	#$09
 LA18B:		lda	LA196-2,Y
 		sta	WKSP_ADFS_300_CSDNAME,X
 		inx
@@ -7047,9 +7639,19 @@ VFS_L9860:  	inc     WKSP_ADFS_204                           ; 9860 EE 04 C2    
 ;;
 ;; *MOUNT
 ;; ======
+.ifdef ELK_PRES_E00
+.segment "starMOUNT"
+starMOUNT_module:
+.else
 starMOUNT:
+.endif
 		jsr	LA135				; Scan drive number parameter
-LA1A1:		lda	WKSP_ADFS_26F			; Get drive
+.ifdef ELK_PRES_E00
+LA1A1_module:
+.else
+LA1A1:
+.endif
+		lda	WKSP_ADFS_26F			; Get drive
 		sta	WKSP_ADFS_317_CURDRV		; Set current drive
 .ifdef HD_SCSI_VFS
 		jsr	VFS_L9851
@@ -7070,10 +7672,17 @@ LA1A1:		lda	WKSP_ADFS_26F			; Get drive
 VFS_L9886:
 .endif
 
+.ifdef ELK_PRES_E00
+		lda	#<(L9FFB)			; B4/5=>&00 - null string
+		sta	$B4
+		lda	#>(L9FFB)
+		sta	$B5
+.else
 		lda	#<(LA2EA)			; B4/5=>&00 - null string
 		sta	$B4
 		lda	#>(LA2EA)
 		sta	$B5
+.endif
 		jsr	starDIR				; Do something		
 LA1B9:		lda	WKSP_ADFS_31F			; Get previous drive
 		cmp	WKSP_ADFS_26F			; Compare with ???
@@ -7088,7 +7697,11 @@ LA1C9:		lda	WKSP_ADFS_31B			; Get library drive
 		sta	WKSP_ADFS_31A			; Set library to &FFFFxxxx
 		sta	WKSP_ADFS_31B
 		ldx	#$0A
+.ifdef ELK_PRES_E00
+		jsr	LA189_module
+.else
 		jsr	LA189				; Set library name to "Unset"
+.endif
 LA1DE:		rts
 ;;
 .if (!.def(HD_MMC_JGH)) || .def(HD_MMC_HOG) ; REMOVE for HOG
@@ -7096,7 +7709,11 @@ SCSICMD_UNPARK:
 		.byte	$00				; Result=&00, Ok
 		.word	WKSP_ADFS_900_RND_BUFFER	; Address=&FFFFC900, dummy address
 		.word	$FFFF
+.ifdef ELK_PRES_AQR
+		.byte	$08				; Command = Read
+.else
 		.byte	$1B				; Action=Park
+.endif
 		.byte	$00				; Sector=&000000
 		.byte	$00
 		.byte	$00
@@ -7104,6 +7721,10 @@ SCSICMD_UNPARK:
 		.byte	$00				; &00=use sector count
 .endif
 ;;
+.ifdef ELK_PRES_E00
+.segment "rom_main_2L_presE00"
+.endif
+
 LA1EA:		lda	#$00
 		ldx	#$03
 LA1EE:		sta	WKSP_ADFS_215_DSKOPSAV_RET,X
@@ -7189,7 +7810,13 @@ LA284:		dex
 LA2EA:		brk
 .else
 
-starTITLE:	jsr	LB546
+.ifdef ELK_PRES_E00
+.segment "starTITLE"
+starTITLE_module:
+.else
+starTITLE:
+.endif
+		jsr	LB546
 		jsr	L8FF3
 		jsr	LA50D
 		ldy	#$00
@@ -7206,7 +7833,13 @@ LA2AB:		sta	WKSP_ADFS_800_DIR_BUFFER + $D9,Y
 		bne	LA29D
 		jmp	L8F91
 ;;
-starCOMPACT:	jsr	LA50D
+.ifdef ELK_PRES_E00
+.segment "starCOMPACT"
+starCOMPACT_module:
+.else
+starCOMPACT:
+.endif
+		jsr	LA50D
 		ldy	#$00				; Y=0 needed for later
 		lda	($B4),Y				; Check first character of filename
 		cmp	#$21
@@ -7226,7 +7859,18 @@ starCOMPACT:	jsr	LA50D
 		sec
 		sbc	WKSP_ADFS_260			
 		sta	WKSP_ADFS_261			; store number of pages above HIMEM
+.ifdef ELK_PRES_E00_126
 		jmp	LA377
+.elseif .def(ELK_PRES) && (!.def(ELK_PRES_SPACESAVE_2))
+		; Switch off cursor while compacting
+		; To save more space, can wrap disable/enable cursor into LA377 directly
+		; which saves a byte by changing the rts in LA377 into a jmp
+		jsr	disable_cursor
+		jsr	LA377
+		jmp	enable_cursor
+.else
+		jmp	LA377
+.endif
 ;;
 brkBadCompact:	jsr	ReloadFSMandDIR_ThenBRK
 		.byte	$94				; ERR=148
@@ -7296,8 +7940,14 @@ LA35F:		jmp	brkBadCompact
 LA362:		beq	LA35F
 		sta	WKSP_ADFS_261
 .if TARGETOS <= 1
+.ifdef ELK_PRES_E00_126
+		ldx	OSVARS_OSHWM
+		dex
+		txa
+.else
 		ldx	ZP_MOS_CURROM
 		lda	$0DF0,X
+.endif
 		cmp	WKSP_ADFS_260
 		bcc	_lbbcA334
 		jmp	brkBadCompact
@@ -7343,9 +7993,21 @@ LA377:
 		jsr	set_cursor_state
 	.endif
 
+.ifdef ELK_PRES_E00_126
+		jsr	starCLOSE_from_module
+.else
 		jsr	starCLOSE
+.endif
+.ifndef NO_HD
 		jsr	WaitEnsuring
-.ifdef USE65C12
+.endif
+.if .def(ELK_PRES_SPACESAVE_2) || .def(ELK_PRES_E00_126)
+		jsr	disable_cursor
+.endif
+.ifdef ELK_PRES_SPACESAVE
+		lda	#ADFS_FLAGS_WTF
+		jsr	set_ADFS_flags
+.elseif .def(USE65C12)
 		lda	#ADFS_FLAGS_WTF
 		tsb	ZP_ADFS_FLAGS
 .else
@@ -7354,7 +8016,10 @@ LA377:
 		sta	ZP_ADFS_FLAGS
 .endif
 		jsr	L98B3
-.ifdef USE65C12
+.ifdef ELK_PRES_SPACESAVE
+		lda	#ADFS_FLAGS_WTF
+		jsr	clear_ADFS_ZPflag
+.elseif .def(USE65C12)
 		lda	#ADFS_FLAGS_WTF
 		trb	ZP_ADFS_FLAGS
 .else
@@ -7366,11 +8031,19 @@ LA377:
 	.ifdef ELK_MINCE_COMPACT
 		ldy	#1
 		jsr	set_cursor_state
-	.endif	
+	.endif
+.if .def(ELK_PRES_SPACESAVE_2) || .def(ELK_PRES_E00_126)
+		jmp	enable_cursor
+.else
 		rts
+.endif
 
 .endif ; !.def HD_SCSI_VFS
 
+;;
+.ifdef ELK_PRES_E00
+.segment "rom_main_2M_presE00"
+.endif
 ;;
 LA389:		lda	WKSP_ADFS_215_DSKOPSAV_RET,X
 		asl	A
@@ -7513,7 +8186,15 @@ LA472:		bit	ZP_ADFS_FLAGS			; Get ADFS status byte
 
 ;; *LIB <dir>
 ;; ==========
-starLIB:		jsr	L9486				; Search for directory
+.ifdef ELK_PRES_E00
+.segment "starLIB"
+L9423_local:	jmp	L89D8
+
+starLIB_module:
+.else
+starLIB:
+.endif
+		jsr	L9486				; Search for directory
 		ldy	#$09
 LA487:		lda	WKSP_ADFS_800_DIR_BUFFER + $CC,Y; Copy name to LIBNAME
 		sta	WKSP_ADFS_30A_LIBNAME,Y
@@ -7526,7 +8207,12 @@ LA492:		lda	WKSP_ADFS_314,Y			; Copy CURRENT to LIB
 		bpl	LA492
 LA49B:		jmp	L89D8				; Finish by loading $
 ;;
-LA49E:		ldy	#$03
+.ifdef ELK_PRES_E00
+LA49E_module:
+.else
+LA49E:
+.endif
+		ldy	#$03
 LA4A0:		lda	WKSP_ADFS_314,Y
 		sta	WKSP_ADFS_230,Y
 		lda	WKSP_ADFS_318,Y
@@ -7534,7 +8220,12 @@ LA4A0:		lda	WKSP_ADFS_314,Y
 		dey
 		bpl	LA4A0
 		bmi	LA49B
-LA4B1:		ldy	#$03
+.ifdef ELK_PRES_E00
+LA4B1_module:
+.else
+LA4B1:
+.endif
+		ldy	#$03
 LA4B3:		lda	WKSP_ADFS_230,Y
 		sta	WKSP_ADFS_22C_CSD,Y
 		dey
@@ -7543,19 +8234,49 @@ LA4B3:		lda	WKSP_ADFS_230,Y
 
 ; *LCAT
 ; =====
-starLCAT:		jsr	LA49E
-		jsr	LA4B1
+.ifdef ELK_PRES_E00
+.segment "starLCAT"
+starLCAT_module:
+LA49E_local = LA49E_module
+LA4B1_local = LA4B1_module
+
+.else
+starLCAT:
+LA49E_local = LA49E
+LA4B1_local = LA4B1
+
+.endif
+		jsr	LA49E_local
+		jsr	LA4B1_local
 		jsr	L93DB				; CAT the library
 		jmp	L89D8
 
 ; *LEX
 ; ====
-starLEX:		jsr	LA49E
-		jsr	LA4B1
+.ifdef ELK_PRES_E00
+.segment "starLEX"
+starLEX_module:
+
+LA49E_starLEX = LA49E_module
+LA4B1_starLEX = LA4B1_module
+.else
+starLEX:
+
+LA49E_starLEX = LA49E
+LA4B1_starLEX = LA4B1
+.endif
+		jsr	LA49E_starLEX
+		jsr	LA4B1_starLEX
 		jsr	L943D				; EX the library
 		jmp	L89D8
 
-starBACK:		ldy	#$03
+.ifdef ELK_PRES_E00
+.segment "starBACK"
+starBACK_module:
+.else
+starBACK:
+.endif
+		ldy	#$03
 LA4D7:		lda	WKSP_ADFS_31C,Y
 		sta	WKSP_ADFS_22C_CSD,Y
 		lda	WKSP_ADFS_314,Y
@@ -7569,7 +8290,12 @@ LA4EB:		lda	WKSP_ADFS_800_DIR_BUFFER + $CC,Y
 		dey
 		bpl	LA4EB
 		rts
+
 ;;
+.ifdef ELK_PRES_E00
+.segment "rom_main_2N_presE00"
+.endif
+
 LA4F5:		ldy	#$00
 LA4F7:		jsr	L8743
 		beq	LA4FF
@@ -7622,9 +8348,44 @@ LA534:
 		rts
 .else
 
-LA53E:		jmp	L8988				; Jump to 'Bad rename'
+.ifndef ELK_PRES_E00
+LA53E:
+.endif
+		jmp	L8988				; Jump to 'Bad rename'
 ;;
-starRENAME:		lda	$B4
+.ifdef ELK_PRES
+disable_cursor:
+LA3DD_pres:				; disable cursor
+		lda	#$00
+		beq	LA3E3		; branch always taken
+enable_cursor:
+LA3E1_pres:	lda	#$01		; enable cursor
+LA3E3:		pha			; Save A
+		lda	#$17		; VDU23
+		jsr	OSASCI
+		lda	#$01		; ,1
+		jsr	OSASCI
+		pla			; ,0/1/whatever (depending on call)
+		jsr	OSASCI
+		ldx	#$06		; ,0,0,0,0,0,0
+		lda	#$00		; loop
+LA3F6:		jsr	OSASCI
+		dex
+		bpl	LA3F6
+		rts
+.endif
+;;
+.ifdef ELK_PRES_E00
+.segment "starRENAME"
+
+LA53E:		jmp	L8988
+
+starRENAME_module:
+
+.else
+starRENAME:
+.endif
+		lda	$B4
 		pha
 		lda	$B5
 		pha
@@ -7661,11 +8422,19 @@ LA555:		ldy	#$03
 .ifdef ELK_100_ADFS
 		and	#$7F
 		cmp	#'$'				; Is it '$' or '&'
+.ifdef ELK_PRES_SPACESAVE
+		beq	LA432
+		cmp	#'&'				; Is it '$' or '&'
+		bne	LA435
+LA432:		jmp	LA53E
+LA435:
+.else ; !ELK_PRES_SPACESAVE
 		beq	LA53E				; If ROOT or URD, jump to 'Bad rename'
 		cmp	#'&'				; Is it '$' or '&'
 		beq	LA53E				; If ROOT or URD, jump to 'Bad rename'
+.endif
 		ldy	#0
-.else
+.else ; !ELK_100_ADFS
 		and	#$7D
 		cmp	#'$'				; Is it '$' or '&'
 		beq	LA53E				; If ROOT or URD, jump to 'Bad rename'
@@ -7673,17 +8442,25 @@ LA555:		ldy	#$03
 LA570:		jsr	L8743
 		beq	LA57C
 		cmp	#'^'
+.ifdef ELK_PRES_SPACESAVE
+		beq	LA432
+.else
 		beq	LA53E				; Can't rename '^', jump to 'Bad rename'
+.endif
 LA579:		iny
 		bne	LA570
 LA57C:		cmp	#'.'
 		beq	LA579
 LA580:		jsr	LA394
 		jsr	LA534
+.ifdef ELK_PRES_SPACESAVE
+		jsr	L94F2_pres
+.else
 		lda	#<WKSP_ADFS_240			; &B8/9=>&C240, control block in workspace
 		sta	$B8
 		lda	#>WKSP_ADFS_240
 		sta	$B9
+.endif
 		jsr	L8CED
 .ifndef ELK_100_ADFS
 		php
@@ -7702,11 +8479,15 @@ LA5A5:
 .endif
 		lda	WKSP_ADFS_22E
 		bpl	LA5B5
+.ifdef ELK_PRES_SPACESAVE
+		jsr	copy_context_2
+.else ; ELK_PRES_SPACESAVE
 		ldy	#$02
 LA5AC:		lda	WKSP_ADFS_314,Y
 		sta	WKSP_ADFS_22C_CSD,Y
 		dey
 		bpl	LA5AC
+.endif ; ELK_PRES_SPACESAVE
 LA5B5:		jsr	L89D8
 .ifdef USE65C12
 		plx
@@ -7733,7 +8514,7 @@ LA5B5:		jsr	L89D8
         	ldy     #$18                            ; A58D A0 18                    ..
         	ldx     #$02                            ; A58F A2 02                    ..
 elkLA591:  	lda     ($B6),y                         ; A591 B1 B6                    ..
-        	cmp     $1034,x                         ; A593 DD 34 10                 .4.
+		cmp     WKSP_ADFS_234,x                 ; A593 DD 34 10                 .4.
         	bne     LA625                           ; A596 D0 56                    .V
         	dey                                     ; A598 88                       .
         	dex                                     ; A599 CA                       .
@@ -7863,10 +8644,14 @@ LA66D:		lda	($B6),Y
 		dex
 		bpl	LA66D
 		jsr	L89D8
+.ifdef ELK_PRES_SPACESAVE
+		jsr	L94F2_pres
+.else
 		lda	#<WKSP_ADFS_240		; &B8/9=>&C240
 		sta	$B8
 		lda	#>WKSP_ADFS_240
 		sta	$B9
+.endif
 		jsr	L8DFE
 		jsr	L8E7A
 		ldy	#$03
@@ -7934,6 +8719,20 @@ LA6F1:		lda	WKSP_ADFS_270,Y
 		jmp	L8F91
 
 .endif ; ndef HD_SCSI_VFS
+
+.ifdef ELK_PRES_E00
+.segment "rom_main_2O_presE00"
+.endif
+
+.if .def(ELK_PRES_E00_126) && .def(ELK_PRES_AQR)
+;; *AQR handler
+starAQR:	lda	#OSBYTE_5A_ROMSTAT	; OSBYTEA=&5A X=251
+		ldx	#$FB
+		jsr	OSBYTE
+		lda	#$00
+		rts
+.endif
+
 ;;
 ;; Check loaded directory
 ;; ----------------------
@@ -8124,6 +8923,10 @@ LA7E7:
 		plp
 		rts
 
+.ifdef ELK_PRES_E00
+.segment "rom_library_2"
+.endif
+
 .ifndef HD_SCSI_VFS
 ;;
 LA7EC:
@@ -8188,11 +8991,18 @@ LA83B:		inx
 		bpl	LA82E
 		jsr	L82AA
 LoadFSM:
+LA6F8_pres:
 		ldx	#<L8831				; Point to 'load FSM' control block
 		ldy	#>L8831
 		jmp	L82AE				; Load FSM
 
-starCOPY:	lda	#$7F				; &B8/9=>&C27F
+.ifdef ELK_PRES_E00
+.segment "starCOPY"
+starCOPY_module:
+.else
+starCOPY:
+.endif
+		lda	#$7F				; &B8/9=>&C27F
 		sta	$B8
 		lda	#>WKSP_ADFS_274
 		sta	$B9
@@ -8219,11 +9029,15 @@ LA879:		lda	WKSP_ADFS_314,Y
 		dey
 		bpl	LA879
 		jsr	L89D8
+.ifdef ELK_PRES_SPACESAVE
+		jsr	copy_context
+.else
 		ldy	#$03
 LA887:		lda	WKSP_ADFS_314,Y
 		sta	WKSP_ADFS_22C_CSD,Y
 		dey
 		bpl	LA887
+.endif
 		jsr	LA394
 		jsr	L8743
 		bne	LA89B
@@ -8304,7 +9118,9 @@ LA91A:		lda	WKSP_ADFS_23A,Y
 		sec
 		sbc	WKSP_ADFS_260
 		sta	WKSP_ADFS_261
-  .ifdef USE65C12
+  .ifdef ELK_PRES_SPACESAVE
+		jsr	set_ADFS_WTFflag
+  .elseif .def(USE65C12)
 		lda	#ADFS_FLAGS_WTF
 		tsb	ZP_ADFS_FLAGS
   .else
@@ -8338,6 +9154,10 @@ LA91A:		lda	WKSP_ADFS_23A,Y
 .ifdef HD_SCSI_VFS
 VFS_L9C10:	pha
 		jmp	L8A22
+.endif
+
+.ifdef ELK_PRES_E00
+.segment "rom_main_2P_presE00"
 .endif
 
 .if TARGETOS > 1
@@ -8406,6 +9226,12 @@ FSC6_NEWFS:
 		tya					; A953 98                       .
 		iny					; A954 C8                       .
 my_OSARGS:
+.ifdef ELK_PRES_E00_331
+		; Although I haven't been able to find a version of the "A" ROM
+		; from PRES E00 ADFS 3.30, a bit of detective work on the addresses
+		; used by the 3.30 "B" ROM shows that this code was not in 3.30
+		jsr	unlockABRetc_direct
+.endif
 		cpy	#$00				; A955 C0 00                    ..
 		bne	LA9A8				; A957 D0 3C                    .<
 		tay					; A959 A8                       .
@@ -8453,7 +9279,9 @@ LA994:		jsr	LAB06				; Check things
 		dex
 		bpl	LA994
 		inc	WKSP_ADFS_204
+.ifndef NO_HD
 		jsr	WaitEnsuring				; Wait for ensuring to complete
+.endif
 .endif ; ndef HD_SCSI_VFS
 
 .if TARGETOS <= 1
@@ -8637,7 +9465,7 @@ LAAD0:		dex
 		jmp	my_OSARGS_exit				; Exit
 .endif
 
-.else
+.else ; !def HD_SCSI_VFS
 		; dummy write buffer call for VFS
 LAAB9:	
 		lda     #$00                            ; 9CCE A9 00                    ..
@@ -8693,8 +9521,12 @@ LAB10:		txa
 		jsr	CommandSetRetries		; Set default retries
 		stx	$C1				; TODO: optimise this away?
   .ifdef FLOPPY
+  .ifdef ELK_PRES_SPACESAVE
+		jsr	pres_isHD_present
+  .else
 		lda	ZP_ADFS_FLAGS			; Get ADFS status byte
 		and	#ADFS_FLAGS_HD_PRESENT		; Is hard drive present?
+  .endif
 		beq	LAB50				; No hard drive, jump forward to do floppy
 		lda	WKSP_ADFS_203,X			; Get drive
 		bpl	HD_BPUT_WriteSector		; Hard drive, jump ahead
@@ -8849,10 +9681,14 @@ LACA8:		ldx	$B0
 LACBA:		jmp	GenerateError
 .else; ndef HD_SCSI_VFS
   .ifdef FLOPPY
+  .ifdef ELK_PRES_SPACESAVE
+		jsr	pres_isHD_present
+  .else
 		lda	ZP_ADFS_FLAGS			; Get ADFS status byte
 		and	#ADFS_FLAGS_HD_PRESENT		; Is hard drive present?
+  .endif ; ELK_PRES
 		beq	LACB5
-  .endif
+  .endif ; FLOPPY
 		lda	WKSP_ADFS_203,X
 		bpl	HD_BGET_ReadSector
   .ifdef FLOPPY
@@ -8868,7 +9704,9 @@ LACBA:		dec	ZP_ADFS_RETRY_CTDN		; Decrement retries
 
 		.segment "rom_main_8"
 
+.ifndef ELK_PRES ;; should this be NO_HD?
 		bne	LACBA				; Retry if error occured
+.endif
 LACDA:		ldx	$B0				; Restore X & Y
 		ldy	$B1
 		lda	#$81
@@ -8965,15 +9803,27 @@ brkEOFandReloadFSM:
 ;;
 ;; OSBGET
 ;; ======
-my_OSBGET:	stx	ZP_ADFS_C3_SAVE_X		; Save X
+.ifdef ELK_PRES_E00
+.segment "myOSBGET"
+
+brkEOFandReloadFSM_local:
+		jmp	brkEOFandReloadFSM
+
+my_OSBGET_module:
+.else
+brkEOFandReloadFSM_local = brkEOFandReloadFSM
+
+my_OSBGET:
+.endif
+		stx	ZP_ADFS_C3_SAVE_X		; Save X
 		jsr	CheckSetChannelY		; Check channel and get flags
 		ror	A
 		bcs	LAD9C
 		and	#CH_FLAGS_08_EOF_READ>>1		; Gone past EOF?
-		bne	brkEOFandReloadFSM		; Generate EOF error
+		bne	brkEOFandReloadFSM_local	; Generate EOF error
 		jsr	CompareEXTtoPTR				; Compare something
 		bcs	LAD9C				; CS+NE, ok to read byte
-		bne	brkEOFandReloadFSM		; Not same, so generate 'EOF' error
+		bne	brkEOFandReloadFSM_local	; Not same, so generate 'EOF' error
 		jsr	LA77F				; Check various checksums
 		ldx	ZP_ADFS_CF_CHANNEL_OFFS		; Get offset to channel
 		lda	WKSP_ADFS_3AC_CH_FLAGS,X	; Get channel flag
@@ -9013,7 +9863,15 @@ LADCE:		ldy	ZP_ADFS_C2_SAVE_Y				; Restore Y
 		clc					; Return 'EOF not met'
 		rts					; Return
 
-LADD4:		ldy	#$02
+.ifdef ELK_PRES_E00
+.segment "rom_library_5"
+LADD4_module:
+LADD4_local = LADD4_module
+.else
+LADD4:
+LADD4_local = LADD4
+.endif
+		ldy	#$02
 LADD6:		lda	WKSP_ADFS_314,Y
 		sta	WKSP_ADFS_230,Y
 		dey
@@ -9090,10 +9948,19 @@ LB17F:
 brkNotOpenUpdate:
 .else		
 
+.ifdef ELK_PRES_E00
+LAE68_module:
+.else
 LAE68:
+.endif
 		lda	#$00
 		sta	WKSP_ADFS_2B5
-LAE6D:		lda	WKSP_ADFS_22F
+.ifdef ELK_PRES_E00
+LAE6D_module:
+.else
+LAE6D:
+.endif
+		lda	WKSP_ADFS_22F
 		sta	WKSP_ADFS_2BF
 		ldx	#$02
 LAE75:		lda	WKSP_ADFS_22C_CSD,X
@@ -9152,7 +10019,7 @@ _lbbcAED7:
   .endif
 
 
-		jsr	LADD4
+		jsr	LADD4_local
 		lda	WKSP_ADFS_3A2,X
 		cmp	#$01
 		lda	WKSP_ADFS_398,X
@@ -9290,7 +10157,10 @@ LAF67:		jsr	L865B
 		ora	WKSP_ADFS_317_CURDRV
 		sta	WKSP_ADFS_3B6,X
 		jsr	L8F91
-  .ifdef USE65C12
+  .ifdef ELK_PRES_SPACESAVE
+		lda	#ADFS_FLAGS_WTF
+		jsr	clear_ADFS_ZPflag
+  .elseif .def(USE65C12)
 		lda	#ADFS_FLAGS_WTF
 		trb	ZP_ADFS_FLAGS
   .else
@@ -9374,7 +10244,10 @@ LB04F:		lda	WKSP_ADFS_234
 		bne	LB06A
 		jmp	LB0BD
 ;;
-LB06A:		jsr	WaitEnsuring
+LB06A:
+.ifndef NO_HD
+		jsr	WaitEnsuring
+.endif
 		inc	WKSP_ADFS_296
 		bne	LB07A
 		inc	WKSP_ADFS_297
@@ -9429,7 +10302,12 @@ LB0E2:		lda	WKSP_ADFS_2BC,X
 ;;
 ;; OSBPUT
 ;; ======
+.ifdef ELK_PRES_E00
+.segment "myOSBPUT"
+my_OSBPUT_module:
+.else
 my_OSBPUT:
+.endif
 		stx	ZP_ADFS_C3_SAVE_X				; Save X
 		pha					; Save output byte
 		jsr	CheckSetChannelY				; Check channel and get flags
@@ -9437,11 +10315,20 @@ my_OSBPUT:
 		sty	WKSP_ADFS_2CF
 		tay
 		bmi	LB112				; Channel is writable
+;;
+.ifdef ELK_PRES_E00
+		jmp	brkNotOpenUpdate
+.segment "rom_main_8A_presE00"
+.endif
+
 brkNotOpenUpdate:		jsr	ReloadFSMandDIR_ThenBRK
 		.byte	$C1				; ERR=193
 		.byte	"Not open for update"
 		.byte	$00
 ;;
+.ifdef ELK_PRES_E00
+.segment "myOSBPUT"
+.endif
 LB112:		lda	WKSP_ADFS_3AC_CH_FLAGS,X
 		and	#$07
 		cmp	#$06
@@ -9494,10 +10381,17 @@ LB17F:		rts
 
 .endif ; ndef HD_SCSI_VFS
 
+.ifdef ELK_PRES_E00
+.segment "rom_main_8A_presE00"
+.endif
 
 LB180:		ldx	ZP_ADFS_CF_CHANNEL_OFFS
 		inc	WKSP_ADFS_37A_CH_PTR_L,X
+.ifdef ELK_PRES_E00
+		bne	LA79F_presE00
+.else
 		bne	LB17F
+.endif
 		bit	WKSP_ADFS_2CF
 		bmi	LB18F
 		jsr	LA77F
@@ -9540,7 +10434,7 @@ LB1DE:		pla
 LB1E1:		bmi	LB1E5
 		and	#$F9
 LB1E5:		sta	WKSP_ADFS_3AC_CH_FLAGS,X
-		rts
+LA79F_presE00:	rts
 ;; copy PTR into EXT
 setEXTToPTRifAtEOF:
 		ldx	ZP_ADFS_CF_CHANNEL_OFFS				; Get channel offset
@@ -9558,18 +10452,33 @@ setEXTToPTRifAtEOF:
 		sta	WKSP_ADFS_334_CH_EXT_H,X
 skLB20B:	pla
 		and	#$C0
+.ifdef ELK_PRES_E00
+		jmp	LB1E5
+.else
 		bne	LB1E5
+.endif
 
 ; check fall through - is this a bra or is there a case where all files should close?
 
+.ifdef ELK_PRES_E00
+.segment "starCLOSE"
+starCLOSE_module:
+.else
 starCLOSE:
+.endif
 		lda	#$00				; A=0 for CLOSE
 		tay					; CLOSE#0 - close all open channels
 ;;
 ;;
 ;; OSFIND - Open a file or close a channel
 ;; =======================================
-my_OSFIND:		jsr	LA77F				; Check checksums
+.ifdef ELK_PRES_E00
+.segment "myOSFIND"
+my_OSFIND_module:
+.else
+my_OSFIND:
+.endif
+		jsr	LA77F				; Check checksums
 		stx	WKSP_ADFS_240
 		stx	$B4
 		stx	$C5				; Store X -> filename
@@ -9776,10 +10685,16 @@ LB39E:		lda	#$FF
 		sta	WKSP_ADFS_247
 		sta	WKSP_ADFS_248
 		sta	WKSP_ADFS_249
+.ifdef ELK_PRES_SPACESAVE
+		pha
+		jsr	L94F2_pres
+		pla
+.else
 		ldx	#<WKSP_ADFS_240
 		stx	$B8
 		ldy	#>WKSP_ADFS_240
 		sty	$B9
+.endif
 		jsr	L89D8
 		jsr	L8F57
 		jsr	L8F91
@@ -9816,7 +10731,9 @@ LB3E6:		lda	WKSP_ADFS_3AC_CH_FLAGS,X			; Get channel flag
 		bne	LB3F7				; Jump to close this channel
 LB3EB:		dex					; Loop for all channels
 		bpl	LB3E6
+.ifndef NO_HD
 		jsr	WaitEnsuring				; Wait until ensuring complete
+.endif
 		lda	#$00				; Clear A
 		ldx	$C5				; Restore X
 		tay					; Clear Y
@@ -9922,6 +10839,10 @@ LB497:		lda	WKSP_ADFS_352_CH_EXT_L,X
 
 .endif ;ndef HD_SCSI_VFS
 ;;
+.ifdef ELK_PRES_E00
+.segment "rom_main_8D_presE00"
+.endif
+
 LB4B9:		ldx	#$09
 LB4BB:		lda	WKSP_ADFS_3AC_CH_FLAGS,X
 		beq	LB4CA
@@ -9998,9 +10919,13 @@ LB546:		jsr	LB510				; Check elapsed time
 		jsr	LB560
 		eor	WKSP_ADFS_2C2
 		beq	LB545
+.ifdef ELK_PRES_SPACESAVE
+		jsr	LA6F8_pres
+.else
 		ldx	#<L8831				; Point to control block to load FSM
 		ldy	#>L8831
 		jsr	L82AE				; Load FSM
+.endif
 .ifdef USE65C12
 		bra	LB4E2
 .else
@@ -10055,9 +10980,13 @@ LB59C:		stx	WKSP_ADFS_317_CURDRV
 LB5B5:		pla
 		cmp	WKSP_ADFS_317_CURDRV
 		beq	LB5C2
+.ifdef ELK_PRES_SPACESAVE
+		jsr	LA6F8_pres
+.else
 		ldx	#<L8831				; Point to control block to load FSM
 		ldy	#>L8831
 		jsr	L82AE
+.endif
 LB5C2:
 .ifdef USE65C12
 		ply
@@ -10077,7 +11006,334 @@ LB5C5:		lsr	A
 		tax
 		rts
 ;;
-my_OSGBPB:		jsr	LA77F
+.ifdef ELK_PRES_E00
+; routine to unlock the ABR, AP5, ATI, AP6, AP7 RAM slots
+; then save A,X,Y,flags and return
+LA8DF_presE00:
+.ifndef ELK_PRES_E00_331
+unlockABRetc:
+		php
+.else
+unlockABRetc_direct:
+.endif
+		sta     $FCDC			; ABR/AP5/ATI unlock register - slots 0/2
+		sta     $FCDE			; ABR/AP5/ATI unlock register - slots 1/3
+		sta     $FCDA			; AP6/AP7 unlock register - slots 13/15
+		sta     $FCD8			; AP6/AP7 unlock register - slots 5/6
+.ifdef ELK_PRES_E00_331
+		rts
+
+unlockABRetc:	php
+		jsr	LA8DF_presE00
+.endif
+		sta     WKSP_ADFS_2D9		; save A
+		stx     WKSP_ADFS_2D9+1		; save X
+		sty     WKSP_ADFS_2D9+2		; save Y
+		pla
+		sta     WKSP_ADFS_2D9+3		; save flags
+		rts
+
+; Routine to call the library ROM to page in a module into our space
+; Call with A=module ID we want
+loadmodule:
+LA8FA_presE00:
+		cmp	WKSP_ADFS_CUR_E00_MODULE ; check vs current module
+		beq	LA913			; restore A/X/Y/flags and return
+		ora	#$80			; set high bit (in progress)
+		sta	WKSP_ADFS_CUR_E00_MODULE ; save
+		and	#$7F			; low 7 bits for ROM ID
+		tax				; X=module ID
+		ldy     ZP_MOS_CURROM
+		lda	#OSBYTE_5A_ROMSTAT	; OSBYTE &5A: Find/set ROM status
+		jsr	OSBYTE
+		lda	WKSP_ADFS_CUR_E00_MODULE ; check the flag
+		bmi	LA922			; high bit still set? -> failed
+LA913:		lda     WKSP_ADFS_2D9+3		; restore flags
+		pha
+		ldy	WKSP_ADFS_2D9+2		; restore Y
+		ldx	WKSP_ADFS_2D9+1		; restore X
+		lda	WKSP_ADFS_2D9		; restore A
+		plp
+		rts
+
+LA922:		ldx	#$00			; Clear channel
+		stx	WKSP_ADFS_2D5_CUR_CHANNEL
+		dex				; X=&FF
+		stx	WKSP_ADFS_CUR_E00_MODULE
+		jsr	GenerateErrorNoSuff
+		.byte	$FF, "E00 ADFS Module load failed", $00
+
+;; Cross-module linkage
+starCOMPACT:
+		jsr	loadMod0
+		jmp	starCOMPACT_module
+
+starCOPY:
+		jsr	loadMod1
+		jmp	starCOPY_module
+
+starRENAME:
+		jsr	loadMod2
+		jmp	starRENAME_module
+
+starTITLE:
+		jsr	loadMod3
+		jmp	starTITLE_module
+
+starACCESS:
+		jsr	loadMod4
+		jmp	starACCESS_module
+
+starCDIR:
+		jsr	loadMod5
+		jmp	starCDIR_module
+
+LB9CA:
+		jsr	loadMod5
+		jsr	LB9CA_module
+		jmp	loadMod19
+
+my_OSFIND:
+		jsr	loadMod6
+		jmp	my_OSFIND_module
+
+starCLOSE:
+		jsr	loadMod6
+		jmp	starCLOSE_module
+
+;; this version is used in starDISMOUNT.
+;; It restores module 15 (which contains starDISMOUNT) afterwards
+my_OSFIND_from_mod15:
+		jsr	loadMod6
+		jsr	my_OSFIND_module
+		jmp	loadMod15
+
+;; this version is used where starCLOSE is called from another
+;; module. It restores the original module back before returning.
+starCLOSE_from_module:
+		jsr	unlockABRetc
+		lda	WKSP_ADFS_CUR_E00_MODULE ; save current module
+		pha
+		lda	#$06			; load module 6
+		jsr	loadmodule
+		jsr	starCLOSE_module
+		jsr	unlockABRetc
+		pla				; restore original module
+		tax
+		jsr	loadmodule
+		rts
+
+my_OSBPUT:
+		jsr	loadMod7
+		jmp	my_OSBPUT_module
+
+my_OSBGET:
+		jsr	loadMod8
+		jmp	my_OSBGET_module
+
+starDESTROY:
+		jsr	loadMod9
+		jmp	starDESTROY_module
+
+starFREE:
+		jsr	loadMod10
+		jmp	starFREE_module
+
+starMAP:
+		jsr	loadMod11
+		jmp	starMAP_module
+
+starBACK:
+		jsr	loadMod12
+		jmp	starBACK_module
+
+LAE6D:
+		jsr	loadMod12
+		jsr	LAE6D_module
+		jmp	loadMod19
+
+LADD4:
+		jsr	loadMod12
+		jsr	LADD4_module
+		jmp	loadMod6
+
+LAE68:
+		jsr	unlockABRetc
+		; preserve currently active module number
+		lda	WKSP_ADFS_CUR_E00_MODULE
+		pha
+		jsr	loadMod12
+		jsr	LAE68_module
+		jsr	unlockABRetc
+		pla
+		jmp	loadmodule
+
+starEX:
+		jsr	loadMod13
+		jmp	starEX_module
+
+starLEX:
+		jsr	loadMod13
+		jmp	starLEX_module
+
+starLCAT:
+		jsr	loadMod13
+		jmp	starLCAT_module
+
+starLIB:
+		jsr	loadMod13
+		jmp	starLIB_module
+
+LA49E:
+		jsr	loadMod13
+		jmp	LA49E_module
+
+LA4B1:
+		jsr	loadMod13
+		jmp	LA4B1_module
+
+starBYE:
+		jsr	loadMod14
+		jmp	starBYE_module
+
+starMOUNT:
+		jsr	loadMod15
+		jmp	starMOUNT_module
+
+LA1A1:
+		jsr	loadMod15
+		jmp	LA1A1_module
+
+LA189:
+		jsr	loadMod15
+		jmp	LA189_module
+
+starDISMOUNT:
+		jsr	loadMod15
+		jmp	starDISMOUNT_module
+
+L9127:
+		jsr	loadMod16
+		jmp	L9127_module
+
+starREMOVE:
+		jsr	loadMod16
+		jmp	starREMOVE_module
+
+L921B:
+		jsr	loadMod16
+		jsr	L921B_module
+		jmp	loadMod2
+
+L9131:
+		jsr	loadMod16
+		jsr	L9131_module
+		jmp	loadMod9
+
+Serv9:
+		jsr	loadMod17
+		jmp	Serv9_module
+
+LB8DA:
+		jsr	loadMod18
+		jmp	LB8DA_module
+
+my_OSGBPB:
+		jsr	loadMod19
+		jmp	my_OSGBPB_module
+
+;;
+loadMod11:
+		jsr	unlockABRetc
+		lda	#$0B
+		bne	LAAA5_presE00
+loadMod12:
+		jsr	unlockABRetc
+		lda	#$0C
+		bne	LAAA5_presE00
+loadMod13:
+		jsr	unlockABRetc
+		lda	#$0D
+		bne	LAAA5_presE00
+loadMod14:
+		jsr	unlockABRetc
+		lda	#$0E
+		bne	LAAA5_presE00
+loadMod15:
+		jsr	unlockABRetc
+		lda	#$0F
+		bne	LAAA5_presE00
+loadMod16:
+		jsr	unlockABRetc
+		lda	#$10
+		bne	LAAA5_presE00
+loadMod17:
+		jsr	unlockABRetc
+		lda	#$11
+		bne	LAAA5_presE00
+loadMod18:
+		jsr	unlockABRetc
+		lda	#$12
+		bne	LAAA5_presE00
+loadMod19:
+		jsr	unlockABRetc
+		lda	#$13
+		bne	LAAA5_presE00
+loadMod0:
+		jsr	unlockABRetc
+		lda	#$00
+LAAA5_presE00:	jmp	loadmodule
+
+;;
+loadMod1:
+		jsr	unlockABRetc
+		lda	#$01
+		bne	LAAA5_presE00		; branch always taken
+loadMod2:
+		jsr	unlockABRetc
+		lda	#$02
+		bne	LAAA5_presE00		; branch always taken
+loadMod3:
+		jsr	unlockABRetc
+		lda	#$03
+		bne	LAAA5_presE00		; branch always taken
+loadMod4:
+		jsr	unlockABRetc
+		lda	#$04
+		bne	LAAA5_presE00		; branch always taken
+loadMod5:
+		jsr	unlockABRetc
+		lda	#$05
+		bne	LAAA5_presE00		; branch always taken
+loadMod6:
+		jsr	unlockABRetc
+		lda	#$06
+		bne	LAAA5_presE00		; branch always taken
+loadMod7:
+		jsr	unlockABRetc
+		lda	#$07
+		bne	LAAA5_presE00		; branch always taken
+loadMod8:
+		jsr	unlockABRetc
+		lda	#$08
+		bne	LAAA5_presE00		; branch always taken
+loadMod9:
+		jsr	unlockABRetc
+		lda	#$09
+		bne	LAAA5_presE00		; branch always taken
+loadMod10:
+		jsr	unlockABRetc
+		lda	#$0A
+		bne	LAAA5_presE00		; branch always taken
+.endif
+;;
+.ifdef ELK_PRES_E00
+.segment "myOSGBPB"
+my_OSGBPB_module:
+.else
+my_OSGBPB:
+.endif
+		jsr	LA77F
 		sta	WKSP_ADFS_2B4
 		sta	WKSP_ADFS_2B5
 		sty	$C7
@@ -10416,6 +11672,16 @@ LB833:		ldx	ZP_ADFS_CF_CHANNEL_OFFS
 
 
 ;;
+.ifdef ELK_PRES_E00
+.segment "rom_library_8"
+
+LB75E_lib10:
+		lda	#$00
+		cmp	WKSP_ADFS_2B5
+		ldx	$C6
+		ldy	$C7
+		rts
+.endif
 LB86B:
 		bit	ZP_ADFS_FLAGS			; Get ADFS status byte
 		bpl	LB898				; Skip past if no Tube
@@ -10437,7 +11703,10 @@ LB86B:
 LB885:		php
 		sei
 		jsr	L8032
-.ifdef USE65C12
+.ifdef ELK_PRES_SPACESAVE
+		lda	#ADFS_FLAGS_TUBE_INUSE
+		jsr	set_ADFS_flags
+.elseif .def(USE65C12)
 		lda	#ADFS_FLAGS_TUBE_INUSE
 		tsb	ZP_ADFS_FLAGS
 .else
@@ -10504,7 +11773,13 @@ LB8D3:		jsr	LB8A5
 ;;
 ;; OSGBPB 5+ - read filing system information
 ;; ------------------------------------------
-LB8DA:		sbc	#$05
+.ifdef ELK_PRES_E00
+.segment "rom_library_7"
+LB8DA_module:
+.else
+LB8DA:
+.endif
+		sbc	#$05
 		tay
 		beq	LB8EB				; A=5 - Read disk title and boot option
 		dey
@@ -10546,7 +11821,11 @@ LB915:		lda	WKSP_ADFS_100_FSM_S1 + $FD	; Get boot option
 		rol	A
 		jsr	LB8A5				; Store drive numer
 LB925:		jsr	TubeRelease				; Release Tube
+.ifdef ELK_PRES_E00
+		jmp	LB75E_lib10
+.else
 		jmp	LB75E				; Restore X/Y, return A=0
+.endif
 ;;
 LB92B:		jsr	LB86B
 		lda	#$01
@@ -10637,7 +11916,424 @@ LB9BB:		ldy	#$05
 		sta	($C6),Y
 		jmp	LB925
 ;;
-LB9CA:		lda	WKSP_ADFS_2B6
+.ifdef ELK_PRES_E00
+.segment "rom_main_8E_presE00"
+.endif
+.ifdef ELK_PRES_AQR
+;; AQR helper routines
+presDiscErr97:	lda	#$61			; 97
+		jmp	L81E9_pres		; "Disc error " (number in A), invalidate directory and FSM
+;;
+.export LB7DB_pres
+LB7DB_pres:
+		stx	WKSP_ADFS_AQR_SAVEX
+		sta	WKSP_ADFS_AQR_SAVEA
+		lda	WKSP_ADFS_AQR_SECTOR + 2
+		bne	presDiscErr97
+		lda	WKSP_ADFS_AQR_SECTOR + 1
+		and	#$F8
+		bne	presDiscErr97
+		lda	WKSP_ADFS_AQR_SECTOR
+		and	#$3F			; low bits of sector #, plus $80
+		ora	#$80			; -> high byte of 16-bit address
+		sta	WKSP_ADFS_AQR_ADDR+1	; save high byte to get
+		lda	#$00
+		sta	WKSP_ADFS_AQR_ADDR	; low byte to get (xx00)
+		rol	WKSP_ADFS_AQR_SECTOR	; multiply by 4
+		rol	WKSP_ADFS_AQR_SECTOR + 1	; (64 sectors in one AQR page)
+		rol	WKSP_ADFS_AQR_SECTOR
+		rol	WKSP_ADFS_AQR_SECTOR + 1
+		lda	WKSP_ADFS_AQR_SECTOR + 1	; high 8 bits give AQR page#
+		cmp	#$10			; page >=16 -> in second AQR
+		bcs	LB814
+		ldx	WKSP_ADFS_AQR_ROM1
+		bpl	LB819
+; using a bank in the second AQR
+LB814:
+		ldx	WKSP_ADFS_AQR_ROM2
+		bmi	presDiscErr97		; (no second AQR?)
+
+;; Set up code in NMI space to read/write from an address in AQR
+LB819:
+		stx	WKSP_ADFS_AQR_ROMSEL
+		sta	WKSP_ADFS_AQR_PAGE
+		sta	$FCFC			; AQR page register
+		sta	$FCFD			; AQR unlock register
+;; copy code down into NMI workspace
+		ldx	#$5B			; should verify this isn't too long
+						; it needs to fit (romswitch_code_end - LB848)
+LB827:		lda	romswitch_code,X	; copy AQR access code down to
+		sta	NMI,X			; NMI workspace
+		dex
+		bpl	LB827
+		lda	WKSP_ADFS_AQR_ROMSEL	; Update ROM number in code
+		sta	LB85E+1			; $D17
+		ldx	#$01
+LB838:		lda	WKSP_ADFS_AQR_ADDR,X	; Copy 16 bit address into code
+		sta	LB894+1,x		; $D4D
+		dex
+		bpl	LB838
+		lda	WKSP_ADFS_AQR_SAVEA
+		ldx	WKSP_ADFS_AQR_SAVEX
+		rts
+
+;;; beginning of relocated code. use the NMI workspace for code to access the AQR
+
+.segment "romswitch_code"
+;romswitch_code:
+;.org $D00
+romswitch_code = __romswitch_code_LOAD__
+romswitch_code_run:
+LB848:		; first - routine to select a ROM
+		; electron requires paging out keyboard/BASIC first by selecting one of
+		; ROMs 12-15 in order to select a low ROM
+		stx	LB850+1			; $D09 (self-modifying code)
+.ifdef ELK_PRES_115
+		ldx	#$0C			; 12
+.else ; PRES 1.10/1.13
+		ldx	#$0F			; 15
+.endif
+		jsr	LB853			; $D0B
+LB850:		ldx	#$FF 			; will be modified
+		nop
+		; fall through
+LB853:		stx	ZP_MOS_CURROM
+		stx	ROMSEL
+		rts
+
+		; save current ROM in routine then switch to new one
+LB859:		ldx	ZP_MOS_CURROM
+		stx	LB863+1			; $D1C
+LB85E:		ldx	#$FF 			; will be modified
+		jmp	LB848
+
+		; revert to old saved ROM
+LB863:		ldx	#$FF 			; will be modified
+		jmp	LB848
+
+;; read or write a byte from/to AQR
+LB868:		jsr	LB859			; $D11
+						; switch ROMs
+		jsr	LB894			; $D4C
+						; read/write byte in A
+		jmp	LB863			; $D1B
+						; restore ROM and return
+
+;; copy a range from/to AQR
+LB871:		jsr	LB859			; $D11
+						; switch ROMs
+LB874:		ldy	#$FF			; setup the loop - number of bytes
+.ifdef ELK_PRES_115
+		; Prior to 1.15, the loop would count the correct number of bytes
+		; but save them starting at (ZPaddr)+1
+		dey				; Ensure the offset we save at is correct
+.endif
+LB877:		jsr	LB894			; $D4C
+						; read a byte
+LB87A:		sta	($00),Y			; save it (self-modified ZP ptr)
+		dey				; next one
+.ifdef ELK_PRES_115
+		cpy	#$FF			; Because final byte was saved at zero
+.endif
+		bne	LB877			; loop
+		jmp	LB863			; $D1B
+						; revert to old saved ROM and return
+
+;; copy a page to the AQR
+LB884:		jsr	LB859			; $D11
+						; switch ROMs
+		ldy	#$00			; setup the loop
+LB889:		lda	($00),Y			; get next byte to write (self-modified ZP ptr)
+		jsr	LB894			; $D4C
+						; write a byte
+		dey				; next one
+		bne	LB889			; end?
+		jmp	LB863			; $D1B
+						; revert to old saved ROM and return
+
+		; stub used to read or write a byte from an AQR page
+		; (opcode is overwritten as needed)
+LB894:		lda	$FFFF
+		rts
+
+;.reloc
+romswitch_code_end:
+.segment "rom_main_8A"
+
+;; Read/write byte from AQR. X=opcode (LDA/STA)
+LB898_pres:	stx	LB894			; $D4C
+		jmp	LB868			; $D20
+
+;; Check AQR page is OK
+LB89E:
+		ldx	WKSP_ADFS_AQR_PAGE
+		cpx	WKSP_ADFS_AQR_NUMPAGES
+		bcc	LB8AB			; AQR_PAGE < Number of pages -> OK
+		pla
+		pla
+		jmp	presDiscErr97
+LB8AB:		rts
+
+;; Save next byte in AQR
+;.export LB8AC_pres
+.export AQR_savebyte
+AQR_savebyte:
+;LB8AC_pres:
+		sty	WKSP_ADFS_AQR_SAVEY
+		stx	WKSP_ADFS_AQR_SAVEX
+		sta	WKSP_ADFS_AQR_SAVEA
+		jsr	LB89E			; check AQR page number is valid
+		ldx	#$8D			; Opcode is 8D - STA
+		bne	LB8C7			; Branch always taken
+
+;; Read next byte from AQR
+;.export LB8BC_pres
+.export AQR_loadbyte
+AQR_loadbyte:
+;LB8BC_pres:
+SCSI_WaitForReq:
+		sty	WKSP_ADFS_AQR_SAVEY
+		stx	WKSP_ADFS_AQR_SAVEX
+		jsr	LB89E			; check AQR page number is valid
+		ldx	#$AD			; Opcode is AD - LDA
+; do the read/write from/to AQR
+LB8C7:		jsr	LB898_pres
+		sta	WKSP_ADFS_AQR_SAVEA
+		ldx	#$01			; increase address by 1
+		ldy	#$00
+; Increment address by Y:X
+LB8D1:		clc
+		txa
+		adc	LB894+1			; $D4D
+		sta	LB894+1
+		tya
+		adc	LB894+2			; $D4E
+						; high 8 bits of address
+		sta	LB894+2
+		cmp	#$C0			; beyond end of paged ROM space?
+		bcc	LB906			; No -> return
+		lda	#$80			; Yes -> move back to $8000 and next AQR page
+		sta	LB894+2			; $D4E
+		lda	WKSP_ADFS_AQR_PAGE
+		adc	#$00			; Carry set by CMP above so really +1
+		sta	WKSP_ADFS_AQR_PAGE
+		sta	$FCFC			; AQR page register
+		cmp	#$10			; In second AQR?
+		bcc	LB8FD
+		lda	WKSP_ADFS_AQR_ROM2	; Setup for AQR#2 ROM slot
+		bpl	LB900
+LB8FD:		lda	WKSP_ADFS_AQR_ROM1	; Otherwise set for AQR#1 ROM slot
+LB900:		sta	WKSP_ADFS_AQR_ROMSEL
+		sta	LB85E+1			; $D17
+LB906:		lda	WKSP_ADFS_AQR_SAVEA
+LB909:		ldx	WKSP_ADFS_AQR_SAVEX
+LB90C:		ldy	WKSP_ADFS_AQR_SAVEY
+		rts
+
+;; Copy a number of bytes from AQR to buffer
+; Copy a whole page
+.export LB910_pres
+LB910_pres:	ldx	#$00
+; Copy number in X
+LB912_pres:	stx	LB874+1			; $D2D
+						; Number of bytes to copy (256)
+		sta	LB87A+1			; $D33
+						; ZP address pointing to target buffer
+		sty	WKSP_ADFS_AQR_SAVEY
+.ifdef ELK_PRES_E00
+		jsr	LAC7A_presE00		; Get high 8 bits of pointer
+		bmi	LAC83_presE00		; >=&80, ie in sideways RAM? -> need to
+						; use an intermediate buffer
+.endif
+		jsr	LB89E			; Check AQR page is OK
+LAC38_presE00:	ldx	#$B9			; opcode for lda from 16-bit mem address
+		stx	LB894			; $D4C
+		jsr	LB871			; $D29
+						; Read range from AQR
+		ldy	#$00
+		ldx	LB874+1			; $D2D
+						; Number of bytes we just read
+		bne	LB92E			; Did we just do a whole page?
+		iny				; If so, Y:X=&100, otherwise Y=0
+LB92E:		jsr	LB8D1			; Increment target address by Y:X
+LAC4B_presE00:	lda	LB87A+1			; $D33
+						; ZP addr of pointer to buffer
+		ldx	LB874+1			; $D2D
+						; Number of bytes we just read
+		jmp	LB90C			; Restore orig Y and return
+
+;; Copy a number of bytes to AQR from buffer
+.export LB93A_pres
+LB93A_pres:	sta	LB889+1			; $D42
+						; ZP addr of pointer to buffer
+		stx	WKSP_ADFS_AQR_SAVEX
+		sty	WKSP_ADFS_AQR_SAVEY
+.ifdef ELK_PRES_E00
+		jsr	LAC7A_presE00		; Restore orig X,Y
+		bmi	LACCD_presE00		; Y>=&80? -> buffer is in sideways RAM
+.endif
+		jsr	LB89E
+
+LAC65_presE00:	; Set up for saving data into AQR from buffer
+		ldx	#$99			; opcode for sta to 16-bit mem address
+		stx	LB894			; $D4C
+		jsr	LB884			; $D3C
+						; Do the copy
+		ldy	#$01
+		ldx	#$00
+		jsr	LB8D1			; Increment address by Y:X ie &100
+LAC74_presE00:
+		lda	LB889+1			; $D42
+						; ZP addr of ptr to buffer
+		jmp	LB909
+.endif ; ELK_PRES_AQR
+
+.ifdef ELK_PRES_SPACESAVE
+;; PRES helper routines for saving code space
+
+; clear the FSM inconsistent flag
+clear_ADFS_inconsistent:
+		lda	#ADFS_FLAGS_FSM_INCONSISTENT
+; clear the flags which are set in A
+clear_ADFS_ZPflag:
+		eor	#$FF
+		and	ZP_ADFS_FLAGS
+		sta	$CD
+		rts
+
+; set the WTF flag
+set_ADFS_WTFflag:
+		lda	#ADFS_FLAGS_WTF
+; set the flags which are set in A
+set_ADFS_flags:
+		ora	ZP_ADFS_FLAGS
+		sta	ZP_ADFS_FLAGS
+		rts
+
+; is the HD_present flag set?
+pres_isHD_present:
+		lda	ZP_ADFS_FLAGS
+		and	#ADFS_FLAGS_HD_PRESENT
+		rts
+
+; copy current context to backup context
+copy_context:
+		ldy	#$03
+		bne	LB976_pres
+		; fall through
+; copy 2 bytes from wksp_adfs_314 to wksp_adfs_20c
+copy_context_2:
+		ldy	#$02
+; copy Y bytes from wksp_adfs_314 to wksp_adfs_20c
+LB976_pres:	lda	WKSP_ADFS_314,y
+		sta	WKSP_ADFS_22C_CSD,y
+		dey
+		bpl	LB976_pres
+		rts
+
+.endif ; ELK_PRES_SPACESAVE
+;;
+
+.ifdef ELK_PRES_E00
+;;; Helper routines for using E00 ADFS library ROM routines
+
+;; Get high 8 bits of ZP ptr to buffer
+; A = ZP address of ptr to buffer
+LAC7A_presE00:	sta	LAC80_presE00+1		; Address of 16-bit ptr in zero page
+		inc	LAC80_presE00+1		; We want the high 8 bits of the ptr
+LAC80_presE00:	lda	$00			; Read it
+		rts
+
+;; Read from AQR into a buffer in sideways RAM
+; Uses an intermediate buffer at $C00
+LAC83_presE00:	jsr	LB89E			; Check AQR page is OK
+		jsr	LAD0F_presE00		; Save original contents of &C00-&CFF
+		ldx	LB87A+1			; $D32 (in 1.20/1.26)
+						; ZP addr of ptr to buffer
+		stx	LAC9C_presE00+1		; Setup for using low 8 bits of ptr
+		stx	LACC8_presE00+1
+		stx	LACB9_presE00+1
+		inx
+		stx	LACA1_presE00+1		; Setup for using high 8 bits of ptr
+		stx	LACCA_presE00+1
+LAC9C_presE00:	lda	$00			; Low 8 bits of ptr
+		sta	LACC4_presE00+1		; Set up for restoring buffer pointer
+LACA1_presE00:	lda	$00			; High 8 bits of ptr
+		sta	LACC6_presE00+1		; Set up for restoring buffer pointer
+		ldx	#$00			; Use &C00 as intermediate buffer
+		ldy	#$0C
+		jsr	LACC8_presE00		; Save X:Y into buffer ptr
+		jsr	LAC38_presE00		; Do the read into the &C00 buffer
+		jsr	LACC4_presE00		; Restore the original buffer ptr
+		ldy	LB874+1			; $D2D in 1.20/1.26
+						; Number of bytes read (or 0 for 256)
+
+LACB6_presE00:	lda	$C00,y			; Copy data up from &C00 to the actual buffer
+LACB9_presE00:	sta	($00),y			; ($00 is updated by code)
+		dey
+		bne	LACB6_presE00
+
+		jsr	LAD0F_presE00		; Restore original contents of &C00-&CFF
+		jmp	LAC4B_presE00		; Restore registers and return
+
+LACC4_presE00:	ldx	#$00			; Restore ptr to buffer
+LACC6_presE00:	ldy	#$00			; (#$00 is updated by code)
+LACC8_presE00:	stx	$00			; Save X:Y into ZP address of ptr to buffer
+LACCA_presE00:	sty	$00			; ($00 is updated by code)
+		rts
+
+;; Copy a number of bytes from buffer in sideways RAM into AQR
+; Uses an intermediate buffer at &C00
+LACCD_presE00:	jsr	LB89E			; Check AQR page is OK
+		ldx	LB889+1			; $D3F in 1.20/1.26
+						; ZP addr of ptr to buffer (low 8 bits)
+		stx	LACE8_presE00+1		; Update code
+		stx	LACF0_presE00+1
+		stx	LACC8_presE00+1
+		inx				; ZP addr of ptr to buffer (high 8bits)
+		stx	LACF5_presE00+1
+		stx	LACCA_presE00+1
+		jsr	LAD0F_presE00		; Save contents of &C00-&CFF
+
+		ldy	#$00			; Copy page from buffer in sideways RAM
+LACE8_presE00:	lda	($00),Y			; Down into &C00
+		sta	$C00,y
+		dey
+		bne	LACE8_presE00
+
+LACF0_presE00:	lda	$00			; Low 8 bits of buffer addr
+		sta	LACC4_presE00+1		; Set up to restore buffer addr
+LACF5_presE00:	lda	$00			; High 8 bits of buffer addr
+		sta	LACC6_presE00+1		; Set up to restore buffer addr
+		ldx	#$00			; Set buffer to &C00
+		ldy	#$0C
+		jsr	LACC8_presE00		; Save X:Y into ptr to buffer
+		sta	$00			; ??? what is this for? A contains high 8 bits of buffer address
+		jsr	LAC65_presE00		; Do the copy
+		jsr	LACC4_presE00		; Restore orig ptr to buffer
+		jsr	LAD0F_presE00		; Restore contents of &C00-&CFF
+		jmp	LAC74_presE00		; Restore regs and return
+
+;; Save/restore contents of &C00 using Library ROM routine
+LAD0F_presE00:	lda	#OSBYTE_5A_ROMSTAT	; PRES E00 ADFS special call
+		ldx	#$FE			; X=254
+		jmp	OSBYTE			; Saves/restores contents of &C00-&CFF
+.ifdef ELK_PRES_E00_331
+		bcs	LAD47			; For 3.31 ROM A we do include garbage
+						; bytes as there are very few
+LAD47:
+.endif
+
+.endif ; ELK_PRES_E00
+;;
+.ifdef ELK_PRES_E00
+.segment "rom_library_3"
+LB9CA_module:
+.else
+LB9CA:
+.endif
+
+		lda	WKSP_ADFS_2B6
 		cmp	WKSP_ADFS_2B7
 		bne	LB9D3
 		rts
@@ -10666,7 +12362,10 @@ LB9D3:
 .endif
 		beq	LBA03
 LB9ED:
-.ifdef USE65C12
+.ifdef ELK_PRES_SPACESAVE
+		lda	#ADFS_FLAGS_TUBE_INUSE
+		jsr	set_ADFS_flags
+.elseif .def(USE65C12)
 		lda	#ADFS_FLAGS_TUBE_INUSE
 		tsb	ZP_ADFS_FLAGS			; Set bit 6 of status byte
 .else
@@ -10739,6 +12438,14 @@ LBA40:		iny
 		.byte	$2E
 		.byte	$0D
 		.res	$6D, $0
+.elseif .def(ELK_PRES_E00)
+;; garbage not included here
+.elseif .def(ELK_PRES_115)
+		.byte	$2B, $26, $30
+.elseif .def(ELK_PRES_113)
+		.byte	$50, $54, $52, $2B, $26, $30
+.elseif .def(ELK_PRES_110)
+		.byte	$54, $52, $2B, $26, $30
 .elseif .def(ELK_100_FLOPPY) && (!.def(SCSI_ELK_HOG))
 		brk
 .elseif (TARGETOS <= 1) 
@@ -10789,6 +12496,11 @@ LBA57:		lda	#$FF
 		.byte	$A9				; 'A'corn revision 9
 		;TODOXDFS: this is actually at BFFC on BeebMasters' ROM?
 	.endif
+.elseif .def(ELK_PRES_E00)
+.elseif .def(ELK_PRES_113) ; PRES 1.13 and 1.15
+		.byte	$B0
+.elseif .def(ELK_PRES_110) ; PRES 1.10
+		.byte	$65, $72
 .elseif (TARGETOS = 1 || (!.def(HD_SCSI))) && (!.def(X_IDE_HOG))
 		.byte	"and Hugo."
 	.if .def(HD_IDE) && TARGETOS >= 1 && (!.def(IDE_DC))

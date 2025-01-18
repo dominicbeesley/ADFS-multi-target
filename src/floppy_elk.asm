@@ -69,8 +69,19 @@ nmi_rd_ptr:	lda     (ZP_ELK_CE_NMIPTR),y
 		tax
 		jmp     sendXtoFDCandLOOP
 
+
 ; ----------------------------------------------------------------------------
-elkLBA7A:	lda     FDC_CMD                           ; BA7A AD C4 FC                 ...
+elkLBA7A:
+.if .def(ELK_PRES_SPACESAVE_2) || .def(ELK_PRES_E00_126)
+LBA7A_pres:	cli
+		ldy	#$40
+LBA7D_pres:	dey
+		bne	LBA7D_pres
+		sei
+		bit	$FF
+		bmi	LBAAD_pres
+.endif ; ELK_PRES_SPACESAVE_2
+		lda     FDC_CMD                           ; BA7A AD C4 FC                 ...
 		ror	A                               ; BA7D 6A                       j
 		bcs     elkLBA7A                           ; BA7E B0 FA                    ..
 		rol     a                               ; BA80 2A                       *
@@ -93,6 +104,7 @@ elkLBA97:	lda     $0D5D                           ; BA97 AD 5D 0D               
 		beq     elkLBAAE                           ; BA9C F0 10                    ..
 		bit     $FF                             ; BA9E 24 FF                    $.
 		bpl     elkLBAAE                          ; BAA0 10 0C                    ..
+LBAAD_pres:
 		lda     #$00                            ; BAA2 A9 00                    ..
 		sta     DRVSEL                           ; BAA4 8D C0 FC                 ...
 		lda     #$6F                            ; BAA7 A9 6F                    .o
@@ -102,8 +114,12 @@ elkLBA97:	lda     $0D5D                           ; BA97 AD 5D 0D               
 ; ----------------------------------------------------------------------------
 elkLBAAE:	bit     $A2                             ; BAAE 24 A2                    $.
 		bvc     elkLBA8F                           ; BAB0 50 DD                    P.
+.ifdef ELK_PRES_SPACESAVE_2
+		jmp	LBE77
+.else
 		jsr     LBE77                          ; BAB2 20 7F BE                  ..
 		rts                                     ; BAB5 60                       `
+.endif
 
 ; ----------------------------------------------------------------------------
 FloppyWaitNMIFinish2elk:
@@ -138,19 +154,31 @@ elkLBABC:  	jsr     elkLBA26                           ; BABC 20 26 BA          
 		bmi     @tube_wr                           ; BAE4 30 07                    0.
 		ldx     #<nmi_rd_tube                         ; BAE6 A2 61                    .a
 		ldy     #>nmi_rd_tube                         ; BAE8 A0 BA                    ..
+.ifdef ELK_PRES_SPACESAVE
+		bne	elkLBB03
+.else
 		jmp     elkLBB03                           ; BAEA 4C 03 BB                 L..
+.endif
 
 ; ----------------------------------------------------------------------------
 @tube_wr:	ldx     #<nmi_wr_tube                         ; BAED A2 68                    .h
 		ldy     #>nmi_wr_tube                         ; BAEF A0 BA                    ..
+.ifdef ELK_PRES_SPACESAVE
+		bne	elkLBB03
+.else
 		jmp     elkLBB03                           ; BAF1 4C 03 BB                 L..
+.endif
 
 ; ----------------------------------------------------------------------------
 @nottube:  	bit     $A1                             ; BAF4 24 A1                    $.
 		bmi   	@memwr                           ; BAF6 30 07                    0.
 		ldx     #<nmi_rd_ptr                            ; BAF8 A2 74                    .t
 		ldy     #>nmi_rd_ptr                            ; BAFA A0 BA                    ..
+.ifdef ELK_PRES_SPACESAVE
+		bne	elkLBB03
+.else
 		jmp     elkLBB03                           ; BAFC 4C 03 BB                 L..
+.endif
 
 ; ----------------------------------------------------------------------------
 @memwr:		ldx     #<nmi_wr_ptr                         ; BAFF A2 6E                    .n
@@ -183,13 +211,21 @@ FloppyElkBeforeNMI:
 		lda     ZP_ELK_CE_NMIPTR+1                              
 		sta     NMI_ELK_SAVE_CF			; save $CF
 		ldx     #$01                            
+.ifdef ELK_PRES_SPACESAVE_2
+		jsr	LBB6C_pres			; Blank the screen
+.else
 		lda     #OSBYTE_73_BLANK_PAL
 		jsr     OSBYTE				; Blank the screen
+.endif
+.ifdef ELK_PRES_SPACESAVE_2
+		lda	OSVARS_ELK_ULA_CTL_COPY		; Get saved copy of ULA control FE07
+.else
 		ldx     #$00                            
 		ldy     #$FF                            
 		lda     #OSBYTE_F2_ELK_ULA_CTL_COPY
 		jsr     OSBYTE				; Read saved copy of ULA control FE07 into X
 		txa                                     
+.endif
 		sta     NMI_ELK_MODE_SAVE		; save the old control value
 		and     #$F9				; shut off SOUND/Cassette
 		tax                                     
@@ -206,8 +242,12 @@ FloppyElkAfterNMI:
 		lda     NMI_ELK_MODE_SAVE
 		sta     ULA_CTL				; restore ULA screen mode
 		ldx     #$00
+.ifdef ELK_PRES_SPACESAVE_2
+		jsr	LBB6C_pres
+.else
 		lda     #OSBYTE_73_BLANK_PAL
 		jsr     OSBYTE				; un-blank palette
+.endif
 		lda     NMI_ELK_SAVE_CE
 		sta     ZP_ELK_CE_NMIPTR	
 		lda     NMI_ELK_SAVE_CF
@@ -217,3 +257,8 @@ FloppyElkAfterNMI:
 		plp					; restore interrupts
 		rts
 
+.ifdef ELK_PRES_SPACESAVE_2
+LBB6C_pres:
+		lda     #OSBYTE_73_BLANK_PAL
+		jmp     OSBYTE				; Blank the screen
+.endif

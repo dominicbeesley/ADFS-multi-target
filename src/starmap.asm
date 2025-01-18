@@ -3,7 +3,6 @@
 		.include "workspace.inc"
 		.include "hardware.inc"
 
-		.export starMAP
 
 		.segment "starMAP"
 
@@ -11,11 +10,28 @@
 
 ; separated into own file as ELK/SCSI includes this in a different place
 
-starMAP:	jsr	L92A8
+.ifdef ELK_PRES_E00
+
+L9600_presE00:	rts
+
+.export starMAP_module
+starMAP_module:
+
+.else
+
+.export starMAP
+starMAP:
+
+.endif
+		jsr	L92A8
 		.byte	"Address :  Length", $8D
 		ldx	#$00
 LA0A9:		cpx	WKSP_ADFS_100_FSM_S1 + $FE
+.ifdef ELK_PRES_E00
+		beq	L9600_presE00
+.else
 		beq	LA091
+.endif
 		inx
 		inx
 		inx
